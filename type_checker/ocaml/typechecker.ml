@@ -9,7 +9,7 @@ type term =
 |   Int of int
 |	Bool of bool
 |	Var of string
-|	Let of string * termType * term * term
+|	Let of string * termType * term * term (* let x : t = exp1 in exp2 *)
 |	Sum of term * term
 |	Mult of term * term
 |	Eq of term * term
@@ -17,8 +17,8 @@ type term =
 |	GEq of term * term
 |	And of term * term
 |	Or of term * term
-|   Func of string * term * term
-|   FuncCall of string * term
+|   Func of string * termType * term (* fName param1Type expBody *)
+|   FuncCall of string * term (* fname expParam *)
 
 let termToString term =
 	match term with
@@ -62,7 +62,7 @@ let rec typeof env exp =
 	|	GEq(t1, t2)
 	|	And(t1, t2)
 	|	Or(t1, t2) -> typeofPairOp env exp t1 t2
-	|	Func(n, t1, b) -> typeof env b
+	|	Func(n, paramType, b) -> typeof env b
 	|	FuncCall(n, t1) -> envLookup env n (*let funcTypes = envLookup env f in let funcArgType = typeof env t1 in
 			List.nth funcTypes 0 equals funcArgType then funcTypes[0]*)
 
