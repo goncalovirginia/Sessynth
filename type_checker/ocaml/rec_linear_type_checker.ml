@@ -67,6 +67,7 @@ and typeofLPair env op t1 t2 =
 			let t1t = typeof env t1 in 
 			let env' = envRemoveBind env n1 in
 			let t2t = typeof env' t2 in
+			let env' = envRemoveBind env n2 in
 			if (=) t1t t2t then t1t
 			else raise (TypeError("Type mismatch on " ^ (termToString op) ^ " operation, provided: " ^ (termTypeToString t1t) ^ " " ^ (termTypeToString t2t)))
 	|	_ -> raise (TypeError("Must pass LVar parameters on " ^ (termToString op) ^ " operation, provided: " ^ (termToString t1) ^ " " ^ (termToString t2)))
