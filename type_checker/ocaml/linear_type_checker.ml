@@ -91,8 +91,8 @@ and typeofFuncCall env t1 t2 =
 let exp = 
 	Let("x", Int(2), 
 	Let("y", Int(4),
-	Let("z", Int(6),
-		FuncCall(Func("x", TInt, LConj(LVar("x"), LVar("x"))), LVar("x"))
+	Let("z", LVar("y"),
+		FuncCall(Func("x", TInt, LConj(LVar("x"), LVar("z"))), LVar("x"))
 	)))
 ;;
 
@@ -112,10 +112,10 @@ let rec printEnv env =
 
 let env, expType = typeof env exp;;
 
-print_endline ("Expression Type: " ^ (termTypeToString expType));;
+print_endline ("Expression type: " ^ (termTypeToString expType));;
 if not (List.is_empty env) then begin
 	print_string "Unused resources: "; 
 	printEnv env;
 	print_endline ""
 end;;
-print_endline "Type Checking Complete";;
+print_endline "Type checking complete";;
