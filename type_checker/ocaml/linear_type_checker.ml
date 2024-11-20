@@ -128,7 +128,7 @@ and typeofFuncCall env f args =
 (* Running stuff *)
 
 (*
-Example:
+Concrete syntax of exp below:
 
 let x = 2 in
 let y = 4 in
