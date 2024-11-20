@@ -4,28 +4,28 @@ exception BindingError of string
 (* Type definitions *)
 
 type termType =
-|   TInt
+|	TInt
 |	TBool
 |	TTList of termType list
 
 type term =
-|   Int of int
+|	Int of int
 |	Bool of bool
 |	LVar of string
 |	Let of string * term * term (* let x = exp1 in exp2 *)
 |	LDisj of term * term
 |	LConj of term * term
 |	LAltConj of term * term
-|   Func of (string * termType) list * term (* fun [(paramName1, paramType1); ...; (paramNameN, paramTypeN)] -> expBody *)
-|   FuncCall of term * term list (* (expFunc) expArg *)
+|	Func of (string * termType) list * term (* fun [(paramName1, paramType1); ...; (paramNameN, paramTypeN)] -> expBody *)
+|	FuncCall of term * term list (* (expFunc) expArg *)
 
 (* Auxiliary *)
 
 let rec removeLast l = 
 	match l with 
-	| [] -> [] 
-	| [_] -> [] 
-	| hd::tl -> hd::(removeLast tl);;
+	|	[] -> [] 
+	|	[_] -> [] 
+	|	hd::tl -> hd::(removeLast tl);;
 
 let formatTypeofExpList l = 
 	let envs, expTypes = List.split l in
