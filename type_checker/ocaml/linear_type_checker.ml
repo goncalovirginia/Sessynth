@@ -133,7 +133,8 @@ Concrete syntax of exp below:
 let x = 2 in
 let y = 4 in
 let z = 6 in
-(fun x:int y:int -> x ^ y) x y
+let f = fun x:int y:int -> x ^ y in
+f x y
 
 Env should look like: 
 	After typeofFunc line 1: [f1.x:TInt, f1.y:TInt, z:TInt, y:TInt, x:TInt]
@@ -145,8 +146,9 @@ let exp =
 	Let("x", Int(2), 
 	Let("y", Int(4),
 	Let("z", Int(6),
-		FuncCall(Func([("f1.x", TInt); ("f1.y", TInt)], LConj(LVar("f1.x"), LVar("f1.y"))), [LVar("x"); LVar("y")])
-	)))
+	Let("f", Func([("x", TInt); ("y", TInt)], LConj(LVar("x"), LVar("y"))),
+	FuncCall(LVar("f"), [LVar("x"); LVar("y")])
+	))))
 ;;
 
 let env, expType = typeof env exp;;
