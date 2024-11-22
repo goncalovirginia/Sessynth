@@ -7,37 +7,30 @@ type termType =
 |	TInt
 |	TBool
 |	TTList of termType list
-
-| MPair of termType * termType 
-| APair of termType * termType 
-| LSum of termType * termType
-| LFun of termType list * termType 
+|	APair of termType * termType 
+|	MPair of termType * termType 
+|	LSum of termType * termType
+|	LFun of termType list * termType 
 
 type term =
 |	Int of int
 |	Bool of bool
 |	LVar of string
 |	Let of string * term * term (* let x = exp1 in exp2 *)
-
-(* A \oplus B *)
-|	Inl of term * termType (* M:A entao Inl_B M : A + B *)
-| Inr of term * termType (* M:B entao Inr_A M : A + B *)
-| Case of term * string * term * string * term (* case M of inl x -> E1 , inr x -> E2 *)
-
-(* A \otimes B *)
-|	LConj of term * term (* Par multiplicativo: (M1 * M2) : A * B *)
-| LLet of term * string * string * term (* let x*y = M in N  *)
-
+(* A ⊕ B *)
+|	LDisjInL of term * termType (* M:A then Inl_B M : A ⊕ B *)
+|	LDisjInR of term * termType (* M:B then Inr_A M : A ⊕ B *)
+|	LDisjCase of term * string * term * string * term (* case M of inl x -> E1, inr x -> E2 *)
+(* A ⊗ B *)
+|	LConj of term * term (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
+|	LLet of term * string * string * term (* let x * y = M in N *)
 (* A & B *)
-|	LAltConj of term * term (* Par aditivo: ( M1 & M2 ) *)
-| Fst of term (* fst (M1,M2) -> M1 *)
-| Snd of term (* snd (M1,M2) -> M2 *)
-
-(* (A1,...,An) -o B *)
+|	LAltConj of term * term (* Additive pair: (M1 * M2) : A & B *)
+|	LAltConjFst of term (* fst (M1,M2) -> M1 *)
+|	LAltConjSnd of term (* snd (M1,M2) -> M2 *)
+(* (A1, ..., An) ⊸ B *)
 |	Func of (string * termType) list * term (* fun [(paramName1, paramType1); ...; (paramNameN, paramTypeN)] -> expBody *)
 |	FuncCall of term * term list (* (expFunc) expArg *)
-
-
 
 (* Auxiliary *)
 
@@ -59,9 +52,14 @@ let termToString term =
 	|	Bool _ -> "Bool"
 	|	LVar _ -> "LVar"
 	|	Let _ -> "Let"
-	|	LDisj _ -> "LDisj"
+	|	LDisjInL _ -> "LDisjInL"
+	|	LDisjInR _ -> "LDisjInR"
+	|	LDisjCase _ -> "LDisjCase"
 	|	LConj _ -> "LConj"
+	|	LLet _ -> "LLet"
 	|	LAltConj _ -> "LAltConj"
+	|	LAltConjFst _ -> "LAltConjFst"
+	|	LAltConjSnd _ -> "LAltConjSnd"
 	|	Func _ -> "Func"
 	|	FuncCall _ -> "FuncCall"
 
@@ -70,6 +68,10 @@ let rec termTypeToString termType =
 	|	TInt -> "TInt"
 	|	TBool -> "TBool"
 	|	TTList(termTypeList) -> "TTList(" ^ (termTypeListToString termTypeList) ^ ")"
+	|	APair(t1, t2) -> "APair(" ^ (termTypeToString t1) ^ ", " ^ (termTypeToString t2) ^ ")"
+	|	MPair(t1, t2) -> "MPair(" ^ (termTypeToString t1) ^ ", " ^ (termTypeToString t2) ^ ")"
+	|	LSum(t1, t2) -> "LSum(" ^ (termTypeToString t1) ^ ", " ^ (termTypeToString t2) ^ ")"
+	|	LFun(t1, t2) -> "LFun(" ^ (termTypeListToString t1) ^ (termTypeToString t2) ^ ")"	
 
 and termTypeListToString termTypeList =
 	match termTypeList with
@@ -101,37 +103,14 @@ let rec typeof env exp =
 	|	Bool(b) -> env, TBool
 	|	LVar(n) -> envLookup env n
 	|	Let(n, e1, e2) -> typeofLet env n e1 e2
-	| Inl(e,t) -> begin 
-									let env , t1 = typeof env e in 
-									env , LSum(t1,t) 
-								end
-  | Inr(e,t) -> begin 
-									let env , t2 = typeof env e in 
-										env , LSum(t,t2) 
-								end
-	| Case(e,x,el,y,er) -> begin 
-				let env , LSum(t1,t2) = typeof env e in 
-				(* tipificar el em que x:t1, tipificar er em que y:t2 e 
-				    tipo de el e er iguais*)
-						end
-  | LConj(e1,e2) -> 
-		  let env' , t1 = typeof env e1 in 
-			let env'' , t2 = typeof env' e2 in
-       env'', MPair(t1,t2)
-	| LLet(e1,x,y,e2) -> 
-		  (* *)
-			begin 
-			let env , MPair(t1,t2) = typeof env e1 in
-					(* tipificar e2 num ambiente em que x:t1,y:t2 *)
-      end
-
-	|	LAltConj(e1, e2) -> 
-		begin
-			let env1 , t1 = typeof env e1 in 
-			let env2 , t2 = typeof env e2 in 
-			(* Verificar algo sobre env1 e env2 *)
-			env2,APair(t1,t2)
-		end 
+	|	LDisjInL(e, t) -> let env, t1 = typeof env e in env, LSum(t1, t)
+	|	LDisjInR(e, t) -> let env, t2 = typeof env e in env, LSum(t, t2) 
+	|	LDisjCase(e, x, el, y, er) -> typeofLDisjCase env e x el y er
+	|	LConj(e1, e2) -> typeofLConj env e1 e2
+	|	LLet(e1, x, y, e2) -> typeofLLet env e1 x y e2
+	|	LAltConj(e1, e2) -> typeofLAltConj env e1 e2
+	|	LAltConjFst(e) -> env, TInt
+	|	LAltConjSnd(e) -> env, TInt
 	|	Func(pNameTypeTupleList, b) -> typeofFunc env pNameTypeTupleList b
 	|	FuncCall(t1, t2) -> typeofFuncCall env t1 t2
 
@@ -146,6 +125,31 @@ and typeofLet env n e1 e2 =
 	let env', t1Type = typeof env e1 in
 	let env'' = envBind env' [(n, t1Type)] in
 	typeof env'' e2
+
+and typeofLDisjCase env e x el y er =
+	let env, eType = typeof env e in 
+		match eType with
+		|	LSum(t1, t2) -> env, TInt
+		|	_ -> raise (TypeError(""))
+		(* tipificar el em que x:t1, tipificar er em que y:t2 e tipo de el e er iguais *)
+
+and typeofLConj env e1 e2 =
+	let env' , t1 = typeof env e1 in 
+	let env'' , t2 = typeof env' e2 in
+    env'', MPair(t1,t2)
+
+and typeofLLet env e1 x y e2 =
+	let env' , e1Type = typeof env e1 in
+	match e1Type with
+	|	MPair(t1,t2) -> env', TInt
+	|	_ -> raise (TypeError(""))
+	(* tipificar e2 num ambiente em que x:t1,y:t2 *)
+
+and typeofLAltConj env e1 e2 =
+	let env1, t1 = typeof env e1 in 
+	let env2, t2 = typeof env e2 in 
+	(* Verificar algo sobre env1 e env2 *)
+	env2, APair(t1,t2)
 
 and typeofLPair env op t1 t2 =
 	match t1, t2 with
