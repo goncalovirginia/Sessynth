@@ -3,34 +3,35 @@ exception BindingError of string
 
 (* Type definitions *)
 
-type termType =
+type expType =
 |	TInt
 |	TBool
-|	TTList of termType list
-|	APair of termType * termType 
-|	MPair of termType * termType 
-|	LSum of termType * termType
-|	LFun of termType list * termType 
+|	TTList of expType list
+|	TLDisjPair of expType * expType
+|	TLConjPair of expType * expType
+|	TLAltConjPair of expType * expType
+|	TLFunc of expType list * expType
 
-type term =
+type exp =
 |	Int of int
 |	Bool of bool
+|	List of exp list
 |	LVar of string
-|	Let of string * term * term (* let x = exp1 in exp2 *)
+|	Let of string * exp * exp (* let x = exp1 in exp2 *)
 (* A ⊕ B *)
-|	LDisjInL of term * termType (* M:A then Inl_B M : A ⊕ B *)
-|	LDisjInR of term * termType (* M:B then Inr_A M : A ⊕ B *)
-|	LDisjCase of term * string * term * string * term (* case M of inl x -> E1, inr x -> E2 *)
+|	LDisjInL of exp * expType (* M:A then Inl_B M : A ⊕ B *)
+|	LDisjInR of exp * expType (* M:B then Inr_A M : A ⊕ B *)
+|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> E1, inr x -> E2 *)
 (* A ⊗ B *)
-|	LConj of term * term (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
-|	LLet of term * string * string * term (* let x * y = M in N *)
+|	LConj of exp * exp (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
+|	Let2 of exp * string * string * exp (* let x * y = M in N *)
 (* A & B *)
-|	LAltConj of term * term (* Additive pair: (M1 * M2) : A & B *)
-|	LAltConjFst of term (* fst (M1,M2) -> M1 *)
-|	LAltConjSnd of term (* snd (M1,M2) -> M2 *)
+|	LAltConj of exp * exp (* Additive pair: (M1 * M2) : A & B *)
+|	LAltConjFst of exp (* fst (M1,M2) -> M1 *)
+|	LAltConjSnd of exp (* snd (M1,M2) -> M2 *)
 (* (A1, ..., An) ⊸ B *)
-|	Func of (string * termType) list * term (* fun [(paramName1, paramType1); ...; (paramNameN, paramTypeN)] -> expBody *)
-|	FuncCall of term * term list (* (expFunc) expArg *)
+|	Func of (string * expType) list * exp (* fun [(pName1, pType1); ...; (pNameN, pTypeN)] -> expBody *)
+|	FuncCall of exp * exp list (* (expFunc) expArg *)
 
 (* Auxiliary *)
 
@@ -42,50 +43,51 @@ let rec removeLast l =
 
 let formatTypeofExpList l = 
 	let envs, expTypes = List.split l in
-	List.nth envs ((List.length envs)-1), expTypes
+	List.nth envs ((List.length envs)-1), TTList(expTypes)
 
 (* Printing stuff *)
 
-let termToString term =
-	match term with
+let expToString exp =
+	match exp with
 	|	Int _ -> "Int"
 	|	Bool _ -> "Bool"
+	|	List _ -> "List"
 	|	LVar _ -> "LVar"
 	|	Let _ -> "Let"
 	|	LDisjInL _ -> "LDisjInL"
 	|	LDisjInR _ -> "LDisjInR"
 	|	LDisjCase _ -> "LDisjCase"
 	|	LConj _ -> "LConj"
-	|	LLet _ -> "LLet"
+	|	Let2 _ -> "LLet"
 	|	LAltConj _ -> "LAltConj"
 	|	LAltConjFst _ -> "LAltConjFst"
 	|	LAltConjSnd _ -> "LAltConjSnd"
 	|	Func _ -> "Func"
 	|	FuncCall _ -> "FuncCall"
 
-let rec termTypeToString termType =
-	match termType with
+let rec expTypeToString expType =
+	match expType with
 	|	TInt -> "TInt"
 	|	TBool -> "TBool"
-	|	TTList(termTypeList) -> "TTList(" ^ (termTypeListToString termTypeList) ^ ")"
-	|	APair(t1, t2) -> "APair(" ^ (termTypeToString t1) ^ ", " ^ (termTypeToString t2) ^ ")"
-	|	MPair(t1, t2) -> "MPair(" ^ (termTypeToString t1) ^ ", " ^ (termTypeToString t2) ^ ")"
-	|	LSum(t1, t2) -> "LSum(" ^ (termTypeToString t1) ^ ", " ^ (termTypeToString t2) ^ ")"
-	|	LFun(t1, t2) -> "LFun(" ^ (termTypeListToString t1) ^ (termTypeToString t2) ^ ")"	
+	|	TTList(termTypeList) -> "TTList(" ^ (expTypeListToString termTypeList) ^ ")"
+	|	TLAltConjPair(t1, t2) -> "TLAltConjPair(" ^ (expTypeToString t1) ^ ", " ^ (expTypeToString t2) ^ ")"
+	|	TLConjPair(t1, t2) -> "TLConjPair(" ^ (expTypeToString t1) ^ ", " ^ (expTypeToString t2) ^ ")"
+	|	TLDisjPair(t1, t2) -> "TLDisjPair(" ^ (expTypeToString t1) ^ ", " ^ (expTypeToString t2) ^ ")"
+	|	TLFunc(t1, t2) -> "TLFunc(" ^ (expTypeListToString t1) ^ (expTypeToString t2) ^ ")"	
 
-and termTypeListToString termTypeList =
-	match termTypeList with
+and expTypeListToString expTypeList =
+	match expTypeList with
 	|	[] -> ""
-	|	t::termTypeList' -> (termTypeToString t) ^ ", " ^ (termTypeListToString termTypeList');;
+	|	t::termTypeList' -> (expTypeToString t) ^ ", " ^ (expTypeListToString termTypeList');;
 
 let rec printEnv env = 
 	match env with
 	|	[] -> ()
-	|	(n, t)::env' -> print_string (n ^ ":" ^ (termTypeToString t)); print_string ", "; printEnv env';;
+	|	(n, t)::env' -> print_string (n ^ ":" ^ (expTypeToString t)); print_string ", "; printEnv env';;
 
 (* Type checker *)
 
-let env : (string * termType) list = []
+let env : (string * expType) list = []
 
 let envLookup env n =
 	try
@@ -101,18 +103,19 @@ let rec typeof env exp =
     match exp with
 	|	Int(i) -> env, TInt
 	|	Bool(b) -> env, TBool
+	|	List(expList) -> formatTypeofExpList (typeofExpList env expList)
 	|	LVar(n) -> envLookup env n
 	|	Let(n, e1, e2) -> typeofLet env n e1 e2
-	|	LDisjInL(e, t) -> let env, t1 = typeof env e in env, LSum(t1, t)
-	|	LDisjInR(e, t) -> let env, t2 = typeof env e in env, LSum(t, t2) 
+	|	LDisjInL(e, t) -> let env, t1 = typeof env e in env, TLDisjPair(t1, t)
+	|	LDisjInR(e, t) -> let env, t2 = typeof env e in env, TLDisjPair(t, t2) 
 	|	LDisjCase(e, x, el, y, er) -> typeofLDisjCase env e x el y er
 	|	LConj(e1, e2) -> typeofLConj env e1 e2
-	|	LLet(e1, x, y, e2) -> typeofLLet env e1 x y e2
+	|	Let2(e1, x, y, e2) -> typeofLet2 env e1 x y e2
 	|	LAltConj(e1, e2) -> typeofLAltConj env e1 e2
 	|	LAltConjFst(e) -> env, TInt
 	|	LAltConjSnd(e) -> env, TInt
 	|	Func(pNameTypeTupleList, b) -> typeofFunc env pNameTypeTupleList b
-	|	FuncCall(t1, t2) -> typeofFuncCall env t1 t2
+	|	FuncCall(e1, e2) -> typeofFuncCall env e1 e2
 
 and typeofExpList env expList =
 	match expList with
@@ -122,26 +125,26 @@ and typeofExpList env expList =
 			(env', expType)::typeofExpList env' expList'
 
 and typeofLet env n e1 e2 =
-	let env', t1Type = typeof env e1 in
-	let env'' = envBind env' [(n, t1Type)] in
+	let env', e1Type = typeof env e1 in
+	let env'' = envBind env' [(n, e1Type)] in
 	typeof env'' e2
 
 and typeofLDisjCase env e x el y er =
 	let env, eType = typeof env e in 
 		match eType with
-		|	LSum(t1, t2) -> env, TInt
+		|	TLDisjPair(t1, t2) -> env, TInt
 		|	_ -> raise (TypeError(""))
 		(* tipificar el em que x:t1, tipificar er em que y:t2 e tipo de el e er iguais *)
 
 and typeofLConj env e1 e2 =
-	let env' , t1 = typeof env e1 in 
-	let env'' , t2 = typeof env' e2 in
-    env'', MPair(t1,t2)
+	let env', t1 = typeof env e1 in 
+	let env'', t2 = typeof env' e2 in
+    env'', TLConjPair(t1,t2)
 
-and typeofLLet env e1 x y e2 =
-	let env' , e1Type = typeof env e1 in
+and typeofLet2 env e1 x y e2 =
+	let env', e1Type = typeof env e1 in
 	match e1Type with
-	|	MPair(t1,t2) -> env', TInt
+	|	TLConjPair(t1,t2) -> env', TInt
 	|	_ -> raise (TypeError(""))
 	(* tipificar e2 num ambiente em que x:t1,y:t2 *)
 
@@ -149,32 +152,21 @@ and typeofLAltConj env e1 e2 =
 	let env1, t1 = typeof env e1 in 
 	let env2, t2 = typeof env e2 in 
 	(* Verificar algo sobre env1 e env2 *)
-	env2, APair(t1,t2)
-
-and typeofLPair env op t1 t2 =
-	match t1, t2 with
-	|	LVar(n1), LVar(n2) ->
-			let env', t1t = typeof env t1 in 
-			let env'', t2t = typeof env' t2 in
-			if (=) t1t t2t then env'', t1t
-			else raise (TypeError("Type mismatch on " ^ (termToString op) ^ " operation, provided: " ^ (termTypeToString t1t) ^ " " ^ (termTypeToString t2t)))
-	|	_ -> raise (TypeError("Must pass LVar parameters on " ^ (termToString op) ^ " operation, provided: " ^ (termToString t1) ^ " " ^ (termToString t2)))
+	env2, TLAltConjPair(t1,t2)
 
 and typeofFunc env pNameTypeTupleList b =
 	let env' = envBind env pNameTypeTupleList in
 	let _, pTypes = List.split pNameTypeTupleList in
 	let env'', bType = typeof env' b in
-	env'', TTList(pTypes @ [bType])
+	env'', TLFunc(pTypes, bType)
 
-and typeofFuncCall env f args =
-	let env', fType = typeof env f in
-	let env'', argTypes = formatTypeofExpList (typeofExpList env' args) in
-	match fType, argTypes with
-	|	TTList(fTypes), argTypes ->
-			let pTypes = removeLast fTypes in
-			let bType = List.nth fTypes ((List.length fTypes)-1) in
+and typeofFuncCall env e1 e2 =
+	let env', expType = typeof env e1 in
+	let env'', argTypes = formatTypeofExpList (typeofExpList env' e2) in
+	match expType, argTypes with
+	|	TLFunc(pTypes, bType), TTList(argTypes) ->
 			if (=) pTypes argTypes then env'', bType
-			else raise (TypeError("Type mismatch on FuncCall parameter, expected: " ^ termTypeToString (TTList(pTypes)) ^ ", provided: " ^ termTypeToString (TTList(argTypes))))
+			else raise (TypeError("Type mismatch on FuncCall parameter, expected: " ^ expTypeToString (TTList(pTypes)) ^ ", provided: " ^ expTypeToString (TTList(argTypes))))
 	|	_ -> raise (TypeError("Arrow function type expected"))
 
 (* Running stuff *)
@@ -193,6 +185,7 @@ Env should look like:
 	After typeofFuncCall line 2: [z:TInt]
 	Unused resources: [z:TInt]
 *)
+
 let exp = 
 	Let("x", Int(2), 
 	Let("y", Int(4),
@@ -201,12 +194,9 @@ let exp =
 	)))
 ;;
 
-
-    
-
 let env, expType = typeof env exp;;
 
-print_endline ("Expression type: " ^ (termTypeToString expType));;
+print_endline ("Expression type: " ^ (expTypeToString expType));;
 if not (List.is_empty env) then begin
 	print_string "Unused resources: "; 
 	printEnv env;
