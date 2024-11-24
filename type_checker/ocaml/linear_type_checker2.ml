@@ -13,15 +13,26 @@ type expType =
 |	TLFunc of expType list * expType
 
 type exp =
+(* Values and variables *)
 |	Int of int
 |	Bool of bool
 |	List of exp list
 |	LVar of string
-|	Let of string * exp * exp (* let x = exp1 in exp2 *)
+|	Let of string * exp * exp (* let x = M in N *)
+(* Operations *)
+|	Eq of exp * exp (* M == N *)
+|	LessThan of exp * exp (* M < N *)
+|	LessEq of exp * exp (* M <= N *)
+|	GrThan of exp * exp (* M > N *)
+|	GrEq of exp * exp (* M >= N *)
+|	Sum of exp * exp (* M + N *)
+|	Sub of exp * exp (* M - N *)
+|	Mult of exp * exp (* M * N *)
+|	Div of exp * exp (* M / N *)
 (* A ⊕ B *)
 |	LDisjInL of exp * expType (* M:A then Inl_B M : A ⊕ B *)
 |	LDisjInR of expType * exp (* M:B then Inr_A M : A ⊕ B *)
-|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> E1, inr y -> E2 *)
+|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> e1, inr y -> e2 *)
 (* A ⊗ B *)
 |	LConj of exp * exp (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
 |	Let2 of string * string * exp * exp (* let x * y = M in N *)
@@ -30,8 +41,8 @@ type exp =
 |	LAltConjFst of exp (* fst (M1,M2) -> M1 *)
 |	LAltConjSnd of exp (* snd (M1,M2) -> M2 *)
 (* (A1, ..., An) ⊸ B *)
-|	Func of (string * expType) list * exp (* fun [(pName1, pType1); ...; (pNameN, pTypeN)] -> expBody *)
-|	FuncCall of exp * exp list (* (expFunc) expArg *)
+|	Func of (string * expType) list * exp (* fun [(pName1, pType1); ...; (pNameN, pTypeN)] -> eBody *)
+|	FuncCall of exp * exp list (* (eFunc) [eArg1; ...; eArgN] *)
 
 (* Auxiliary *)
 
@@ -54,6 +65,15 @@ let expToString exp =
 	|	List _ -> "List"
 	|	LVar _ -> "LVar"
 	|	Let _ -> "Let"
+	|	Eq _ -> "Eq"
+	|	LessThan _ -> "LessThan"
+	|	LessEq _ -> "LessEq"
+	|	GrThan _ -> "GrThan"
+	|	GrEq _ -> "GrEq"
+	|	Sum _ -> "Sum"
+	|	Sub _ -> "Sub"
+	|	Mult _ -> "Mult"
+	|	Div _ -> "Div"
 	|	LDisjInL _ -> "LDisjInL"
 	|	LDisjInR _ -> "LDisjInR"
 	|	LDisjCase _ -> "LDisjCase"
@@ -106,6 +126,15 @@ let rec typeof env exp =
 	|	List(expList) -> formatTypeofExpList (typeofExpList env expList)
 	|	LVar(n) -> envLookup env n
 	|	Let(n, e1, e2) -> typeofLet env n e1 e2
+	|	Eq(e1, e2) -> typeofEq env e1 e2
+	|	LessThan(e1, e2)
+	|	LessEq(e1, e2)
+	|	GrThan(e1, e2)
+	|	GrEq(e1, e2) -> typeofIntCompare env e1 e2
+	|	Sum(e1, e2)
+	|	Sub(e1, e2)
+	|	Mult(e1, e2)
+	|	Div(e1, e2) -> typeofIntOp env e1 e2
 	|	LDisjInL(e, t) -> let env', t1 = typeof env e in env', TLDisjPair(t1, t)
 	|	LDisjInR(t, e) -> let env', t2 = typeof env e in env', TLDisjPair(t, t2) 
 	|	LDisjCase(e, x, el, y, er) -> typeofLDisjCase env e x el y er
@@ -129,6 +158,26 @@ and typeofLet env n e1 e2 =
 	let env'' = envBind env' [(n, e1Type)] in
 	typeof env'' e2
 
+and typeofEq env e1 e2 =
+	let env', e1Type = typeof env e1 in
+	let env'', e2Type = typeof env' e2 in
+	env'', TBool
+
+and typeofIntCompare env e1 e2 =
+	let env', e1Type = typeof env e1 in
+	let env'', e2Type = typeof env' e2 in
+	match e1Type, e2Type with
+	|	TInt, TInt -> env'', TBool
+	|	_ -> raise (TypeError("Integer comparison requires a pair of type (TInt, TInt), provided: (" ^ expTypeToString e1Type ^ ", " ^ expTypeToString e2Type ^ ")"))
+
+and typeofIntOp env e1 e2 =
+	let env', e1Type = typeof env e1 in
+	let env'', e2Type = typeof env' e2 in
+	match e1Type, e2Type with
+	|	TInt, TInt -> env'', TInt
+	|	_ -> raise (TypeError("Integer operation requires a pair of type (TInt, TInt), provided: (" ^ expTypeToString e1Type ^ ", " ^ expTypeToString e2Type ^ ")"))
+
+
 and typeofLDisjCase env e x el y er =
 	let env', eType = typeof env e in 
 		match eType with
@@ -137,8 +186,8 @@ and typeofLDisjCase env e x el y er =
 				let envl, elType = typeof envt1 el in
 				let envt2 = envBind env' [(y, t2)] in
 				let envr, erType = typeof envt2 er in
-				if (=) elType erType then env', elType
-				else raise (TypeError(expTypeToString eType ^ " has incompatible branch return types (" ^ expTypeToString elType ^ ", " ^ expTypeToString erType ^ ")"))
+				if (=) elType erType then envl, elType
+				else raise (TypeError(expTypeToString eType ^ " has incompatible branch return types: (" ^ expTypeToString elType ^ ", " ^ expTypeToString erType ^ ")"))
 		|	_ -> raise (TypeError("TLDisjPair type expected"))
 
 and typeofLConj env e1 e2 =
@@ -183,14 +232,14 @@ exp in concrete syntax:
 let x = 2 in
 let y = 4 in
 let z = inl x in
-case z of inl a -> a, inr b -> b
+case z of inl a -> a + y, inr b -> b + 1
 *)
 
 let exp = 
 	Let("x", Int(2), 
 	Let("y", Int(4),
-	Let("z", LDisjInR(TBool, LVar("x")),
-	LDisjCase(LVar("z"), "a", LVar("a"), "b", LVar("b"))
+	Let("z", LDisjInR(TInt, LVar("x")),
+	LDisjCase(LVar("z"), "a", Sum(LVar("a"), LVar("y")), "b", Sum(LVar("b"), Int(1)))
 	)))
 ;;
 
