@@ -19,9 +19,9 @@ type exp =
 |	LVar of string
 |	Let of string * exp * exp (* let x = exp1 in exp2 *)
 (* A ⊕ B *)
-|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> E1, inr x -> E2 *)
 |	LDisjInL of exp * expType (* M:A then Inl_B M : A ⊕ B *)
 |	LDisjInR of exp * expType (* M:B then Inr_A M : A ⊕ B *)
+|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> E1, inr x -> E2 *)
 (* A ⊗ B *)
 |	LConj of exp * exp (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
 |	Let2 of string * string * exp * exp (* let x * y = M in N *)
@@ -106,8 +106,8 @@ let rec typeof env exp =
 	|	List(expList) -> formatTypeofExpList (typeofExpList env expList)
 	|	LVar(n) -> envLookup env n
 	|	Let(n, e1, e2) -> typeofLet env n e1 e2
-	|	LDisjInL(e, t) -> let env, t1 = typeof env e in env, TLDisjPair(t1, t)
-	|	LDisjInR(e, t) -> let env, t2 = typeof env e in env, TLDisjPair(t, t2) 
+	|	LDisjInL(e, t) -> let env', t1 = typeof env e in env', TLDisjPair(t1, t)
+	|	LDisjInR(e, t) -> let env', t2 = typeof env e in env', TLDisjPair(t, t2) 
 	|	LDisjCase(e, x, el, y, er) -> typeofLDisjCase env e x el y er
 	|	LConj(e1, e2) -> typeofLConj env e1 e2
 	|	Let2(x, y, e1, e2) -> typeofLet2 env x y e1 e2
@@ -130,9 +130,15 @@ and typeofLet env n e1 e2 =
 	typeof env'' e2
 
 and typeofLDisjCase env e x el y er =
-	let env, eType = typeof env e in 
+	let env', eType = typeof env e in 
 		match eType with
-		|	TLDisjPair(t1, t2) -> env, TInt
+		|	TLDisjPair(t1, t2) ->
+				let envt1 = envBind env' [(x, t1)] in
+				let envl, elType = typeof envt1 el in
+				let envt2 = envBind env' [(y, t2)] in
+				let envr, erType = typeof envt2 er in
+				if (=) elType erType then envl, elType
+				else raise (TypeError(expTypeToString eType ^ " has incompatible branch types"))
 		|	_ -> raise (TypeError("TLDisjPair type expected"))
 		(* tipificar el em que x:t1, tipificar er em que y:t2 e tipo de el e er iguais *)
 
@@ -150,8 +156,8 @@ and typeofLet2 env x y e1 e2 =
 	|	_ -> raise (TypeError("TLConjPair type expected"))
 
 and typeofLAltConj env e1 e2 =
-	let env1, t1 = typeof env e1 in 
-	let env2, t2 = typeof env e2 in 
+	let env1, t1 = typeof env e1 in
+	let env2, t2 = typeof env e2 in
 	(* Verificar algo sobre env1 e env2 *)
 	env2, TLAltConjPair(t1,t2)
 
