@@ -20,8 +20,8 @@ type exp =
 |	Let of string * exp * exp (* let x = exp1 in exp2 *)
 (* A ⊕ B *)
 |	LDisjInL of exp * expType (* M:A then Inl_B M : A ⊕ B *)
-|	LDisjInR of exp * expType (* M:B then Inr_A M : A ⊕ B *)
-|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> E1, inr x -> E2 *)
+|	LDisjInR of expType * exp (* M:B then Inr_A M : A ⊕ B *)
+|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> E1, inr y -> E2 *)
 (* A ⊗ B *)
 |	LConj of exp * exp (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
 |	Let2 of string * string * exp * exp (* let x * y = M in N *)
@@ -107,7 +107,7 @@ let rec typeof env exp =
 	|	LVar(n) -> envLookup env n
 	|	Let(n, e1, e2) -> typeofLet env n e1 e2
 	|	LDisjInL(e, t) -> let env', t1 = typeof env e in env', TLDisjPair(t1, t)
-	|	LDisjInR(e, t) -> let env', t2 = typeof env e in env', TLDisjPair(t, t2) 
+	|	LDisjInR(t, e) -> let env', t2 = typeof env e in env', TLDisjPair(t, t2) 
 	|	LDisjCase(e, x, el, y, er) -> typeofLDisjCase env e x el y er
 	|	LConj(e1, e2) -> typeofLConj env e1 e2
 	|	Let2(x, y, e1, e2) -> typeofLet2 env x y e1 e2
@@ -137,10 +137,9 @@ and typeofLDisjCase env e x el y er =
 				let envl, elType = typeof envt1 el in
 				let envt2 = envBind env' [(y, t2)] in
 				let envr, erType = typeof envt2 er in
-				if (=) elType erType then envl, elType
-				else raise (TypeError(expTypeToString eType ^ " has incompatible branch types"))
+				if (=) elType erType then env', elType
+				else raise (TypeError(expTypeToString eType ^ " has incompatible branch return types (" ^ expTypeToString elType ^ ", " ^ expTypeToString erType ^ ")"))
 		|	_ -> raise (TypeError("TLDisjPair type expected"))
-		(* tipificar el em que x:t1, tipificar er em que y:t2 e tipo de el e er iguais *)
 
 and typeofLConj env e1 e2 =
 	let env', t1 = typeof env e1 in 
@@ -179,25 +178,19 @@ and typeofFuncCall env e1 e2 =
 (* Running stuff *)
 
 (*
-Concrete syntax of exp below:
+exp in concrete syntax:
 
 let x = 2 in
 let y = 4 in
-let z = 6 in
-(fun x:int y:int -> x ^ y) x y
-
-Env should look like: 
-	After typeofFunc line 1: [f1.x:TInt, f1.y:TInt, z:TInt, y:TInt, x:TInt]
-	After typeofFunc line 3: [z:TInt, y:TInt, x:TInt] ... typeofFunc returns TTList([TInt, TInt, TInt]) aka TInt -> TInt -> TInt
-	After typeofFuncCall line 2: [z:TInt]
-	Unused resources: [z:TInt]
+let z = inl x in
+case z of inl a -> a, inr b -> b
 *)
 
 let exp = 
 	Let("x", Int(2), 
 	Let("y", Int(4),
-	Let("z", Int(6),
-		FuncCall(Func([("f1.x", TInt); ("f1.y", TInt)], LConj(LVar("f1.x"), LVar("f1.y"))), [LVar("x"); LVar("y")])
+	Let("z", LDisjInR(TBool, LVar("x")),
+	LDisjCase(LVar("z"), "a", LVar("a"), "b", LVar("b"))
 	)))
 ;;
 
