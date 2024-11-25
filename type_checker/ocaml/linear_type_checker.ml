@@ -34,10 +34,10 @@ type exp =
 |	LDisjInR of expType * exp (* M:B then Inr_A M : A ⊕ B *)
 |	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> e1, inr y -> e2 *)
 (* A ⊗ B *)
-|	LConj of exp * exp (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
+|	LConjPair of exp * exp (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
 |	Let2 of string * string * exp * exp (* let x * y = M in N *)
 (* A & B *)
-|	LAltConj of exp * exp (* Additive pair: (M1 * M2) : A & B *)
+|	LAltConjPair of exp * exp (* Additive pair: (M1 * M2) : A & B *)
 |	LAltConjFst of exp (* fst (M1,M2) -> M1 *)
 |	LAltConjSnd of exp (* snd (M1,M2) -> M2 *)
 (* (A1, ..., An) ⊸ B *)
@@ -77,9 +77,9 @@ let expToString exp =
 	|	LDisjInL _ -> "LDisjInL"
 	|	LDisjInR _ -> "LDisjInR"
 	|	LDisjCase _ -> "LDisjCase"
-	|	LConj _ -> "LConj"
+	|	LConjPair _ -> "LConj"
 	|	Let2 _ -> "LLet"
-	|	LAltConj _ -> "LAltConj"
+	|	LAltConjPair _ -> "LAltConj"
 	|	LAltConjFst _ -> "LAltConjFst"
 	|	LAltConjSnd _ -> "LAltConjSnd"
 	|	Func _ -> "Func"
@@ -138,11 +138,11 @@ let rec typeof env exp =
 	|	LDisjInL(e, t) -> let env', t1 = typeof env e in env', TLDisjPair(t1, t)
 	|	LDisjInR(t, e) -> let env', t2 = typeof env e in env', TLDisjPair(t, t2) 
 	|	LDisjCase(e, x, el, y, er) -> typeofLDisjCase env e x el y er
-	|	LConj(e1, e2) -> typeofLConj env e1 e2
+	|	LConjPair(e1, e2) -> typeofLConjPair env e1 e2
 	|	Let2(x, y, e1, e2) -> typeofLet2 env x y e1 e2
-	|	LAltConj(e1, e2) -> typeofLAltConj env e1 e2
-	|	LAltConjFst(e) -> env, TInt
-	|	LAltConjSnd(e) -> env, TInt
+	|	LAltConjPair(e1, e2) -> typeofLAltConjPair env e1 e2
+	|	LAltConjFst(e) -> typeofLAltConjElem env e true
+	|	LAltConjSnd(e) -> typeofLAltConjElem env e false
 	|	Func(pNameTypeTupleList, b) -> typeofFunc env pNameTypeTupleList b
 	|	FuncCall(e1, e2) -> typeofFuncCall env e1 e2
 
@@ -190,7 +190,7 @@ and typeofLDisjCase env e x el y er =
 				else raise (TypeError(expTypeToString eType ^ " has incompatible branch return types: (" ^ expTypeToString elType ^ ", " ^ expTypeToString erType ^ ")"))
 		|	_ -> raise (TypeError("TLDisjPair type expected"))
 
-and typeofLConj env e1 e2 =
+and typeofLConjPair env e1 e2 =
 	let env', t1 = typeof env e1 in 
 	let env'', t2 = typeof env' e2 in
     env'', TLConjPair(t1, t2)
@@ -203,11 +203,19 @@ and typeofLet2 env x y e1 e2 =
 			typeof env'' e2
 	|	_ -> raise (TypeError("TLConjPair type expected"))
 
-and typeofLAltConj env e1 e2 =
+and typeofLAltConjPair env e1 e2 =
 	let env1, t1 = typeof env e1 in
 	let env2, t2 = typeof env e2 in
 	(* Verificar algo sobre env1 e env2 *)
 	env2, TLAltConjPair(t1, t2)
+
+and typeofLAltConjElem env e isFst =
+	let env', t = typeof env e in
+	match t with
+	|	TLAltConjPair(e1, e2) -> 
+			if isFst then env', e1
+			else env', e2
+	|	_ -> raise (TypeError("TLAltConjPair type expected"))
 
 and typeofFunc env pNameTypeTupleList b =
 	let env' = envBind env pNameTypeTupleList in
