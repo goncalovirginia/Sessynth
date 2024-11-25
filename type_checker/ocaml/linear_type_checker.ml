@@ -3,21 +3,46 @@ exception BindingError of string
 
 (* Type definitions *)
 
-type termType =
+type expType =
 |	TInt
 |	TBool
-|	TTList of termType list
+|	TTList of expType list
+|	TLDisjPair of expType * expType
+|	TLConjPair of expType * expType
+|	TLAltConjPair of expType * expType
+|	TLFunc of expType list * expType
 
-type term =
+type exp =
+(* Values and variables *)
 |	Int of int
 |	Bool of bool
+|	List of exp list
 |	LVar of string
-|	Let of string * term * term (* let x = exp1 in exp2 *)
-|	LDisj of term * term
-|	LConj of term * term
-|	LAltConj of term * term
-|	Func of (string * termType) list * term (* fun [(paramName1, paramType1); ...; (paramNameN, paramTypeN)] -> expBody *)
-|	FuncCall of term * term list (* (expFunc) expArg *)
+|	Let of string * exp * exp (* let x = M in N *)
+(* Operations *)
+|	Eq of exp * exp (* M == N *)
+|	LessThan of exp * exp (* M < N *)
+|	LessEq of exp * exp (* M <= N *)
+|	GrThan of exp * exp (* M > N *)
+|	GrEq of exp * exp (* M >= N *)
+|	Sum of exp * exp (* M + N *)
+|	Sub of exp * exp (* M - N *)
+|	Mult of exp * exp (* M * N *)
+|	Div of exp * exp (* M / N *)
+(* A ⊕ B *)
+|	LDisjInL of exp * expType (* M:A then Inl_B M : A ⊕ B *)
+|	LDisjInR of expType * exp (* M:B then Inr_A M : A ⊕ B *)
+|	LDisjCase of exp * string * exp * string * exp (* case M of inl x -> e1, inr y -> e2 *)
+(* A ⊗ B *)
+|	LConj of exp * exp (* Multiplicative pair: (M1 * M2) : A ⊗ B *)
+|	Let2 of string * string * exp * exp (* let x * y = M in N *)
+(* A & B *)
+|	LAltConj of exp * exp (* Additive pair: (M1 * M2) : A & B *)
+|	LAltConjFst of exp (* fst (M1,M2) -> M1 *)
+|	LAltConjSnd of exp (* snd (M1,M2) -> M2 *)
+(* (A1, ..., An) ⊸ B *)
+|	Func of (string * expType) list * exp (* fun [(pName1, pType1); ...; (pNameN, pTypeN)] -> eBody *)
+|	FuncCall of exp * exp list (* (eFunc) [eArg1; ...; eArgN] *)
 
 (* Auxiliary *)
 
@@ -29,41 +54,60 @@ let rec removeLast l =
 
 let formatTypeofExpList l = 
 	let envs, expTypes = List.split l in
-	List.nth envs ((List.length envs)-1), expTypes
+	List.nth envs ((List.length envs)-1), TTList(expTypes)
 
 (* Printing stuff *)
 
-let termToString term =
-	match term with
+let expToString exp =
+	match exp with
 	|	Int _ -> "Int"
 	|	Bool _ -> "Bool"
+	|	List _ -> "List"
 	|	LVar _ -> "LVar"
 	|	Let _ -> "Let"
-	|	LDisj _ -> "LDisj"
+	|	Eq _ -> "Eq"
+	|	LessThan _ -> "LessThan"
+	|	LessEq _ -> "LessEq"
+	|	GrThan _ -> "GrThan"
+	|	GrEq _ -> "GrEq"
+	|	Sum _ -> "Sum"
+	|	Sub _ -> "Sub"
+	|	Mult _ -> "Mult"
+	|	Div _ -> "Div"
+	|	LDisjInL _ -> "LDisjInL"
+	|	LDisjInR _ -> "LDisjInR"
+	|	LDisjCase _ -> "LDisjCase"
 	|	LConj _ -> "LConj"
+	|	Let2 _ -> "LLet"
 	|	LAltConj _ -> "LAltConj"
+	|	LAltConjFst _ -> "LAltConjFst"
+	|	LAltConjSnd _ -> "LAltConjSnd"
 	|	Func _ -> "Func"
 	|	FuncCall _ -> "FuncCall"
 
-let rec termTypeToString termType =
-	match termType with
+let rec expTypeToString expType =
+	match expType with
 	|	TInt -> "TInt"
 	|	TBool -> "TBool"
-	|	TTList(termTypeList) -> "TTList(" ^ (termTypeListToString termTypeList) ^ ")"
+	|	TTList(termTypeList) -> "TTList(" ^ (expTypeListToString termTypeList) ^ ")"
+	|	TLAltConjPair(t1, t2) -> "TLAltConjPair(" ^ (expTypeToString t1) ^ ", " ^ (expTypeToString t2) ^ ")"
+	|	TLConjPair(t1, t2) -> "TLConjPair(" ^ (expTypeToString t1) ^ ", " ^ (expTypeToString t2) ^ ")"
+	|	TLDisjPair(t1, t2) -> "TLDisjPair(" ^ (expTypeToString t1) ^ ", " ^ (expTypeToString t2) ^ ")"
+	|	TLFunc(t1, t2) -> "TLFunc(" ^ (expTypeListToString t1) ^ (expTypeToString t2) ^ ")"	
 
-and termTypeListToString termTypeList =
-	match termTypeList with
+and expTypeListToString expTypeList =
+	match expTypeList with
 	|	[] -> ""
-	|	t::termTypeList' -> (termTypeToString t) ^ ", " ^ (termTypeListToString termTypeList');;
+	|	t::termTypeList' -> (expTypeToString t) ^ ", " ^ (expTypeListToString termTypeList');;
 
 let rec printEnv env = 
 	match env with
 	|	[] -> ()
-	|	(n, t)::env' -> print_string (n ^ ":" ^ (termTypeToString t)); print_string ", "; printEnv env';;
+	|	(n, t)::env' -> print_string (n ^ ":" ^ (expTypeToString t)); print_string ", "; printEnv env';;
 
 (* Type checker *)
 
-let env : (string * termType) list = []
+let env : (string * expType) list = []
 
 let envLookup env n =
 	try
@@ -79,13 +123,28 @@ let rec typeof env exp =
     match exp with
 	|	Int(i) -> env, TInt
 	|	Bool(b) -> env, TBool
+	|	List(expList) -> formatTypeofExpList (typeofExpList env expList)
 	|	LVar(n) -> envLookup env n
-	|	Let(n, t1, t2) -> typeofLet env n t1 t2
-	|	LDisj(t1, t2)
-	|	LConj(t1, t2)
-	|	LAltConj(t1, t2) -> typeofLPair env exp t1 t2
+	|	Let(n, e1, e2) -> typeofLet env n e1 e2
+	|	Eq(e1, e2) -> typeofEq env e1 e2
+	|	LessThan(e1, e2)
+	|	LessEq(e1, e2)
+	|	GrThan(e1, e2)
+	|	GrEq(e1, e2) -> typeofIntCompare env e1 e2
+	|	Sum(e1, e2)
+	|	Sub(e1, e2)
+	|	Mult(e1, e2)
+	|	Div(e1, e2) -> typeofIntOp env e1 e2
+	|	LDisjInL(e, t) -> let env', t1 = typeof env e in env', TLDisjPair(t1, t)
+	|	LDisjInR(t, e) -> let env', t2 = typeof env e in env', TLDisjPair(t, t2) 
+	|	LDisjCase(e, x, el, y, er) -> typeofLDisjCase env e x el y er
+	|	LConj(e1, e2) -> typeofLConj env e1 e2
+	|	Let2(x, y, e1, e2) -> typeofLet2 env x y e1 e2
+	|	LAltConj(e1, e2) -> typeofLAltConj env e1 e2
+	|	LAltConjFst(e) -> env, TInt
+	|	LAltConjSnd(e) -> env, TInt
 	|	Func(pNameTypeTupleList, b) -> typeofFunc env pNameTypeTupleList b
-	|	FuncCall(t1, t2) -> typeofFuncCall env t1 t2
+	|	FuncCall(e1, e2) -> typeofFuncCall env e1 e2
 
 and typeofExpList env expList =
 	match expList with
@@ -94,66 +153,99 @@ and typeofExpList env expList =
 			let env', expType = typeof env exp in
 			(env', expType)::typeofExpList env' expList'
 
-and typeofLet env n t1 t2 =
-	let env', t1Type = typeof env t1 in
-	let env'' = envBind env' [(n, t1Type)] in
-	typeof env'' t2
+and typeofLet env n e1 e2 =
+	let env', e1Type = typeof env e1 in
+	let env'' = envBind env' [(n, e1Type)] in
+	typeof env'' e2
 
-and typeofLPair env op t1 t2 =
-	match t1, t2 with
-	|	LVar(n1), LVar(n2) ->
-			let env', t1t = typeof env t1 in 
-			let env'', t2t = typeof env' t2 in
-			if (=) t1t t2t then env'', t1t
-			else raise (TypeError("Type mismatch on " ^ (termToString op) ^ " operation, provided: " ^ (termTypeToString t1t) ^ " " ^ (termTypeToString t2t)))
-	|	_ -> raise (TypeError("Must pass LVar parameters on " ^ (termToString op) ^ " operation, provided: " ^ (termToString t1) ^ " " ^ (termToString t2)))
+and typeofEq env e1 e2 =
+	let env', e1Type = typeof env e1 in
+	let env'', e2Type = typeof env' e2 in
+	env'', TBool
+
+and typeofIntCompare env e1 e2 =
+	let env', e1Type = typeof env e1 in
+	let env'', e2Type = typeof env' e2 in
+	match e1Type, e2Type with
+	|	TInt, TInt -> env'', TBool
+	|	_ -> raise (TypeError("Integer comparison requires a pair of type (TInt, TInt), provided: (" ^ expTypeToString e1Type ^ ", " ^ expTypeToString e2Type ^ ")"))
+
+and typeofIntOp env e1 e2 =
+	let env', e1Type = typeof env e1 in
+	let env'', e2Type = typeof env' e2 in
+	match e1Type, e2Type with
+	|	TInt, TInt -> env'', TInt
+	|	_ -> raise (TypeError("Integer operation requires a pair of type (TInt, TInt), provided: (" ^ expTypeToString e1Type ^ ", " ^ expTypeToString e2Type ^ ")"))
+
+
+and typeofLDisjCase env e x el y er =
+	let env', eType = typeof env e in 
+		match eType with
+		|	TLDisjPair(t1, t2) ->
+				let envt1 = envBind env' [(x, t1)] in
+				let envl, elType = typeof envt1 el in
+				let envt2 = envBind env' [(y, t2)] in
+				let envr, erType = typeof envt2 er in
+				if (=) elType erType then envl, elType
+				else raise (TypeError(expTypeToString eType ^ " has incompatible branch return types: (" ^ expTypeToString elType ^ ", " ^ expTypeToString erType ^ ")"))
+		|	_ -> raise (TypeError("TLDisjPair type expected"))
+
+and typeofLConj env e1 e2 =
+	let env', t1 = typeof env e1 in 
+	let env'', t2 = typeof env' e2 in
+    env'', TLConjPair(t1, t2)
+
+and typeofLet2 env x y e1 e2 =
+	let env', e1Type = typeof env e1 in
+	match e1Type with
+	|	TLConjPair(t1, t2) -> 
+			let env'' = envBind env' [(x, t1); (y, t2)] in
+			typeof env'' e2
+	|	_ -> raise (TypeError("TLConjPair type expected"))
+
+and typeofLAltConj env e1 e2 =
+	let env1, t1 = typeof env e1 in
+	let env2, t2 = typeof env e2 in
+	(* Verificar algo sobre env1 e env2 *)
+	env2, TLAltConjPair(t1, t2)
 
 and typeofFunc env pNameTypeTupleList b =
 	let env' = envBind env pNameTypeTupleList in
 	let _, pTypes = List.split pNameTypeTupleList in
 	let env'', bType = typeof env' b in
-	env'', TTList(pTypes @ [bType])
+	env'', TLFunc(pTypes, bType)
 
-and typeofFuncCall env f args =
-	let env', fType = typeof env f in
-	let env'', argTypes = formatTypeofExpList (typeofExpList env' args) in
-	match fType, argTypes with
-	|	TTList(fTypes), argTypes ->
-			let pTypes = removeLast fTypes in
-			let bType = List.nth fTypes ((List.length fTypes)-1) in
+and typeofFuncCall env e1 e2 =
+	let env', expType = typeof env e1 in
+	let env'', argTypes = formatTypeofExpList (typeofExpList env' e2) in
+	match expType, argTypes with
+	|	TLFunc(pTypes, bType), TTList(argTypes) ->
 			if (=) pTypes argTypes then env'', bType
-			else raise (TypeError("Type mismatch on FuncCall parameter, expected: " ^ termTypeToString (TTList(pTypes)) ^ ", provided: " ^ termTypeToString (TTList(argTypes))))
-	|	_ -> raise (TypeError("Arrow function type expected"))
+			else raise (TypeError("Type mismatch on FuncCall parameter, expected: " ^ expTypeToString (TTList(pTypes)) ^ ", provided: " ^ expTypeToString (TTList(argTypes))))
+	|	_ -> raise (TypeError("TLFunc type expected"))
 
 (* Running stuff *)
 
 (*
-Concrete syntax of exp below:
+exp in concrete syntax:
 
 let x = 2 in
 let y = 4 in
-let z = 6 in
-let f = fun x:int y:int -> x ^ y in
-f x y
-
-Env should look like: 
-	After typeofFunc line 1: [f1.x:TInt, f1.y:TInt, z:TInt, y:TInt, x:TInt]
-	After typeofFunc line 3: [z:TInt, y:TInt, x:TInt] ... typeofFunc returns TTList([TInt, TInt, TInt]) aka TInt -> TInt -> TInt
-	After typeofFuncCall line 2: [z:TInt]
-	Unused resources: [z:TInt]
+let z = inl x in
+case z of inl a -> a + y, inr b -> b + 1
 *)
+
 let exp = 
 	Let("x", Int(2), 
 	Let("y", Int(4),
-	Let("z", Int(6),
-	Let("f", Func([("x", TInt); ("y", TInt)], LConj(LVar("x"), LVar("y"))),
-	FuncCall(LVar("f"), [LVar("x"); LVar("y")])
-	))))
+	Let("z", LDisjInR(TInt, LVar("x")),
+	LDisjCase(LVar("z"), "a", Sum(LVar("a"), LVar("y")), "b", Sum(LVar("b"), Int(1)))
+	)))
 ;;
 
 let env, expType = typeof env exp;;
 
-print_endline ("Expression type: " ^ (termTypeToString expType));;
+print_endline ("Expression type: " ^ (expTypeToString expType));;
 if not (List.is_empty env) then begin
 	print_string "Unused resources: "; 
 	printEnv env;
