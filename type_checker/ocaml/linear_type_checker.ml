@@ -186,7 +186,13 @@ and typeofLDisjCase env e x el y er =
 				let envl, elType = typeof envt1 el in
 				let envt2 = envBind env' [(y, t2)] in
 				let envr, erType = typeof envt2 er in
-				if (=) elType erType then envl, elType
+				if (=) elType erType then
+					if List.equal (=) envl envr then envl, elType
+					else begin
+						print_string "Left: ["; printEnv envl; print_endline "]";
+						print_string "Right: ["; printEnv envr; print_endline "]";
+						raise (TypeError("LDisjCase left and right expressions do not consume the same linear variables"))
+					end
 				else raise (TypeError(expTypeToString eType ^ " has incompatible branch return types: (" ^ expTypeToString elType ^ ", " ^ expTypeToString erType ^ ")"))
 		|	_ -> raise (TypeError("TLDisjPair type expected"))
 
@@ -206,8 +212,12 @@ and typeofLet2 env x y e1 e2 =
 and typeofLAltConjPair env e1 e2 =
 	let env1, t1 = typeof env e1 in
 	let env2, t2 = typeof env e2 in
-	(* Verificar algo sobre env1 e env2 *)
-	env2, TLAltConjPair(t1, t2)
+	if List.equal (=) env1 env2 then env1, TLAltConjPair(t1, t2)
+	else begin
+		print_string "Left: ["; printEnv env1; print_endline "]";
+		print_string "Right: ["; printEnv env2; print_endline "]";
+		raise (TypeError("LAltConjPair left and right expressions do not consume the same linear variables"))
+	end
 
 and typeofLAltConjElem env e isFst =
 	let env', t = typeof env e in
@@ -247,7 +257,23 @@ let exp =
 	Let("x", Int(2), 
 	Let("y", Int(4),
 	Let("z", LDisjInR(TInt, LVar("x")),
-	LDisjCase(LVar("z"), "a", Sum(LVar("a"), LVar("y")), "b", Sum(LVar("b"), Int(1)))
+	LDisjCase(LVar("z"), "a", Sum(LVar("a"), LVar("y")), "b", Sum(LVar("b"), LVar("y")))
+	)))
+;;
+
+(*
+exp in concrete syntax:
+
+let x = 2 in
+let y = 4 in
+let z = x & x in
+y + snd z
+*)
+let exp = 
+	Let("x", Int(2), 
+	Let("y", Int(4),
+	Let("z", LAltConjPair(LVar("x"), LVar("x")),
+	Sum(LVar("y"), LAltConjSnd(LVar("z")))
 	)))
 ;;
 
