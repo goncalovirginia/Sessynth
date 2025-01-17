@@ -41,8 +41,8 @@ type exp =
 |	LAltConjFst of exp (* fst (M1,M2) -> M1 *)
 |	LAltConjSnd of exp (* snd (M1,M2) -> M2 *)
 (* (A1, ..., An) ⊸ B *)
-|	Func of (string * expType) list * exp (* fun [(pName1, pType1); ...; (pNameN, pTypeN)] -> eBody *)
-|	FuncCall of exp * exp list (* (eFunc) [eArg1; ...; eArgN] *)
+|	LFunc of (string * expType) list * exp (* fun [(paramName1, paramType1); ...; (paramNameN, paramTypeN)] -o eBody *)
+|	LFuncCall of exp * exp list (* (eLFunc) eArg1 ... eArgN *)
 
 (* Auxiliary *)
 
@@ -82,8 +82,8 @@ let expToString exp =
 	|	LAltConjPair _ -> "LAltConj"
 	|	LAltConjFst _ -> "LAltConjFst"
 	|	LAltConjSnd _ -> "LAltConjSnd"
-	|	Func _ -> "Func"
-	|	FuncCall _ -> "FuncCall"
+	|	LFunc _ -> "Func"
+	|	LFuncCall _ -> "FuncCall"
 
 let rec expTypeToString expType =
 	match expType with
@@ -143,8 +143,8 @@ let rec typeof env exp =
 	|	LAltConjPair(e1, e2) -> typeofLAltConjPair env e1 e2
 	|	LAltConjFst(e) -> typeofLAltConjElem env e true
 	|	LAltConjSnd(e) -> typeofLAltConjElem env e false
-	|	Func(pNameTypeTupleList, b) -> typeofFunc env pNameTypeTupleList b
-	|	FuncCall(e1, e2) -> typeofFuncCall env e1 e2
+	|	LFunc(pNameTypeTupleList, b) -> typeofFunc env pNameTypeTupleList b
+	|	LFuncCall(e1, e2) -> typeofFuncCall env e1 e2
 
 and typeofExpList env expList =
 	match expList with
@@ -234,9 +234,9 @@ and typeofFunc env pNameTypeTupleList b =
 	env'', TLFunc(pTypes, bType)
 
 and typeofFuncCall env e1 e2 =
-	let env', expType = typeof env e1 in
-	let env'', argTypes = formatTypeofExpList (typeofExpList env' e2) in
-	match expType, argTypes with
+	let env', e1Type = typeof env e1 in
+	let env'', e2Type = formatTypeofExpList (typeofExpList env' e2) in
+	match e1Type, e2Type with
 	|	TLFunc(pTypes, bType), TTList(argTypes) ->
 			if (=) pTypes argTypes then env'', bType
 			else raise (TypeError("Type mismatch on FuncCall parameter, expected: " ^ expTypeToString (TTList(pTypes)) ^ ", provided: " ^ expTypeToString (TTList(argTypes))))
@@ -269,12 +269,25 @@ let y = 4 in
 let z = x & x in
 y + snd z
 *)
+
 let exp = 
 	Let("x", Int(2), 
 	Let("y", Int(4),
 	Let("z", LAltConjPair(LVar("x"), LVar("x")),
 	Sum(LVar("y"), LAltConjSnd(LVar("z")))
 	)))
+;;
+
+(*
+let x = 2 in
+let y = 4 in
+fun x y -o x + y	(TInt -o TInt -o TInt)
+*)
+let exp = 
+	Let("x", Int(2), 
+	Let("y", Int(4),
+	LFuncCall(LFunc([("a", TInt); ("b", TInt)], Sum(LVar("a"), LVar("b"))), [LVar("x"); LVar("y")])
+	))
 ;;
 
 let env, expType = typeof env exp;;
