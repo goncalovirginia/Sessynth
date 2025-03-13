@@ -1,0 +1,12 @@
+(library
+ (name sessint)
+ (libraries unix threads))
+
+(env
+  (dev
+    (flags (:standard -w -33))))
+
+(menhir
+ (modules parser))
+
+ (ocamllex lexer)
