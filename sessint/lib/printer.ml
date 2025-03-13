@@ -1,4 +1,3 @@
-open Syntax
 (* This module is just meant to ease the printing of the abstract syntax tree.
    There are also the various error definitions used in the type checker.
    *)
@@ -28,6 +27,8 @@ type type_err =
   | NoCaseForLabel of Syntax.var
   | AllCasesMustProduceIdenticalType of Syntax.stype * Syntax.stype
   | NonExecutableExpression of Syntax.exp
+  | NoCyclesAllowed
+  | FileNotFound of Syntax.var
   
 exception TError of type_err
 
@@ -141,6 +142,21 @@ let string_from_decl decl =
   match decl with
   | Syntax.Decl (var, ty, exp) -> var ^ " = " ^ "(" ^ (string_from_exp exp) ^ " : " ^ (string_from_type ty) ^ ")"
 
+let string_from_prog prog =
+  match prog with
+  | Syntax.Prog (decls, e) -> (List.fold_left (fun acc x -> acc ^ (string_from_decl x) ^ " ;\n") "" decls) ^ (string_from_exp e)
+
+let string_from_imprt imprt =
+  match imprt with
+  | Syntax.Imprt (i, lvar) -> "import " ^ i ^ " ( " ^ (string_from_var_list lvar) ^ " )\n"
+
+let string_from_imprt_list imprt_list =
+  List.fold_left (fun acc x -> acc ^ (string_from_imprt x)) "" imprt_list
+
+let string_from_modl modl =
+  match modl with
+  | Syntax.Modl (nm, imp, pr) -> "module " ^ nm ^ " where\n" ^ (string_from_imprt_list imp) ^ (string_from_prog pr)
+
 let string_from_err err = 
   match err with
   | NoSuchArg arg -> "NoSuchArg: " ^ arg 
@@ -167,3 +183,5 @@ let string_from_err err =
   | NoCaseForLabel v -> "NoCaseForLabel: " ^ v
   | AllCasesMustProduceIdenticalType (st1, st2) -> "AllCasesMustProduceIdenticalType: got " ^ (string_from_stype st1) ^ ", expected " ^ string_from_stype st2
   | NonExecutableExpression exp -> "NonExecutableExpression: " ^ string_from_exp exp
+  | NoCyclesAllowed -> "NoCyclesAllowed"
+  | FileNotFound v -> "File not found: " ^ v

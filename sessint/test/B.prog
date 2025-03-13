@@ -1,0 +1,16 @@
+module b where
+import a (plus_one) end
+plus_two : int -> {int ^ @}
+fun n -> c <- {
+    d <- spawn (plus_one (n+1));
+    fwd c d
+}
+end;
+
+;; m <- {
+    d <- spawn (plus_two 1);
+    a:int <- recv d;
+    print a;
+    wait d;
+    close m
+};;

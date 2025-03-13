@@ -13,7 +13,7 @@ let position lexbuf =
 
 exception Error of string
 let error lexbuf fmt = 
-    Printf.kprintf (fun msg -> 
+    Printf.ksprintf (fun msg -> 
         raise (Error ((position lexbuf)^" "^msg))) fmt
 }
 
@@ -78,10 +78,15 @@ rule token = parse
 	| ("int" | "num" | "nat") 				{ TNUM }
 	| "bool" 			 	 				{ TBOOL }
 	| "unit"								{ TUNIT }
+	| "module" 								{ MODULE }
+	| "where"								{ WHERE }
+	| "import"								{ IMPORT }
+	(*| "as"									{ AS }*)
 	| bool as bool_str   	 				{ BOOL (bool_of_string bool_str) } 
 	| digit+ as num          				{ INT (int_of_string num) }
 	| l_char (char|digit|'_')* as wd		{ VAR wd }
 	| u_char (char|digit|'_')* as st		{ S_VAR st }
 	| '_'char(char|digit|'_')* as ty		{ T_VAR ty }
 	| _ as tk 								{ raise (UnknownToken tk) }
-	| eof 					 				{ raise End_of_file }
+	| eof 					 				{ EOF }
+	

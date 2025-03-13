@@ -71,6 +71,13 @@ type decl =
 type prog = 
  | Prog of (decl list) * exp
 
+type imprt =
+ | Imprt of var * (var list)
+ (*| ImprtAlias of var * var*)
+
+type modl =
+ | Modl of var * (imprt list) * prog
+
  (* Desugaring functions, change from input syntax to regular syntax *)
  let rec desugar_ty t = 
   match t with 
@@ -186,3 +193,14 @@ let desugar_decl decl =
 let desugar_prog prog = 
   match prog with 
   | InputSyntax.Prog (ldecls, exp) -> Prog (List.rev (List.fold_left (fun acc d -> (desugar_decl d)::acc) [] ldecls), desugar_exp exp)
+
+let desugar_imprt imprt = 
+  match imprt with
+  | InputSyntax.Imprt (v, lvar) -> 
+      Imprt (v, lvar)
+
+let desugar_modl modl = 
+  match modl with
+  | InputSyntax.Modl (var, limprt, prog) ->
+      let imprt_lst = List.rev (List.fold_left (fun acc i -> (desugar_imprt i)::acc) [] limprt) in 
+      Modl (var, imprt_lst, desugar_prog prog)

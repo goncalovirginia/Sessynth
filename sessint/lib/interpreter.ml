@@ -207,13 +207,41 @@ and exec lin_ctxt env rec_env proc cname channel =
                       | Bool b -> if b then exec lin_ctxt env rec_env p1 cname channel else exec lin_ctxt env rec_env p2 cname channel
                       | _ -> assert false (* should never happen if well typed *)
                       end
-let eval_decl env decl = 
+
+let eval_decl env decl = (*receives an expression StrMap*)
   match decl with
-  | Decl (x, _, exp) -> (x, eval (StrMap.add x exp env) exp)
+  | Decl (x, ty, exp) -> (x, ty, eval (StrMap.add x exp env) exp) (*name, type, evaluated expression, expression accumulator*)
 
 (* Populates environment and evaluates final expression *) 
 let eval_program prog = 
   match prog with 
   | Prog (ldecls, e) -> 
-    let env = List.fold_left (fun acc decl -> let (key, data) = (eval_decl acc decl) in StrMap.add key data acc) StrMap.empty ldecls in 
-      eval env e
+    let en = List.fold_left(fun (decacc, expacc) decl -> let (key, ty, data) = eval_decl expacc decl in ((Decl(key, ty, data) :: decacc), (StrMap.add key data expacc))) (([], StrMap.empty)) ldecls (*(fun expacc decacc decl -> let (key, ty, data, expracc) = eval_decl expacc decl in (Decl(key, ty, data) :: decacc) in (expacc = expracc)) ([]) ldecls*) in (*need Decl List and exp StrMap*)
+    fst en, eval (snd en) e (*returns evaluated declaration list, evaluated expression*)
+
+let eval_imprt env imprt = (*Simply searches the environment StrMap<ModName, Modl> for the imported module and returns the ImpName and the associated Modl*)
+  match imprt with
+  | Imprt (v, _) -> let _ = StrMap.find v env in
+                  v
+
+let eval_modl env modl = (*This environment is a StrMap<String, Modl> of modules, returns (module name, Modl)*)
+  match modl with
+  | Modl (x, limprt, prog) -> let en = List.fold_left(fun acc i -> let (key) = (eval_imprt env i) in Imprt(key, []) :: acc ) ([]) limprt in (*Creates List[Imprt]*)
+                                let (ld, e) = eval_program prog in (*Evaluate program*)
+                                  x, en, Prog(ld, e) (*New module entry in StrMap<ModName, Modl>*)
+
+(*
+  module A where
+    let f = 23
+    let g = 40
+    let h = f+g
+
+  end
+
+  module B where 
+    import A
+
+    let x = A.h
+    print x
+  end
+*)

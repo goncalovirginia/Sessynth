@@ -1,2 +1,10 @@
-(test
- (name sessint))
+(executable
+ (name sessint)
+ (modules sessint)
+ (libraries sessint))
+
+(rule
+ (with-stdout-to executed.out
+  (with-accepted-exit-codes 0
+   (run ../bin/main.exe %{dep:b.prog})))
+)

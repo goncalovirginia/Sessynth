@@ -76,6 +76,13 @@ type decl =
 type prog = 
   | Prog of (decl list) * exp
 
+type imprt =
+  | Imprt of var * (var list)
+  (*| ImprtAlias of var * var*)
+
+type modl =
+  | Modl of var * (imprt list) * prog
+
 
  
 

@@ -1,12 +1,77 @@
 (library
  (name sessint)
- (libraries unix threads))
+ (modules inputSyntax syntax lexer typechecker interpreter compiler parser unitActionsParser errorMessages printer)
+ (libraries menhirLib unix threads))
 
-(env
-  (dev
-    (flags (:standard -w -33))))
+;; -----------------------------------------------------------------------------
+
+;; Constructing the lexer and parser.
+
+(ocamllex 
+    (modules lexer)
+  )
+
+;; The following rule uses Menhir's code back-end to obtain the module Parser.
+(menhir
+ (modules parser)
+ (flags -lg 1 -la 1 -lc 2)
+)
+
+;; The following two rules create a copy of the file parser.mly named
+;; unitActionsParser.mly. This is a copy of the grammar where the semantic
+;; actions have been removed and replaced with unit values. It is compiled
+;; by Menhir's table back-end to obtain the module UnitActionsParser.
+
+;; The use of [--external-tokens Parser] is required for the two parsers
+;; to share a single [token] type. This makes them usable with the same
+;; lexer
+
+(rule
+ (action
+  (with-stdout-to unitActionsParser.mly
+   (run menhir
+    %{dep:parser.mly}
+    --only-preprocess-u)))
+)
 
 (menhir
- (modules parser))
+ (modules unitActionsParser)
+ (flags --table --external-tokens Parser)
+)
 
- (ocamllex lexer)
+;; -----------------------------------------------------------------------------
+
+;; This section deals with the .messages file.
+
+;; This rule generates a file "errorMessages.auto.messages" that contains a
+;; list of all error states. It is used by the completeness check.
+(rule
+ (with-stdout-to errorMessages.auto.messages
+  (run menhir
+   %{dep:parser.mly}
+   --list-errors)))
+
+;; This rule implements the completeness check. It checks that every error
+;; state listed in the auto-generated file "errorMessages.auto.messages"
+;; is also listed in the file "errorMessages.messages" that is maintained
+;; by the programmer.
+
+(rule
+ (with-stdout-to errorMessages.check
+  (run menhir
+   %{dep:parser.mly}
+   --compare-errors %{dep:errorMessages.auto.messages}
+   --compare-errors %{dep:errorMessages.messages}))
+)
+
+;; The following rule generates "errorMessages.ml" based on the source file
+;; "errorMessages.messages". It requires the completeness check to have been
+;; performed first. (If desired, this check could be disabled.)
+(rule
+ (deps errorMessages.check)
+ (action (with-stdout-to errorMessages.ml
+   (run menhir
+    %{dep:parser.mly}
+    --compile-errors %{dep:errorMessages.messages})))
+)
+

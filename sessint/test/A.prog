@@ -1,0 +1,22 @@
+module a where
+plus_one : int -> {int ^ @}
+fun n -> c <- {
+    send c (n+1);
+    close c
+}
+end;
+
+plus_two : int -> {int ^ @}
+fun n -> c <- {
+    d <- spawn (plus_one (n+1));
+    fwd c d
+}
+end;
+
+;; m <- {
+    d <- spawn (plus_two 1);
+    a:int <- recv d;
+    print a;
+    wait d;
+    close m
+};;

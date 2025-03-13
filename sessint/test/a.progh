@@ -1,0 +1,3 @@
+Header for module a
+val plus_one : int -> proc(!int.end, [])
+val plus_two : int -> proc(!int.end, [])

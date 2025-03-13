@@ -19,6 +19,8 @@
 %token CASE OF DOT
 %token END_STYPE RIGHT_ARROW_BOLD CIRCUMFLEX AMPERSAND LOLLIPOP
 %token REC TYPE STYPE
+%token MODULE WHERE IMPORT //AS
+%token EOF
 
 %left EQUALS
 %left PLUS MINUS
@@ -27,10 +29,17 @@
 %left MULT DIV
 
 %start main 
-%type <InputSyntax.prog> main
+%type <InputSyntax.modl> main
 
 %%
-main: 
+main:
+  | MODULE m = VAR WHERE i = imprt* p = prog EOF       { Modl (m, i, p) }
+ 
+imprt:
+  | IMPORT i = VAR L_PAR lvar = VAR+ R_PAR END             { Imprt (i, lvar) }
+  //| IMPORT i = VAR AS n = VAR     { ImprtAlias (i, n) }
+
+prog:
   | d = declaration* RETURN e = exec_exp RETURN { Prog (d, e) }
  
 declaration:
@@ -72,6 +81,7 @@ proc:
   | id = VAR LEFT_ARROW RECV_CHAN c = VAR SEMI_COLON p = proc                           { RecvChan (id, c, None, p) } 
   | PRINT e = expression SEMI_COLON p = proc                                            { Print (e, p) }
   | IF e = expression THEN p1 = proc ELSE p2 = proc                                     { If (e, p1, p2) }
+
 stype:
   | v = VAR                                      { STVar (v) }  // Recursive variable only
   | REC v = VAR DOT sty = stype                  { STRec (v, sty) } // Recursive type only

@@ -1,0 +1,4 @@
+Header for module b
+val plus_two : int -> proc(!int.end, [])
+From module a
+val plus_one : int -> proc(!int.end, [])

@@ -412,7 +412,7 @@ let rec compile_exp single_channel type_map exp env =
                                             end
                   (* Since we allow for an executable expression to be a function call, we must interpret it to obtain the resulting procExp which will be executed *)
                    | FunApp (_, _) -> compile_exp single_channel type_map (ExecExp (Interpreter.eval env exp)) env
-                   | _ -> error (NonExecutableExpression exp)
+                   | _ -> print_endline("Encountered an error in ExecExp...");error (NonExecutableExpression exp)
                    end
 (* This function is meant to be used in declaration compilation, which need a return before the expression value, since a declaration is a function 
    This can be refactored by calling the compile_exp function; instead of just being a copy of it *)
@@ -718,42 +718,114 @@ match e with
 | _ -> assert false
 
 let compile_decl single_channel map decl env = 
+  try
   match decl with
-  | Decl (x, _, exp) -> begin match exp with 
-                         | FunDef (v, Some arg, body, Some ret) -> begin match arg with 
-                                                                  | TUnit -> ("func " ^ x ^ "() " ^ compile_type map ret ^ " {\n " ^ (compile_return_exp single_channel map body env) ^ "}\n", Interpreter.StrMap.add x exp env)
-                                                                  | _ -> ("func " ^ x ^ "(" ^ v ^ " " ^ compile_type map arg ^ ") " ^ compile_type map ret ^ " {\n " ^ (compile_return_exp single_channel map body env) ^ "}\n", Interpreter.StrMap.add x exp env)
-                                                                  end
-                         | _ -> "", env (* Case of custom type declaration; has no effect on compilation result *)
-                         end
+  | Decl (x, _, exp) ->
+    let capitalized_x = String.capitalize_ascii x in
+    begin match exp with 
+      | FunDef (v, Some arg, body, Some ret) ->
+        begin match arg with 
+          | TUnit -> ("func " ^ capitalized_x ^ "() " ^ compile_type map ret ^ " {\n " ^ (compile_return_exp single_channel map body env) ^ "}\n", Interpreter.StrMap.add capitalized_x exp env)
+          | _ -> ("func " ^ capitalized_x ^ "(" ^ v ^ " " ^ compile_type map arg ^ ") " ^ compile_type map ret ^ " {\n " ^ (compile_return_exp single_channel map body env) ^ "}\n", Interpreter.StrMap.add capitalized_x exp env)
+        end
+      | _ -> "", env (* Case of custom type declaration; has no effect on compilation result *)
+    end
+  with e -> 
+    print_endline("Error occurred while compiling declaration: " ^ Printexc.to_string e);
+    raise e
 
 (* Entry function *)
-let compile_prog prog single_channel filename = 
+let compile_prog prog single_channel = 
+  try
   match prog with 
-  | Prog (ldecls, e) -> (* Preamble creation *)
-                        let stype_state_map = List.fold_left (fun map decl -> match decl with Decl (_, _, exp) -> make_state_trees_from_exp map exp) (TypeTable.create 50) ldecls in
-                          let final_stype_state_map = make_state_trees_from_exp stype_state_map e in
+  | Prog (ldecls, e) -> 
+    (* Preamble creation *)
+    let stype_state_map = List.fold_left (fun map decl -> 
+      match decl with Decl (_, _, exp) -> 
+        make_state_trees_from_exp map exp
+    ) (TypeTable.create 50) ldecls in
+    let final_stype_state_map = make_state_trees_from_exp stype_state_map e in
 
-                          let state_list = ref [] in TypeTable.iter (fun _ state -> state_list := state::!state_list) final_stype_state_map; 
-                          
-                          let preamble = ref "" in
-
-                          begin match single_channel with 
-                          | true -> preamble := compile_from_state_list !state_list final_stype_state_map compile_state_single_channel
-                          | false -> preamble := compile_from_state_list !state_list final_stype_state_map compile_state_multi_channel
-                          end;
-
+    (* Declaration list compilation *)    
+    let compiled_decls, env = List.fold_left (fun (str, env) decl -> 
+      let dec_str, nenv = compile_decl single_channel final_stype_state_map decl env in
+      (str ^ dec_str, nenv)
+    ) ("", Interpreter.StrMap.empty) ldecls in  
                         
-                        (* Declaration list compilation *)    
-                        let compiled_decls, env = List.fold_left (fun (str, env) decl -> 
-                                                              let dec_str, nenv = compile_decl single_channel final_stype_state_map decl env in
-                                                                (str ^ dec_str, nenv)) ("", Interpreter.StrMap.empty) ldecls in  
-                         
-                        (* Debug print *)
-                        TypeTable.iter (fun st (State (id, _)) ->  print_endline @@ Printer.string_from_stype st ^ " " ^ id) final_stype_state_map;
+    (* Final exp compilation *)
+    let compiled_exp = compile_exp single_channel final_stype_state_map e env in
 
-                        (* Put it all together *)
-                        let main = compile_exp single_channel final_stype_state_map e env in
-                          let oc = open_out filename in
-                            Printf.fprintf oc "%s" ("package main\n" ^ "import (\"fmt\"\n\"sync\")\n" ^ !preamble ^ compiled_decls ^ main); (* TODO add way to judge if there is a print in the program; otherwise the unused import will prevent execution; the same goes for sync *)
-                            close_out oc;
+    (* Put it all together *)
+    compiled_decls ^ compiled_exp, final_stype_state_map
+  with e ->
+    print_endline("An error occurred while compiling program: " ^ Printexc.to_string e);
+    raise e
+
+let compile_imprtlst imprt_lst = 
+  try
+  (* Preamble creation *)
+  let final_stype_state_map = List.fold_left (fun map imp -> 
+    match imp with 
+    | Imprt (nm, lvar) -> 
+      let map_with_nm = make_state_trees_from_exp map (Var nm) in
+      List.fold_left (fun acc var -> 
+        make_state_trees_from_exp acc (Var var)
+      ) map_with_nm lvar
+  ) (TypeTable.create 50) imprt_lst in
+      
+  let compiled_imprts = List.fold_left (fun str imprt -> 
+    match imprt with 
+    | Imprt (modname, funcs) -> 
+      let capitalized_funcs = List.map String.capitalize_ascii funcs in
+      let funcs_str = String.concat ", " capitalized_funcs in
+      str ^ "import " ^ String.capitalize_ascii modname ^ " (" ^ funcs_str ^ ")\n"
+  ) "" imprt_lst in
+  compiled_imprts, final_stype_state_map
+  with e ->
+    print_endline("Error occurred while compiling imports: " ^ Printexc.to_string e);
+    raise e
+
+let compile_modl modl single_channel =
+  try
+  match modl with
+  | Modl (modname, imprt_lst, prog) ->  
+    let compiled_imprts, final_stype_state_map_imprts = compile_imprtlst imprt_lst in
+    let compiled_prog, final_stype_state_map_prog = compile_prog prog single_channel in
+
+    (* Combine the two state maps *)
+    let final_stype_state_map = TypeTable.copy final_stype_state_map_imprts in
+    TypeTable.iter (fun key value -> 
+      TypeTable.replace final_stype_state_map key value
+    ) final_stype_state_map_prog;
+
+    let state_list = ref [] in 
+    TypeTable.iter (fun _ state -> 
+      state_list := state::!state_list
+    ) final_stype_state_map_imprts; 
+
+    let preamble = ref "" in
+
+    begin match single_channel with 
+      | true -> preamble := compile_from_state_list !state_list final_stype_state_map compile_state_single_channel
+      | false -> preamble := compile_from_state_list !state_list final_stype_state_map compile_state_multi_channel
+    end;
+
+    (* Debug print *)
+    TypeTable.iter (fun st (State (id, _)) ->
+      print_endline @@ Printer.string_from_stype st ^ " " ^ id
+    ) final_stype_state_map;
+
+    let filename = modname ^ "/" ^ modname ^ ".go" in
+    (* Create the directory for the package *)
+    Unix.mkdir modname 0o755;
+    let oc = open_out filename in
+    Printf.fprintf oc "%s" ("package " ^ modname ^ "\n" ^ "module " ^ modname ^ " where\n" ^ compiled_imprts ^ compiled_prog);
+    close_out oc;
+  with e -> 
+    print_endline("An error occurred while compiling a module: " ^ Printexc.to_string e);
+    raise e
+
+let compile_modls modl_lst =
+  List.iter (fun modl -> 
+    compile_modl modl true
+    ) modl_lst
