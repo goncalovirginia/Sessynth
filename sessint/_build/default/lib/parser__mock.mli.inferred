@@ -1,0 +1,93 @@
+type token =
+    WHERE
+  | WAIT
+  | VAR of string
+  | UNIT_VAL
+  | T_VAR of string
+  | TYPE
+  | TUNIT
+  | TNUM
+  | THEN
+  | TBOOL
+  | S_VAR of string
+  | STYPE
+  | SPAWN
+  | SEND_CHAN
+  | SEND
+  | SEMI_COLON
+  | R_PAR
+  | R_BRACE
+  | RIGHT_ARROW_BOLD
+  | RIGHT_ARROW
+  | RETURN
+  | RECV_CHAN
+  | RECV
+  | REC
+  | QUESTION
+  | PRINT
+  | PLUS
+  | OR
+  | OF
+  | NOT
+  | MULT
+  | MODULE
+  | MINUS
+  | L_PAR
+  | L_BRACE
+  | LOLLIPOP
+  | LET
+  | LESSER
+  | LEFT_ARROW
+  | INT of int
+  | IN
+  | IMPORT
+  | IF
+  | GREATER
+  | FWD
+  | FUN
+  | EQUALS
+  | EOF
+  | END_STYPE
+  | ENDIF
+  | END
+  | ELSE
+  | DOT
+  | DIV
+  | COMMA
+  | COLON
+  | CLOSE
+  | CIRCUMFLEX
+  | CASE
+  | BOOL of bool
+  | AND
+  | AMPERSAND
+val menhir_begin_marker : int
+val xv_uop : InputSyntax.uop
+val xv_ty : InputSyntax.ty
+val xv_stype : InputSyntax.stype
+val xv_simple_ty : InputSyntax.ty
+val xv_simple_exp : InputSyntax.exp
+val xv_prog : InputSyntax.prog
+val xv_proc_exp : InputSyntax.exp
+val xv_proc : InputSyntax.proc
+val xv_nonempty_list_simple_exp_ : InputSyntax.exp list
+val xv_nonempty_list_fun_binder_ : (string list * InputSyntax.ty option) list
+val xv_nonempty_list_VAR_ : string list
+val xv_main : InputSyntax.modl
+val xv_list_imprt_ : InputSyntax.imprt list
+val xv_list_declaration_ : InputSyntax.decl list
+val xv_list_VAR_ : string list
+val xv_lin_ctxt : (string * InputSyntax.stype) list
+val xv_imprt : InputSyntax.imprt
+val xv_fun_ty_list : InputSyntax.ty list
+val xv_fun_binder : string list * InputSyntax.ty option
+val xv_expression : InputSyntax.exp
+val xv_exec_exp : InputSyntax.exp
+val xv_declaration : InputSyntax.decl
+val xv_cond_exp : InputSyntax.exp
+val xv_choice_list : (string * InputSyntax.stype) list
+val xv_case_list : (string * InputSyntax.proc) list
+val xv_bop : InputSyntax.bop
+val xv_app_exp : InputSyntax.exp
+val xv_annot_exp : InputSyntax.exp
+val menhir_end_marker : int

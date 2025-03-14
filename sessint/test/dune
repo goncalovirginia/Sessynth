@@ -6,5 +6,5 @@
 (rule
  (with-stdout-to executed.out
   (with-accepted-exit-codes 0
-   (run ../bin/main.exe %{dep:b.prog})))
+   (run ../bin/main.exe %{dep:A.prog})))
 )

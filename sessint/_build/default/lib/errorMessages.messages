@@ -1,0 +1,2451 @@
+main: WHERE
+##
+## Ends in an error in state: 0.
+##
+## main' -> . main [ # ]
+##
+## The known suffix of the stack is as follows:
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid module declaration.
+
+main: MODULE WHERE
+##
+## Ends in an error in state: 1.
+##
+## main -> MODULE . VAR WHERE list(imprt) prog EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## MODULE
+##
+
+Syntax error: Expected a variable name after 'MODULE'.
+
+main: MODULE VAR WAIT
+##
+## Ends in an error in state: 2.
+##
+## main -> MODULE VAR . WHERE list(imprt) prog EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## MODULE VAR
+##
+
+Syntax error: Unexpected token 'WAIT'. Expected 'WHERE'.
+
+main: MODULE VAR WHERE WHERE
+##
+## Ends in an error in state: 3.
+##
+## main -> MODULE VAR WHERE . list(imprt) prog EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## MODULE VAR WHERE
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a list of imports or program declarations.
+
+main: MODULE VAR WHERE IMPORT WHERE
+##
+## Ends in an error in state: 4.
+##
+## imprt -> IMPORT . VAR L_PAR nonempty_list(VAR) R_PAR END [ VAR TYPE STYPE RETURN IMPORT ]
+##
+## The known suffix of the stack is as follows:
+## IMPORT
+##
+
+Syntax error: Expected a variable name after 'IMPORT'.
+
+main: MODULE VAR WHERE IMPORT VAR WHERE
+##
+## Ends in an error in state: 5.
+##
+## imprt -> IMPORT VAR . L_PAR nonempty_list(VAR) R_PAR END [ VAR TYPE STYPE RETURN IMPORT ]
+##
+## The known suffix of the stack is as follows:
+## IMPORT VAR
+##
+
+Syntax error: Expected '(' after 'IMPORT VAR'.
+
+main: MODULE VAR WHERE IMPORT VAR L_PAR WHERE
+##
+## Ends in an error in state: 6.
+##
+## imprt -> IMPORT VAR L_PAR . nonempty_list(VAR) R_PAR END [ VAR TYPE STYPE RETURN IMPORT ]
+##
+## The known suffix of the stack is as follows:
+## IMPORT VAR L_PAR
+##
+
+Syntax error: Expected a non-empty list of variables after 'IMPORT VAR ('.
+
+main: MODULE VAR WHERE IMPORT VAR L_PAR VAR WHERE
+##
+## Ends in an error in state: 7.
+##
+## nonempty_list(VAR) -> VAR . [ R_PAR COLON ]
+## nonempty_list(VAR) -> VAR . nonempty_list(VAR) [ R_PAR COLON ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected ')' or ':'.
+
+main: MODULE VAR WHERE IMPORT VAR L_PAR VAR COLON
+##
+## Ends in an error in state: 9.
+##
+## imprt -> IMPORT VAR L_PAR nonempty_list(VAR) . R_PAR END [ VAR TYPE STYPE RETURN IMPORT ]
+##
+## The known suffix of the stack is as follows:
+## IMPORT VAR L_PAR nonempty_list(VAR)
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 7, spurious reduction of production nonempty_list(VAR) -> VAR
+##
+
+Syntax error: Expected ')' after 'IMPORT VAR ( ...'.
+
+main: MODULE VAR WHERE IMPORT VAR L_PAR VAR R_PAR WHERE
+##
+## Ends in an error in state: 10.
+##
+## imprt -> IMPORT VAR L_PAR nonempty_list(VAR) R_PAR . END [ VAR TYPE STYPE RETURN IMPORT ]
+##
+## The known suffix of the stack is as follows:
+## IMPORT VAR L_PAR nonempty_list(VAR) R_PAR
+##
+
+Syntax error: Expected 'END' after 'IMPORT VAR ( ... )'.
+
+main: MODULE VAR WHERE VAR WHERE
+##
+## Ends in an error in state: 13.
+##
+## declaration -> VAR . COLON ty expression SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Expected ':' after 'VAR'.
+
+main: MODULE VAR WHERE VAR COLON WHERE
+##
+## Ends in an error in state: 14.
+##
+## declaration -> VAR COLON . ty expression SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON
+##
+
+Syntax error: Expected a type after 'VAR :'.
+
+main: MODULE VAR WHERE TYPE T_VAR L_PAR WHERE
+##
+## Ends in an error in state: 19.
+##
+## simple_ty -> L_PAR . ty R_PAR [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR
+##
+
+Syntax error: Expected a type after '('.
+
+main: MODULE VAR WHERE STYPE S_VAR L_BRACE WHERE
+##
+## Ends in an error in state: 20.
+##
+## simple_ty -> L_BRACE . stype R_BRACE [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+## simple_ty -> L_BRACE . stype LEFT_ARROW lin_ctxt R_BRACE [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## L_BRACE
+##
+
+Syntax error: Expected a structural type after '{'.
+
+main: MODULE VAR WHERE STYPE S_VAR REC WHERE
+##
+## Ends in an error in state: 23.
+##
+## stype -> REC . VAR DOT stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## REC
+##
+
+Syntax error: Expected a variable name after 'REC'.
+
+main: MODULE VAR WHERE STYPE S_VAR REC VAR WHERE
+##
+## Ends in an error in state: 24.
+##
+## stype -> REC VAR . DOT stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## REC VAR
+##
+
+Syntax error: Expected '.' after 'REC VAR'.
+
+main: MODULE VAR WHERE STYPE S_VAR REC VAR DOT WHERE
+##
+## Ends in an error in state: 25.
+##
+## stype -> REC VAR DOT . stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## REC VAR DOT
+##
+
+Syntax error: Expected a structural type after 'REC VAR .'.
+
+main: MODULE VAR WHERE STYPE S_VAR PLUS WHERE
+##
+## Ends in an error in state: 26.
+##
+## stype -> PLUS . L_BRACE choice_list R_BRACE [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## PLUS
+##
+
+Syntax error: Expected '{' after 'PLUS'.
+
+main: MODULE VAR WHERE STYPE S_VAR PLUS L_BRACE WHERE
+##
+## Ends in an error in state: 27.
+##
+## stype -> PLUS L_BRACE . choice_list R_BRACE [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## PLUS L_BRACE
+##
+
+Syntax error: Expected a choice list after 'PLUS {'.
+
+main: MODULE VAR WHERE STYPE S_VAR AMPERSAND L_BRACE VAR WHERE
+##
+## Ends in an error in state: 28.
+##
+## choice_list -> VAR . COLON stype [ R_BRACE ]
+## choice_list -> VAR . COLON stype COMMA choice_list [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Expected ':' after 'VAR'.
+
+main: MODULE VAR WHERE STYPE S_VAR AMPERSAND L_BRACE VAR COLON WHERE
+##
+## Ends in an error in state: 29.
+##
+## choice_list -> VAR COLON . stype [ R_BRACE ]
+## choice_list -> VAR COLON . stype COMMA choice_list [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON
+##
+
+Syntax error: Expected a structural type after 'VAR :'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_PAR WHERE
+##
+## Ends in an error in state: 30.
+##
+## simple_ty -> L_PAR . ty R_PAR [ R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW LEFT_ARROW CIRCUMFLEX ]
+## stype -> L_PAR . stype R_PAR MULT stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+## stype -> L_PAR . stype R_PAR LOLLIPOP stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR
+##
+
+Syntax error: Expected a type or structural type after '('.
+
+main: MODULE VAR WHERE STYPE S_VAR AMPERSAND WHERE
+##
+## Ends in an error in state: 32.
+##
+## stype -> AMPERSAND . L_BRACE choice_list R_BRACE [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## AMPERSAND
+##
+
+Syntax error: Expected '{' after 'AMPERSAND'.
+
+main: MODULE VAR WHERE STYPE S_VAR AMPERSAND L_BRACE WHERE
+##
+## Ends in an error in state: 33.
+##
+## stype -> AMPERSAND L_BRACE . choice_list R_BRACE [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## AMPERSAND L_BRACE
+##
+
+Syntax error: Expected a choice list after 'AMPERSAND {'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_PAR TBOOL VAR
+##
+## Ends in an error in state: 36.
+##
+## simple_ty -> L_PAR ty . R_PAR [ R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW LEFT_ARROW CIRCUMFLEX ]
+## stype -> ty . CIRCUMFLEX stype [ R_PAR ]
+## stype -> ty . RIGHT_ARROW_BOLD stype [ R_PAR ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Unexpected token 'VAR'. Expected ')' or '^' or '=>'.
+
+main: MODULE VAR WHERE STYPE S_VAR TBOOL RIGHT_ARROW_BOLD WHERE
+##
+## Ends in an error in state: 38.
+##
+## stype -> ty RIGHT_ARROW_BOLD . stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## ty RIGHT_ARROW_BOLD
+##
+
+Syntax error: Expected a structural type after '=>'.
+
+main: MODULE VAR WHERE STYPE S_VAR TBOOL VAR
+##
+## Ends in an error in state: 39.
+##
+## stype -> ty . CIRCUMFLEX stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+## stype -> ty . RIGHT_ARROW_BOLD stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Unexpected token 'VAR'. Expected '^' or '=>'.
+
+main: MODULE VAR WHERE STYPE S_VAR TBOOL CIRCUMFLEX WHERE
+##
+## Ends in an error in state: 40.
+##
+## stype -> ty CIRCUMFLEX . stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## ty CIRCUMFLEX
+##
+
+Syntax error: Expected a structural type after 'TBOOL ^'.
+
+main: MODULE VAR WHERE STYPE S_VAR TBOOL WHERE
+##
+## Ends in an error in state: 42.
+##
+## fun_ty_list -> simple_ty . [ RIGHT_ARROW ]
+## ty -> simple_ty . [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## simple_ty
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid type.
+
+main: MODULE VAR WHERE STYPE S_VAR TBOOL RIGHT_ARROW WHERE
+##
+## Ends in an error in state: 44.
+##
+## fun_ty_list -> fun_ty_list RIGHT_ARROW . simple_ty [ RIGHT_ARROW ]
+## ty -> fun_ty_list RIGHT_ARROW . simple_ty [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## fun_ty_list RIGHT_ARROW
+##
+
+Syntax error: Expected a valid type after '=>'.
+
+main: MODULE VAR WHERE STYPE S_VAR TBOOL RIGHT_ARROW TBOOL WHERE
+##
+## Ends in an error in state: 45.
+##
+## fun_ty_list -> fun_ty_list RIGHT_ARROW simple_ty . [ RIGHT_ARROW ]
+## ty -> fun_ty_list RIGHT_ARROW simple_ty . [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## fun_ty_list RIGHT_ARROW simple_ty
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected '=>'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_PAR END_STYPE WHERE
+##
+## Ends in an error in state: 47.
+##
+## stype -> L_PAR stype . R_PAR MULT stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+## stype -> L_PAR stype . R_PAR LOLLIPOP stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR stype
+##
+
+Syntax error: Expected ')' after 'L_PAR stype'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_PAR END_STYPE R_PAR WHERE
+##
+## Ends in an error in state: 48.
+##
+## stype -> L_PAR stype R_PAR . MULT stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+## stype -> L_PAR stype R_PAR . LOLLIPOP stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR stype R_PAR
+##
+
+Syntax error: Expected '*' or '⊸' after 'L_PAR stype R_PAR'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_PAR END_STYPE R_PAR MULT WHERE
+##
+## Ends in an error in state: 49.
+##
+## stype -> L_PAR stype R_PAR MULT . stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR stype R_PAR MULT
+##
+
+Syntax error: Expected a structural type after 'L_PAR stype R_PAR *'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_PAR END_STYPE R_PAR LOLLIPOP WHERE
+##
+## Ends in an error in state: 51.
+##
+## stype -> L_PAR stype R_PAR LOLLIPOP . stype [ SEMI_COLON R_PAR R_BRACE LEFT_ARROW COMMA ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR stype R_PAR LOLLIPOP
+##
+
+Syntax error: Expected a structural type after 'L_PAR stype R_PAR ⊸'.
+
+main: MODULE VAR WHERE STYPE S_VAR AMPERSAND L_BRACE VAR COLON END_STYPE WHERE
+##
+## Ends in an error in state: 53.
+##
+## choice_list -> VAR COLON stype . [ R_BRACE ]
+## choice_list -> VAR COLON stype . COMMA choice_list [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected '}' or ','.
+
+main: MODULE VAR WHERE STYPE S_VAR AMPERSAND L_BRACE VAR COLON END_STYPE COMMA WHERE
+##
+## Ends in an error in state: 54.
+##
+## choice_list -> VAR COLON stype COMMA . choice_list [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype COMMA
+##
+
+Syntax error: Expected a choice list after 'VAR COLON stype ,'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_BRACE END_STYPE WHERE
+##
+## Ends in an error in state: 59.
+##
+## simple_ty -> L_BRACE stype . R_BRACE [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+## simple_ty -> L_BRACE stype . LEFT_ARROW lin_ctxt R_BRACE [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## L_BRACE stype
+##
+
+Syntax error: Expected '}' or '←' after 'L_BRACE stype'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_BRACE END_STYPE LEFT_ARROW WHERE
+##
+## Ends in an error in state: 61.
+##
+## simple_ty -> L_BRACE stype LEFT_ARROW . lin_ctxt R_BRACE [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## L_BRACE stype LEFT_ARROW
+##
+
+Syntax error: Expected a linear context after 'L_BRACE stype ←'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_BRACE END_STYPE LEFT_ARROW VAR WHERE
+##
+## Ends in an error in state: 62.
+##
+## lin_ctxt -> VAR . COLON stype [ R_BRACE ]
+## lin_ctxt -> VAR . COLON stype COMMA lin_ctxt [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Expected ':' after 'VAR'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_BRACE END_STYPE LEFT_ARROW VAR COLON WHERE
+##
+## Ends in an error in state: 63.
+##
+## lin_ctxt -> VAR COLON . stype [ R_BRACE ]
+## lin_ctxt -> VAR COLON . stype COMMA lin_ctxt [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON
+##
+
+Syntax error: Expected a structural type after 'VAR :'.
+
+main: MODULE VAR WHERE STYPE S_VAR L_BRACE END_STYPE LEFT_ARROW VAR COLON END_STYPE WHERE
+##
+## Ends in an error in state: 64.
+##
+## lin_ctxt -> VAR COLON stype . [ R_BRACE ]
+## lin_ctxt -> VAR COLON stype . COMMA lin_ctxt [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected '}' or ','.
+
+main: MODULE VAR WHERE STYPE S_VAR L_BRACE END_STYPE LEFT_ARROW VAR COLON END_STYPE COMMA WHERE
+##
+## Ends in an error in state: 65.
+##
+## lin_ctxt -> VAR COLON stype COMMA . lin_ctxt [ R_BRACE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype COMMA
+##
+
+Syntax error: Expected a linear context after 'VAR COLON stype ,'.
+
+main: MODULE VAR WHERE TYPE T_VAR L_PAR TBOOL VAR
+##
+## Ends in an error in state: 69.
+##
+## simple_ty -> L_PAR ty . R_PAR [ VAR UNIT_VAL SEMI_COLON R_PAR RIGHT_ARROW_BOLD RIGHT_ARROW NOT MINUS L_PAR LET LEFT_ARROW INT IF FUN CIRCUMFLEX BOOL ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Unexpected token 'VAR'. Expected ')' or '^' or '=>'.
+
+main: MODULE VAR WHERE VAR COLON TBOOL SEMI_COLON
+##
+## Ends in an error in state: 70.
+##
+## declaration -> VAR COLON ty . expression SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Expected an expression after 'VAR : TBOOL ;'.
+
+main: MODULE VAR WHERE RETURN VAR WHERE
+##
+## Ends in an error in state: 71.
+##
+## proc_exp -> VAR . LEFT_ARROW L_BRACE proc R_BRACE [ THEN SEMI_COLON R_PAR RETURN PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## simple_exp -> VAR . [ VAR UNIT_VAL THEN SEMI_COLON R_PAR RETURN QUESTION PLUS OR MULT MINUS L_PAR LESSER INT IN GREATER EQUALS ENDIF END ELSE DIV BOOL AND ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW WHERE
+##
+## Ends in an error in state: 72.
+##
+## proc_exp -> VAR LEFT_ARROW . L_BRACE proc R_BRACE [ THEN SEMI_COLON R_PAR RETURN PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW
+##
+
+Syntax error: Expected '{' after 'VAR <-'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE WHERE
+##
+## Ends in an error in state: 73.
+##
+## proc_exp -> VAR LEFT_ARROW L_BRACE . proc R_BRACE [ THEN SEMI_COLON R_PAR RETURN PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW L_BRACE
+##
+
+Syntax error: Expected a process after 'VAR <- {'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE WAIT WHERE
+##
+## Ends in an error in state: 74.
+##
+## proc -> WAIT . VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## WAIT
+##
+
+Syntax error: Expected a variable after 'WAIT'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE WAIT VAR WHERE
+##
+## Ends in an error in state: 75.
+##
+## proc -> WAIT VAR . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## WAIT VAR
+##
+
+Syntax error: Expected ';' after 'WAIT VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE WAIT VAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 76.
+##
+## proc -> WAIT VAR SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## WAIT VAR SEMI_COLON
+##
+
+Syntax error: Expected a process after 'WAIT VAR ;'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR WHERE
+##
+## Ends in an error in state: 77.
+##
+## proc -> VAR . COLON ty LEFT_ARROW RECV VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR . LEFT_ARROW RECV VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR . LEFT_ARROW SPAWN L_PAR expression R_PAR list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR . LEFT_ARROW SPAWN L_BRACE proc R_BRACE list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR . DOT VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR . COLON stype LEFT_ARROW RECV_CHAN VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR . LEFT_ARROW RECV_CHAN VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW WHERE
+##
+## Ends in an error in state: 78.
+##
+## proc -> VAR LEFT_ARROW . RECV VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR LEFT_ARROW . SPAWN L_PAR expression R_PAR list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR LEFT_ARROW . SPAWN L_BRACE proc R_BRACE list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR LEFT_ARROW . RECV_CHAN VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW
+##
+
+Syntax error: Expected 'RECV', 'SPAWN', or 'RECV_CHAN' after 'VAR <-'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN WHERE
+##
+## Ends in an error in state: 79.
+##
+## proc -> VAR LEFT_ARROW SPAWN . L_PAR expression R_PAR list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR LEFT_ARROW SPAWN . L_BRACE proc R_BRACE list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN
+##
+
+Syntax error: Expected '(' or '{' after 'VAR <- SPAWN'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_PAR WHERE
+##
+## Ends in an error in state: 80.
+##
+## proc -> VAR LEFT_ARROW SPAWN L_PAR . expression R_PAR list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_PAR
+##
+
+Syntax error: Expected an expression after 'VAR <- SPAWN ('.
+
+main: MODULE VAR WHERE RETURN L_PAR L_PAR WHERE
+##
+## Ends in an error in state: 84.
+##
+## annot_exp -> L_PAR . ty expression R_PAR [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## simple_exp -> L_PAR . expression R_PAR [ VAR UNIT_VAL THEN SEMI_COLON R_PAR QUESTION PLUS OR MULT MINUS L_PAR LESSER INT IN GREATER EQUALS ENDIF END ELSE DIV BOOL AND ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR
+##
+
+Syntax error: Expected a type or expression after '('.
+
+main: MODULE VAR WHERE RETURN L_PAR L_PAR L_PAR WHERE
+##
+## Ends in an error in state: 85.
+##
+## annot_exp -> L_PAR . ty expression R_PAR [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## simple_exp -> L_PAR . expression R_PAR [ VAR UNIT_VAL R_PAR QUESTION PLUS OR MULT MINUS L_PAR LESSER INT GREATER EQUALS DIV BOOL AND ]
+## simple_ty -> L_PAR . ty R_PAR [ VAR UNIT_VAL R_PAR RIGHT_ARROW NOT MINUS L_PAR LET INT IF FUN BOOL ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR
+##
+
+Syntax error: Expected a type or expression after '('.
+
+main: MODULE VAR WHERE RETURN L_PAR LET WHERE
+##
+## Ends in an error in state: 86.
+##
+## expression -> LET . VAR EQUALS expression IN expression END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## LET
+##
+
+Syntax error: Expected a variable after 'LET'.
+
+main: MODULE VAR WHERE RETURN L_PAR LET VAR WHERE
+##
+## Ends in an error in state: 87.
+##
+## expression -> LET VAR . EQUALS expression IN expression END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## LET VAR
+##
+
+Syntax error: Expected '=' after 'LET VAR'.
+
+main: MODULE VAR WHERE RETURN L_PAR LET VAR EQUALS WHERE
+##
+## Ends in an error in state: 88.
+##
+## expression -> LET VAR EQUALS . expression IN expression END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## LET VAR EQUALS
+##
+
+Syntax error: Expected an expression after 'LET VAR ='.
+
+main: MODULE VAR WHERE RETURN L_PAR IF WHERE
+##
+## Ends in an error in state: 90.
+##
+## cond_exp -> IF . expression THEN expression ELSE expression ENDIF [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## IF
+##
+
+Syntax error: Expected an expression after 'IF'.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN WHERE
+##
+## Ends in an error in state: 91.
+##
+## expression -> FUN . nonempty_list(fun_binder) RIGHT_ARROW expression END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## FUN
+##
+
+Syntax error: Expected a non-empty list of function binders after 'FUN'.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN VAR WHERE
+##
+## Ends in an error in state: 92.
+##
+## fun_binder -> VAR . [ VAR RIGHT_ARROW L_PAR ]
+## fun_binder -> VAR . COLON simple_ty [ VAR RIGHT_ARROW L_PAR ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid function binder.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN VAR COLON WHERE
+##
+## Ends in an error in state: 93.
+##
+## fun_binder -> VAR COLON . simple_ty [ VAR RIGHT_ARROW L_PAR ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON
+##
+
+Syntax error: Expected a simple type after 'VAR :'.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN L_PAR WHERE
+##
+## Ends in an error in state: 95.
+##
+## fun_binder -> L_PAR . nonempty_list(VAR) COLON simple_ty R_PAR [ VAR RIGHT_ARROW L_PAR ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR
+##
+
+Syntax error: Expected a non-empty list of variables after 'FUN ('.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN L_PAR VAR R_PAR
+##
+## Ends in an error in state: 96.
+##
+## fun_binder -> L_PAR nonempty_list(VAR) . COLON simple_ty R_PAR [ VAR RIGHT_ARROW L_PAR ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR nonempty_list(VAR)
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 7, spurious reduction of production nonempty_list(VAR) -> VAR
+##
+
+Syntax error: Expected ':' after 'FUN (VAR)'.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN L_PAR VAR COLON WHERE
+##
+## Ends in an error in state: 97.
+##
+## fun_binder -> L_PAR nonempty_list(VAR) COLON . simple_ty R_PAR [ VAR RIGHT_ARROW L_PAR ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR nonempty_list(VAR) COLON
+##
+
+Syntax error: Expected a simple type after 'VAR :'.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN L_PAR VAR COLON TBOOL WHERE
+##
+## Ends in an error in state: 98.
+##
+## fun_binder -> L_PAR nonempty_list(VAR) COLON simple_ty . R_PAR [ VAR RIGHT_ARROW L_PAR ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR nonempty_list(VAR) COLON simple_ty
+##
+
+Syntax error: Expected ')' after 'VAR : TBOOL'.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN VAR RIGHT_ARROW WHERE
+##
+## Ends in an error in state: 101.
+##
+## expression -> FUN nonempty_list(fun_binder) RIGHT_ARROW . expression END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## FUN nonempty_list(fun_binder) RIGHT_ARROW
+##
+
+Syntax error: Expected an expression after 'FUN ... =>'.
+
+main: MODULE VAR WHERE RETURN L_PAR MINUS WHERE
+##
+## Ends in an error in state: 103.
+##
+## expression -> uop . simple_exp [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## uop
+##
+
+Syntax error: Expected a simple expression after '-'.
+
+main: MODULE VAR WHERE RETURN L_PAR WHERE
+##
+## Ends in an error in state: 105.
+##
+## simple_exp -> L_PAR . expression R_PAR [ VAR UNIT_VAL THEN SEMI_COLON R_PAR RETURN PLUS OR MULT MINUS L_PAR LESSER INT IN GREATER EQUALS ENDIF END ELSE DIV COLON BOOL AND ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR
+##
+
+Syntax error: Expected an expression after '('.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL RETURN
+##
+## Ends in an error in state: 106.
+##
+## app_exp -> simple_exp . nonempty_list(simple_exp) [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## cond_exp -> simple_exp . QUESTION simple_exp COLON simple_exp [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> simple_exp . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## simple_exp
+##
+
+Syntax error: Unexpected token 'RETURN'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL QUESTION WHERE
+##
+## Ends in an error in state: 107.
+##
+## cond_exp -> simple_exp QUESTION . simple_exp COLON simple_exp [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## simple_exp QUESTION
+##
+
+Syntax error: Expected a simple expression after '?'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL QUESTION VAR WHERE
+##
+## Ends in an error in state: 108.
+##
+## cond_exp -> simple_exp QUESTION simple_exp . COLON simple_exp [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## simple_exp QUESTION simple_exp
+##
+
+Syntax error: Expected ':' after 'VAR'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL QUESTION VAR COLON WHERE
+##
+## Ends in an error in state: 109.
+##
+## cond_exp -> simple_exp QUESTION simple_exp COLON . simple_exp [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## simple_exp QUESTION simple_exp COLON
+##
+
+Syntax error: Expected a simple expression after ':'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL VAR WHERE
+##
+## Ends in an error in state: 111.
+##
+## nonempty_list(simple_exp) -> simple_exp . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## nonempty_list(simple_exp) -> simple_exp . nonempty_list(simple_exp) [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## simple_exp
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL THEN
+##
+## Ends in an error in state: 115.
+##
+## expression -> expression . MULT expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## simple_exp -> L_PAR expression . R_PAR [ VAR UNIT_VAL THEN SEMI_COLON R_PAR RETURN QUESTION PLUS OR MULT MINUS L_PAR LESSER INT IN GREATER EQUALS ENDIF END ELSE DIV COLON BOOL AND ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected ')' after 'L_PAR expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL PLUS WHERE
+##
+## Ends in an error in state: 117.
+##
+## expression -> expression PLUS . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression PLUS
+##
+
+Syntax error: Expected an expression after '+'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL PLUS MINUS VAR WHERE
+##
+## Ends in an error in state: 118.
+##
+## expression -> expression . MULT expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . DIV expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . AND expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . OR expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . PLUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression PLUS expression . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MINUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . LESSER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . GREATER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression PLUS expression
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL OR WHERE
+##
+## Ends in an error in state: 119.
+##
+## expression -> expression OR . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression OR
+##
+
+Syntax error: Expected an expression after 'OR'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL OR MINUS VAR WHERE
+##
+## Ends in an error in state: 120.
+##
+## expression -> expression . MULT expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . DIV expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . AND expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . OR expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression OR expression . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . PLUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MINUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . LESSER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . GREATER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression OR expression
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL MULT WHERE
+##
+## Ends in an error in state: 121.
+##
+## expression -> expression MULT . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression MULT
+##
+
+Syntax error: Expected an expression after '*'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL LESSER WHERE
+##
+## Ends in an error in state: 126.
+##
+## expression -> expression LESSER . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression LESSER
+##
+
+Syntax error: Expected an expression after '<'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL LESSER MINUS VAR WHERE
+##
+## Ends in an error in state: 127.
+##
+## expression -> expression . MULT expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . DIV expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . AND expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . OR expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . PLUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MINUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . LESSER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression LESSER expression . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . GREATER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression LESSER expression
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL DIV WHERE
+##
+## Ends in an error in state: 128.
+##
+## expression -> expression DIV . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression DIV
+##
+
+Syntax error: Expected an expression after '/'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL GREATER WHERE
+##
+## Ends in an error in state: 130.
+##
+## expression -> expression GREATER . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression GREATER
+##
+
+Syntax error: Expected an expression after '>'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL GREATER MINUS VAR WHERE
+##
+## Ends in an error in state: 131.
+##
+## expression -> expression . MULT expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . DIV expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . AND expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . OR expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . PLUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MINUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . LESSER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . GREATER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression GREATER expression . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression GREATER expression
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL AND WHERE
+##
+## Ends in an error in state: 132.
+##
+## expression -> expression AND . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression AND
+##
+
+Syntax error: Expected an expression after 'AND'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL AND MINUS VAR WHERE
+##
+## Ends in an error in state: 133.
+##
+## expression -> expression . MULT expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . DIV expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . AND expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression AND expression . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . OR expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . PLUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MINUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . LESSER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . GREATER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression AND expression
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL MINUS WHERE
+##
+## Ends in an error in state: 134.
+##
+## expression -> expression MINUS . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression MINUS
+##
+
+Syntax error: Expected an expression after '-'.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL MINUS MINUS VAR WHERE
+##
+## Ends in an error in state: 135.
+##
+## expression -> expression . MULT expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . DIV expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . AND expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . OR expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . PLUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MINUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression MINUS expression . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . LESSER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . GREATER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression MINUS expression
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL EQUALS WHERE
+##
+## Ends in an error in state: 136.
+##
+## expression -> expression EQUALS . expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression EQUALS
+##
+
+Syntax error: Expected an expression after '='.
+
+main: MODULE VAR WHERE RETURN L_PAR BOOL EQUALS MINUS VAR WHERE
+##
+## Ends in an error in state: 137.
+##
+## expression -> expression . MULT expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . DIV expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . AND expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . OR expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . PLUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MINUS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . LESSER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . GREATER expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression EQUALS expression . [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## expression EQUALS expression
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN VAR RIGHT_ARROW BOOL THEN
+##
+## Ends in an error in state: 139.
+##
+## expression -> FUN nonempty_list(fun_binder) RIGHT_ARROW expression . END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MULT expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . DIV expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . AND expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . OR expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . PLUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . MINUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . LESSER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . GREATER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . EQUALS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## FUN nonempty_list(fun_binder) RIGHT_ARROW expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected 'END' after 'FUN ... => expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR FUN VAR COLON TBOOL WHERE
+##
+## Ends in an error in state: 141.
+##
+## nonempty_list(fun_binder) -> fun_binder . [ RIGHT_ARROW ]
+## nonempty_list(fun_binder) -> fun_binder . nonempty_list(fun_binder) [ RIGHT_ARROW ]
+##
+## The known suffix of the stack is as follows:
+## fun_binder
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected '=>'.
+
+main: MODULE VAR WHERE RETURN L_PAR IF BOOL SEMI_COLON
+##
+## Ends in an error in state: 143.
+##
+## cond_exp -> IF expression . THEN expression ELSE expression ENDIF [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MULT expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected 'THEN' after 'IF expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR IF BOOL THEN WHERE
+##
+## Ends in an error in state: 144.
+##
+## cond_exp -> IF expression THEN . expression ELSE expression ENDIF [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expression THEN
+##
+
+Syntax error: Expected an expression after 'IF expression THEN'.
+
+main: MODULE VAR WHERE RETURN L_PAR IF BOOL THEN BOOL THEN
+##
+## Ends in an error in state: 145.
+##
+## cond_exp -> IF expression THEN expression . ELSE expression ENDIF [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MULT expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . DIV expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . AND expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . OR expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . PLUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . MINUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . LESSER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . GREATER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+## expression -> expression . EQUALS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expression THEN expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected 'ELSE' after 'IF expression THEN expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR IF BOOL THEN BOOL ELSE WHERE
+##
+## Ends in an error in state: 146.
+##
+## cond_exp -> IF expression THEN expression ELSE . expression ENDIF [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expression THEN expression ELSE
+##
+
+Syntax error: Expected an expression after 'IF expression THEN expression ELSE'.
+
+main: MODULE VAR WHERE RETURN L_PAR IF BOOL THEN BOOL ELSE BOOL THEN
+##
+## Ends in an error in state: 147.
+##
+## cond_exp -> IF expression THEN expression ELSE expression . ENDIF [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MULT expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . DIV expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . AND expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . OR expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . PLUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . MINUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . LESSER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . GREATER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+## expression -> expression . EQUALS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS ENDIF DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expression THEN expression ELSE expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected 'ENDIF' after 'IF expression THEN expression ELSE expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR LET VAR EQUALS BOOL THEN
+##
+## Ends in an error in state: 149.
+##
+## expression -> LET VAR EQUALS expression . IN expression END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MULT expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ PLUS OR MULT MINUS LESSER IN GREATER EQUALS DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## LET VAR EQUALS expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected 'IN' after 'LET VAR = expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR LET VAR EQUALS BOOL IN WHERE
+##
+## Ends in an error in state: 150.
+##
+## expression -> LET VAR EQUALS expression IN . expression END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## LET VAR EQUALS expression IN
+##
+
+Syntax error: Expected an expression after 'LET VAR = expression IN'.
+
+main: MODULE VAR WHERE RETURN L_PAR LET VAR EQUALS BOOL IN BOOL THEN
+##
+## Ends in an error in state: 151.
+##
+## expression -> LET VAR EQUALS expression IN expression . END [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MULT expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . DIV expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . AND expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . OR expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . PLUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . MINUS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . LESSER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . GREATER expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+## expression -> expression . EQUALS expression [ PLUS OR MULT MINUS LESSER GREATER EQUALS END DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## LET VAR EQUALS expression IN expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected 'END' after 'LET VAR = expression IN expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR L_PAR L_PAR TBOOL SEMI_COLON
+##
+## Ends in an error in state: 153.
+##
+## annot_exp -> L_PAR ty . expression R_PAR [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## simple_ty -> L_PAR ty . R_PAR [ VAR UNIT_VAL R_PAR RIGHT_ARROW NOT MINUS L_PAR LET INT IF FUN BOOL ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Expected ')' after 'L_PAR ty'.
+
+main: MODULE VAR WHERE RETURN L_PAR L_PAR TBOOL BOOL THEN
+##
+## Ends in an error in state: 154.
+##
+## annot_exp -> L_PAR ty expression . R_PAR [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+## expression -> expression . MULT expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR ty expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected ')' after 'L_PAR ty expression'.
+
+main: MODULE VAR WHERE RETURN L_PAR L_PAR TBOOL SEMI_COLON
+##
+## Ends in an error in state: 156.
+##
+## annot_exp -> L_PAR ty . expression R_PAR [ THEN SEMI_COLON R_PAR PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## L_PAR ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Expected ')' after 'L_PAR ty'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_PAR BOOL THEN
+##
+## Ends in an error in state: 157.
+##
+## expression -> expression . MULT expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ R_PAR PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## proc -> VAR LEFT_ARROW SPAWN L_PAR expression . R_PAR list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_PAR expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected ')' after 'VAR <- SPAWN (expression'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_PAR BOOL R_PAR WHERE
+##
+## Ends in an error in state: 158.
+##
+## proc -> VAR LEFT_ARROW SPAWN L_PAR expression R_PAR . list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_PAR expression R_PAR
+##
+
+Syntax error: Expected a list of variables after 'VAR <- SPAWN (expression)'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_PAR BOOL R_PAR VAR WHERE
+##
+## Ends in an error in state: 159.
+##
+## list(VAR) -> VAR . list(VAR) [ SEMI_COLON ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected ';' or a list of variables.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_PAR BOOL R_PAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 162.
+##
+## proc -> VAR LEFT_ARROW SPAWN L_PAR expression R_PAR list(VAR) SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_PAR expression R_PAR list(VAR) SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND_CHAN WHERE
+##
+## Ends in an error in state: 163.
+##
+## proc -> SEND_CHAN . VAR VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND_CHAN
+##
+
+Syntax error: Expected a variable after 'SEND_CHAN'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND_CHAN VAR WHERE
+##
+## Ends in an error in state: 164.
+##
+## proc -> SEND_CHAN VAR . VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND_CHAN VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND_CHAN VAR VAR WHERE
+##
+## Ends in an error in state: 165.
+##
+## proc -> SEND_CHAN VAR VAR . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND_CHAN VAR VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected ';' after 'SEND_CHAN VAR VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND_CHAN VAR VAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 166.
+##
+## proc -> SEND_CHAN VAR VAR SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND_CHAN VAR VAR SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND WHERE
+##
+## Ends in an error in state: 167.
+##
+## proc -> SEND . VAR expression SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND
+##
+
+Syntax error: Expected a variable after 'SEND'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND VAR WHERE
+##
+## Ends in an error in state: 168.
+##
+## proc -> SEND VAR . expression SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid expression.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND VAR BOOL THEN
+##
+## Ends in an error in state: 169.
+##
+## expression -> expression . MULT expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## proc -> SEND VAR expression . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND VAR expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected ';' after 'SEND VAR expression'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE SEND VAR BOOL SEMI_COLON WHERE
+##
+## Ends in an error in state: 170.
+##
+## proc -> SEND VAR expression SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## SEND VAR expression SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE PRINT WHERE
+##
+## Ends in an error in state: 171.
+##
+## proc -> PRINT . expression SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## PRINT
+##
+
+Syntax error: Expected an expression after 'PRINT'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE PRINT BOOL THEN
+##
+## Ends in an error in state: 172.
+##
+## expression -> expression . MULT expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## proc -> PRINT expression . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## PRINT expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected ';' after 'PRINT expression'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE PRINT BOOL SEMI_COLON WHERE
+##
+## Ends in an error in state: 173.
+##
+## proc -> PRINT expression SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## PRINT expression SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE IF WHERE
+##
+## Ends in an error in state: 174.
+##
+## proc -> IF . expression THEN proc ELSE proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## IF
+##
+
+Syntax error: Expected an expression after 'IF'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE IF BOOL SEMI_COLON
+##
+## Ends in an error in state: 175.
+##
+## expression -> expression . MULT expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ THEN PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## proc -> IF expression . THEN proc ELSE proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## IF expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected 'THEN' after 'IF expression'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE IF BOOL THEN WHERE
+##
+## Ends in an error in state: 176.
+##
+## proc -> IF expression THEN . proc ELSE proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## IF expression THEN
+##
+
+Syntax error: Expected a process after 'IF expression THEN'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE FWD WHERE
+##
+## Ends in an error in state: 177.
+##
+## proc -> FWD . VAR VAR [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## FWD
+##
+
+Syntax error: Expected a variable after 'FWD'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE FWD VAR WHERE
+##
+## Ends in an error in state: 178.
+##
+## proc -> FWD VAR . VAR [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## FWD VAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CLOSE WHERE
+##
+## Ends in an error in state: 180.
+##
+## proc -> CLOSE . VAR [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## CLOSE
+##
+
+Syntax error: Expected a variable after 'CLOSE'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE WHERE
+##
+## Ends in an error in state: 182.
+##
+## proc -> CASE . VAR OF case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## CASE
+##
+
+Syntax error: Expected a variable after 'CASE'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE VAR WHERE
+##
+## Ends in an error in state: 183.
+##
+## proc -> CASE VAR . OF case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## CASE VAR
+##
+
+Syntax error: Expected 'OF' after 'CASE VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE VAR OF WHERE
+##
+## Ends in an error in state: 184.
+##
+## proc -> CASE VAR OF . case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## CASE VAR OF
+##
+
+Syntax error: Expected a case list after 'CASE VAR OF'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE VAR OF VAR WHERE
+##
+## Ends in an error in state: 185.
+##
+## case_list -> VAR . COLON L_PAR proc R_PAR [ R_PAR R_BRACE ELSE ]
+## case_list -> VAR . COLON L_PAR proc R_PAR case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR
+##
+
+Syntax error: Expected ':' after 'VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE VAR OF VAR COLON WHERE
+##
+## Ends in an error in state: 186.
+##
+## case_list -> VAR COLON . L_PAR proc R_PAR [ R_PAR R_BRACE ELSE ]
+## case_list -> VAR COLON . L_PAR proc R_PAR case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON
+##
+
+Syntax error: Expected '(' after 'VAR :'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE VAR OF VAR COLON L_PAR WHERE
+##
+## Ends in an error in state: 187.
+##
+## case_list -> VAR COLON L_PAR . proc R_PAR [ R_PAR R_BRACE ELSE ]
+## case_list -> VAR COLON L_PAR . proc R_PAR case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON L_PAR
+##
+
+Syntax error: Expected a process after 'VAR : ('.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE VAR OF VAR COLON L_PAR CLOSE VAR R_BRACE
+##
+## Ends in an error in state: 188.
+##
+## case_list -> VAR COLON L_PAR proc . R_PAR [ R_PAR R_BRACE ELSE ]
+## case_list -> VAR COLON L_PAR proc . R_PAR case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON L_PAR proc
+##
+
+Syntax error: Expected ')' after 'VAR : (proc'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CASE VAR OF VAR COLON L_PAR CLOSE VAR R_PAR WHERE
+##
+## Ends in an error in state: 189.
+##
+## case_list -> VAR COLON L_PAR proc R_PAR . [ R_PAR R_BRACE ELSE ]
+## case_list -> VAR COLON L_PAR proc R_PAR . case_list [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON L_PAR proc R_PAR
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected '}' or another case.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE IF BOOL THEN CLOSE VAR R_PAR
+##
+## Ends in an error in state: 192.
+##
+## proc -> IF expression THEN proc . ELSE proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## IF expression THEN proc
+##
+
+Syntax error: Expected 'ELSE' after 'IF expression THEN proc'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE IF BOOL THEN CLOSE VAR ELSE WHERE
+##
+## Ends in an error in state: 193.
+##
+## proc -> IF expression THEN proc ELSE . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## IF expression THEN proc ELSE
+##
+
+Syntax error: Expected a process after 'IF expression THEN proc ELSE'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_BRACE WHERE
+##
+## Ends in an error in state: 199.
+##
+## proc -> VAR LEFT_ARROW SPAWN L_BRACE . proc R_BRACE list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_BRACE
+##
+
+Syntax error: Expected a process after 'VAR <- SPAWN {'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_BRACE CLOSE VAR R_PAR
+##
+## Ends in an error in state: 200.
+##
+## proc -> VAR LEFT_ARROW SPAWN L_BRACE proc . R_BRACE list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_BRACE proc
+##
+
+Syntax error: Expected '}' after 'VAR <- SPAWN {proc'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_BRACE CLOSE VAR R_BRACE WHERE
+##
+## Ends in an error in state: 201.
+##
+## proc -> VAR LEFT_ARROW SPAWN L_BRACE proc R_BRACE . list(VAR) SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_BRACE proc R_BRACE
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected ';' or another process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW SPAWN L_BRACE CLOSE VAR R_BRACE SEMI_COLON WHERE
+##
+## Ends in an error in state: 203.
+##
+## proc -> VAR LEFT_ARROW SPAWN L_BRACE proc R_BRACE list(VAR) SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW SPAWN L_BRACE proc R_BRACE list(VAR) SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW RECV_CHAN WHERE
+##
+## Ends in an error in state: 205.
+##
+## proc -> VAR LEFT_ARROW RECV_CHAN . VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW RECV_CHAN
+##
+
+Syntax error: Expected a variable after 'VAR <- RECV_CHAN'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW RECV_CHAN VAR WHERE
+##
+## Ends in an error in state: 206.
+##
+## proc -> VAR LEFT_ARROW RECV_CHAN VAR . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW RECV_CHAN VAR
+##
+
+Syntax error: Expected ';' after 'VAR <- RECV_CHAN VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW RECV_CHAN VAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 207.
+##
+## proc -> VAR LEFT_ARROW RECV_CHAN VAR SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW RECV_CHAN VAR SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW RECV WHERE
+##
+## Ends in an error in state: 209.
+##
+## proc -> VAR LEFT_ARROW RECV . VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW RECV
+##
+
+Syntax error: Expected a variable after 'VAR <- RECV'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW RECV VAR WHERE
+##
+## Ends in an error in state: 210.
+##
+## proc -> VAR LEFT_ARROW RECV VAR . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW RECV VAR
+##
+
+Syntax error: Expected ';' after 'VAR <- RECV VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR LEFT_ARROW RECV VAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 211.
+##
+## proc -> VAR LEFT_ARROW RECV VAR SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW RECV VAR SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR DOT WHERE
+##
+## Ends in an error in state: 213.
+##
+## proc -> VAR DOT . VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR DOT
+##
+
+Syntax error: Expected a variable after 'VAR .'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR DOT VAR WHERE
+##
+## Ends in an error in state: 214.
+##
+## proc -> VAR DOT VAR . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR DOT VAR
+##
+
+Syntax error: Expected ';' after 'VAR . VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR DOT VAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 215.
+##
+## proc -> VAR DOT VAR SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR DOT VAR SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON WHERE
+##
+## Ends in an error in state: 217.
+##
+## proc -> VAR COLON . ty LEFT_ARROW RECV VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## proc -> VAR COLON . stype LEFT_ARROW RECV_CHAN VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON
+##
+
+Syntax error: Expected a type after 'VAR :'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON TBOOL VAR
+##
+## Ends in an error in state: 218.
+##
+## proc -> VAR COLON ty . LEFT_ARROW RECV VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+## stype -> ty . CIRCUMFLEX stype [ LEFT_ARROW ]
+## stype -> ty . RIGHT_ARROW_BOLD stype [ LEFT_ARROW ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Unexpected token 'VAR'. Expected '<-' or '^' or '=>'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON TBOOL LEFT_ARROW WHERE
+##
+## Ends in an error in state: 219.
+##
+## proc -> VAR COLON ty LEFT_ARROW . RECV VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON ty LEFT_ARROW
+##
+
+Syntax error: Expected 'RECV' after 'VAR : TBOOL <-'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON TBOOL LEFT_ARROW RECV WHERE
+##
+## Ends in an error in state: 220.
+##
+## proc -> VAR COLON ty LEFT_ARROW RECV . VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON ty LEFT_ARROW RECV
+##
+
+Syntax error: Expected a variable after 'VAR : TBOOL <- RECV'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON TBOOL LEFT_ARROW RECV VAR WHERE
+##
+## Ends in an error in state: 221.
+##
+## proc -> VAR COLON ty LEFT_ARROW RECV VAR . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON ty LEFT_ARROW RECV VAR
+##
+
+Syntax error: Expected ';' after 'VAR : TBOOL <- RECV VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON TBOOL LEFT_ARROW RECV VAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 222.
+##
+## proc -> VAR COLON ty LEFT_ARROW RECV VAR SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON ty LEFT_ARROW RECV VAR SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON END_STYPE WHERE
+##
+## Ends in an error in state: 224.
+##
+## proc -> VAR COLON stype . LEFT_ARROW RECV_CHAN VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype
+##
+
+Syntax error: Expected '<-' after 'VAR : stype'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON END_STYPE LEFT_ARROW WHERE
+##
+## Ends in an error in state: 225.
+##
+## proc -> VAR COLON stype LEFT_ARROW . RECV_CHAN VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype LEFT_ARROW
+##
+
+Syntax error: Expected 'RECV_CHAN' after 'VAR : stype <-'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON END_STYPE LEFT_ARROW RECV_CHAN WHERE
+##
+## Ends in an error in state: 226.
+##
+## proc -> VAR COLON stype LEFT_ARROW RECV_CHAN . VAR SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype LEFT_ARROW RECV_CHAN
+##
+
+Syntax error: Expected a variable after 'VAR : stype <- RECV_CHAN'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON END_STYPE LEFT_ARROW RECV_CHAN VAR WHERE
+##
+## Ends in an error in state: 227.
+##
+## proc -> VAR COLON stype LEFT_ARROW RECV_CHAN VAR . SEMI_COLON proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype LEFT_ARROW RECV_CHAN VAR
+##
+
+Syntax error: Expected ';' after 'VAR : stype <- RECV_CHAN VAR'.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE VAR COLON END_STYPE LEFT_ARROW RECV_CHAN VAR SEMI_COLON WHERE
+##
+## Ends in an error in state: 228.
+##
+## proc -> VAR COLON stype LEFT_ARROW RECV_CHAN VAR SEMI_COLON . proc [ R_PAR R_BRACE ELSE ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON stype LEFT_ARROW RECV_CHAN VAR SEMI_COLON
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid process.
+
+main: MODULE VAR WHERE RETURN VAR LEFT_ARROW L_BRACE CLOSE VAR R_PAR
+##
+## Ends in an error in state: 231.
+##
+## proc_exp -> VAR LEFT_ARROW L_BRACE proc . R_BRACE [ THEN SEMI_COLON R_PAR RETURN PLUS OR MULT MINUS LESSER IN GREATER EQUALS ENDIF END ELSE DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## VAR LEFT_ARROW L_BRACE proc
+##
+
+Syntax error: Expected '}' after 'VAR <- {proc'.
+
+main: MODULE VAR WHERE VAR COLON TBOOL BOOL THEN
+##
+## Ends in an error in state: 233.
+##
+## declaration -> VAR COLON ty expression . SEMI_COLON [ VAR TYPE STYPE RETURN ]
+## expression -> expression . MULT expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . DIV expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . AND expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . OR expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . PLUS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . MINUS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . LESSER expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . GREATER expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+## expression -> expression . EQUALS expression [ SEMI_COLON PLUS OR MULT MINUS LESSER GREATER EQUALS DIV AND ]
+##
+## The known suffix of the stack is as follows:
+## VAR COLON ty expression
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 106, spurious reduction of production expression -> simple_exp
+##
+
+Syntax error: Expected ';' after 'VAR : ty expression'.
+
+main: MODULE VAR WHERE TYPE WHERE
+##
+## Ends in an error in state: 235.
+##
+## declaration -> TYPE . T_VAR ty SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## TYPE
+##
+
+Syntax error: Expected a type variable after 'TYPE'.
+
+main: MODULE VAR WHERE TYPE T_VAR WHERE
+##
+## Ends in an error in state: 236.
+##
+## declaration -> TYPE T_VAR . ty SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## TYPE T_VAR
+##
+
+Syntax error: Expected a type after 'TYPE T_VAR'.
+
+main: MODULE VAR WHERE TYPE T_VAR TBOOL VAR
+##
+## Ends in an error in state: 237.
+##
+## declaration -> TYPE T_VAR ty . SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## TYPE T_VAR ty
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 42, spurious reduction of production ty -> simple_ty
+##
+
+Syntax error: Unexpected token 'VAR'. Expected ';' after 'TYPE T_VAR ty'.
+
+main: MODULE VAR WHERE STYPE WHERE
+##
+## Ends in an error in state: 239.
+##
+## declaration -> STYPE . S_VAR stype SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## STYPE
+##
+
+Syntax error: Expected a structural type variable after 'STYPE'.
+
+main: MODULE VAR WHERE STYPE S_VAR WHERE
+##
+## Ends in an error in state: 240.
+##
+## declaration -> STYPE S_VAR . stype SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## STYPE S_VAR
+##
+
+Syntax error: Expected a structural type after 'STYPE S_VAR'.
+
+main: MODULE VAR WHERE STYPE S_VAR END_STYPE WHERE
+##
+## Ends in an error in state: 241.
+##
+## declaration -> STYPE S_VAR stype . SEMI_COLON [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## STYPE S_VAR stype
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected ';' after 'STYPE S_VAR stype'.
+
+main: MODULE VAR WHERE RETURN BOOL RETURN WHERE
+##
+## Ends in an error in state: 243.
+##
+## main -> MODULE VAR WHERE list(imprt) prog . EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## MODULE VAR WHERE list(imprt) prog
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected end of file.
+
+main: MODULE VAR WHERE RETURN WHERE
+##
+## Ends in an error in state: 246.
+##
+## prog -> list(declaration) RETURN . exec_exp RETURN [ EOF ]
+##
+## The known suffix of the stack is as follows:
+## list(declaration) RETURN
+##
+
+Syntax error: Expected an executable expression after 'RETURN'.
+
+main: MODULE VAR WHERE RETURN BOOL VAR
+##
+## Ends in an error in state: 249.
+##
+## prog -> list(declaration) RETURN exec_exp . RETURN [ EOF ]
+##
+## The known suffix of the stack is as follows:
+## list(declaration) RETURN exec_exp
+##
+
+Syntax error: Expected 'RETURN' after 'exec_exp'.
+
+main: MODULE VAR WHERE STYPE S_VAR END_STYPE SEMI_COLON WHERE
+##
+## Ends in an error in state: 251.
+##
+## list(declaration) -> declaration . list(declaration) [ RETURN ]
+##
+## The known suffix of the stack is as follows:
+## declaration
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid declaration.
+
+main: MODULE VAR WHERE IMPORT VAR L_PAR VAR R_PAR END WHERE
+##
+## Ends in an error in state: 253.
+##
+## list(imprt) -> imprt . list(imprt) [ VAR TYPE STYPE RETURN ]
+##
+## The known suffix of the stack is as follows:
+## imprt
+##
+
+Syntax error: Unexpected token 'WHERE'. Expected a valid import.

@@ -1,0 +1,8 @@
+lib: [
+  "_build/install/default/lib/sessint/META"
+  "_build/install/default/lib/sessint/dune-package"
+  "_build/install/default/lib/sessint/opam"
+]
+bin: [
+  "_build/install/default/bin/sessint"
+]
