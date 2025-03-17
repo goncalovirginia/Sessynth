@@ -25,20 +25,20 @@ type exp =
 let fresh_id = 
     let unique = ref (-1) in
     fun () -> (incr unique ; "x_"^(string_of_int !unique))
-let rec pp_type t =
+let rec type_to_string t =
     match t with 
     | TAtom a -> a
-    | TArrow(t1, t2) -> "("^pp_type t1 ^ " -> " ^ pp_type t2 ^ ")"
-    | TAltConjPair(t1, t2) -> "("^pp_type t1 ^ " & " ^ pp_type t2^")"
+    | TArrow(t1, t2) -> "("^type_to_string t1 ^ " -> " ^ type_to_string t2 ^ ")"
+    | TAltConjPair(t1, t2) -> "("^type_to_string t1 ^ " & " ^ type_to_string t2^")"
 
-let rec pp_exp e = 
+let rec exp_to_string e = 
    match e with 
    | LVar x -> x
-   | Lam(x, t, e) -> x ^ ":" ^ pp_type t ^ " -o " ^ pp_exp e 
-   | App(e1, e2) -> pp_exp e1 ^ " " ^ pp_exp e2
-   | AltConjPair(e1,e2) -> pp_exp e1 ^ " & " ^ pp_exp e2
-   | AltConjFst e -> "fst " ^ pp_exp e
-   | AltConjSnd e -> "snd " ^ pp_exp e
+   | Lam(x, t, e) -> x ^ ":" ^ type_to_string t ^ " -o " ^ exp_to_string e 
+   | App(e1, e2) -> exp_to_string e1 ^ " " ^ exp_to_string e2
+   | AltConjPair(e1,e2) -> exp_to_string e1 ^ " & " ^ exp_to_string e2
+   | AltConjFst e -> "fst " ^ exp_to_string e
+   | AltConjSnd e -> "snd " ^ exp_to_string e
 
 (* Focused type-driven synthesizer *)
 
@@ -109,4 +109,4 @@ end;;
 let delta = [] in
 let targetType = TArrow(TAltConjPair(TAtom("int"), TAtom("bool")), TAtom("int")) in
 let exp = Sessynth.inversion delta targetType in
-print_endline (pp_exp exp)
+print_endline (exp_to_string exp)
