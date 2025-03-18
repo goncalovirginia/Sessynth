@@ -13,7 +13,7 @@ type ty =
 
 type exp = 
     | Let of id * exp * exp (* let x = e1 in e2 *)
-    | LVar of id (* x *)
+    | Var of id (* x *)
     | Lam of id * ty * exp (* x:t -o e *)
     | App of exp  * exp (* (x:t -o e) e *)
     | MultConjPair of exp * exp (* (e1 * e2) : T1 ⊗ T2 *)
@@ -24,6 +24,13 @@ type exp =
     | AddDisjInL of exp * ty (* e:T1 then inl_T2 e : T1 ⊕ T2 *)
     | AddDisjInR of ty * exp (* e:T2 then inr_T1 e : T1 ⊕ T2 *)
     | AddDisjPair of exp * id * exp * id * exp (* case e of inl x -> e1, inr y -> e2 *)
+
+type pExp =
+    | Send of id * exp * pExp (* send c e; P *)
+    | Recv of id * ty * id * pExp (* x:T <- recv c; P *)
+    | Close of id (* close c *)
+    | Wait of id * pExp (* wait c; P *)
+    | Fwd of id * id (* fwd d c *)
 
 (* Auxiliary functions *)
 
@@ -41,7 +48,7 @@ let rec type_to_string t =
 let rec exp_to_string e = 
     match e with 
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ exp_to_string e1 ^ " in " ^exp_to_string e2
-    | LVar x -> x
+    | Var x -> x
     | Lam(x, t, e) -> x ^ ":" ^ type_to_string t ^ " -o " ^ exp_to_string e 
     | App(e1, e2) -> "(" ^ exp_to_string e1 ^ ") " ^ exp_to_string e2
     | MultConjPair(e1, e2) -> "(" ^ exp_to_string e1 ^ " ⊗  " ^ exp_to_string e2 ^ ")"
@@ -55,7 +62,7 @@ let rec exp_to_string e =
 
 let rec subst e1 x e2 =
     match e1 with 
-    | LVar y -> if x=y then e2 else e1 
+    | Var y -> if x=y then e2 else e1 
     | App(e, e') -> App (subst e x e2 , subst e' x e2)
     | Lam(y, t, e) -> if x <> y then Lam (y,t,(subst e x e2)) else e1 
     | AddConjPair(e, e') -> AddConjPair (subst e x e2 , subst e' x e2)
@@ -97,25 +104,24 @@ and focus' delta id foc goal =
            begin try
             let y = fresh_id () in
             let e2 = focus' delta y t2 goal in (* ... y:t2 |- e2 : goal *) 
-            let e1 = inversion delta t1 in   (*  |- e1 : t1 *)
-                subst e2 y (App (LVar id,e1))     
-                (* ... id:t1->t2 |-   e2[y :=  (id e1) ]   : goal  *)
+            let e1 = inversion delta t1 in (*  |- e1 : t1 *)
+            subst e2 y (App (Var id,e1)) (* ... id:t1->t2 |- e2[y := (id e1)] : goal  *)
            with Fail m -> raise (Fail m)
            end
       | TAddConjPair(t1, t2) -> 
             begin 
             try begin
                 let e = focus' delta id t1 goal in (* ... y:t1 |- e : goal *)
-                subst e id (AddConjFst (LVar id)) (* ... id:t1&t2  |-     e{id := (Proj1 id)}    : goal *)
+                subst e id (AddConjFst (Var id)) (* ... id:t1&t2  |-     e{id := (Proj1 id)}    : goal *)
                 end
             with Fail m ->
                 try begin
                     let e = focus' delta id t2 goal in
-                    subst e id (AddConjSnd (LVar id))
+                    subst e id (AddConjSnd (Var id))
                     end
                 with Fail m -> raise (Fail m)
             end
-      | TAtom _ -> if foc = goal then LVar id else raise (Fail "foc != goal")
+      | TAtom _ -> if foc = goal then Var id else raise (Fail "foc != goal")
       | _ -> raise (Fail("focus' pattern matching not defined for " ^ type_to_string foc))
 
 end;;
