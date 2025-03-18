@@ -24,13 +24,11 @@ type exp =
     | AddDisjInL of exp * ty (* e:T1 then inl_T2 e : T1 ⊕ T2 *)
     | AddDisjInR of ty * exp (* e:T2 then inr_T1 e : T1 ⊕ T2 *)
     | AddDisjPair of exp * id * exp * id * exp (* case e of inl x -> e1, inr y -> e2 *)
-
-type pExp =
-    | Send of id * exp * pExp (* send c e; P *)
-    | Recv of id * ty * id * pExp (* x:T <- recv c; P *)
+    (*| Send of id * exp * exp (* send c e; P *)
+    | Recv of id * ty * id * exp (* x:T <- recv c; P *)
     | Close of id (* close c *)
-    | Wait of id * pExp (* wait c; P *)
-    | Fwd of id * id (* fwd d c *)
+    | Wait of id * exp (* wait c; P *)
+    | Fwd of id * id (* fwd d c *)*)
 
 (* Auxiliary functions *)
 
@@ -74,14 +72,33 @@ let rec subst e1 x e2 =
 
 module Sessynth = struct 
 
-let rec inversion delta t = 
+let rec inversionRight delta t = 
     match t with 
     | TArrow(t1, t2) -> 
-        let x = fresh_id () in
-        Lam(x, t1, inversion ((x, t1)::delta) t2)
-    | TAddConjPair(t1, t2) -> AddConjPair(inversion delta t1, inversion delta t2)
+        let x = fresh_id() in
+        Lam(x, t1, inversionRight ((x, t1)::delta) t2)
+    | TAddConjPair(t1, t2) -> AddConjPair(inversionRight delta t1, inversionRight delta t2)
     | TAtom a -> focus delta delta t    (* Delta |-  ??? : Atom *)
-    | _ -> raise (Fail("inversion pattern matching not defined for " ^ type_to_string t))
+    | _ -> inversionLeft delta delta t
+
+and inversionLeft deltaAsync deltaSync t =
+    match deltaAsync with
+    | e::xs ->
+        begin match e with 
+        | x, TMultConjPair(t1, t2) ->
+            let x1 = fresh_id() in
+            let x2 = fresh_id() in
+            let xss = (x1, t1)::(x2, t2)::xs in
+            Let2(x1, x2, Var(x), inversionLeft xss deltaSync t)
+        | x, TAddDisjPair(t1, t2) -> (* TODO: only 1 t *)
+            raise (Fail "")
+        | x, sync -> inversionLeft xs ((x, sync)::deltaSync) t
+        end
+    | [] -> focus deltaSync deltaSync t
+
+(* TArrow(TMultConjPair(A, B), TMultConjPair(B, A))
+
+Lam("x", TMultConjPair(A, B), Let2("y", "z", Var("x"), MultConjPair(Var("z"), Var("y")))) *)
 
 and focus delta c goal = 
      match delta with
@@ -99,16 +116,16 @@ pre: Var id : foc
 *)
 
 and focus' delta id foc goal =
-      match foc with 
-      | TArrow(t1,t2) -> 
+        match foc with 
+        | TArrow(t1,t2) -> 
            begin try
             let y = fresh_id () in
             let e2 = focus' delta y t2 goal in (* ... y:t2 |- e2 : goal *) 
-            let e1 = inversion delta t1 in (*  |- e1 : t1 *)
+            let e1 = inversionRight delta t1 in (*  |- e1 : t1 *)
             subst e2 y (App (Var id,e1)) (* ... id:t1->t2 |- e2[y := (id e1)] : goal  *)
            with Fail m -> raise (Fail m)
            end
-      | TAddConjPair(t1, t2) -> 
+        | TAddConjPair(t1, t2) -> 
             begin 
             try begin
                 let e = focus' delta id t1 goal in (* ... y:t1 |- e : goal *)
@@ -130,5 +147,5 @@ end;;
 
 let delta = [] in
 let targetType = TArrow(TAddConjPair(TAtom("int"), TAtom("bool")), TAtom("int")) in
-let exp = Sessynth.inversion delta targetType in
+let exp = Sessynth.inversionRight delta targetType in
 print_endline (exp_to_string exp)
