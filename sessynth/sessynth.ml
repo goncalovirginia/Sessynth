@@ -37,7 +37,7 @@ type exp =
 
 let fresh_id = 
     let unique = ref (-1) in
-    fun () -> (incr unique; "x_" ^ (string_of_int !unique))
+    fun () -> (incr unique; "x" ^ (string_of_int !unique))
 let rec type_to_string t =
     match t with 
     | TAtom a -> a
@@ -53,7 +53,7 @@ let rec exp_to_string e =
     | Lam(x, t, e) -> x ^ ":" ^ type_to_string t ^ " -o " ^ exp_to_string e 
     | App(e1, e2) -> "(" ^ exp_to_string e1 ^ ") " ^ exp_to_string e2
     | MultConjPair(e1, e2) -> "(" ^ exp_to_string e1 ^ " ⊗ " ^ exp_to_string e2 ^ ")"
-    | Let2(x1, x2, e1, e2) -> "let" ^ x1 ^ ", " ^ x2 ^ " = " ^ exp_to_string e1 ^ " in " ^exp_to_string e2
+    | Let2(x1, x2, e1, e2) -> "let " ^ x1 ^ ", " ^ x2 ^ " = " ^ exp_to_string e1 ^ " in " ^exp_to_string e2
     | AddConjPair(e1, e2) -> "(" ^ exp_to_string e1 ^ " & " ^ exp_to_string e2 ^ ")"
     | AddConjFst e -> "fst " ^ exp_to_string e
     | AddConjSnd e -> "snd " ^ exp_to_string e
@@ -92,21 +92,21 @@ let rec append_bindings async sync bindings =
 
 module Sessynth = struct 
 
-let rec invertRight async sync t = 
-    print_endline ("invertRight: " ^ type_to_string t);
+let rec invertRight async sync goal = 
+    print_endline ("invertRight: " ^ type_to_string goal);
     print_string "  async: "; print_context async;
     print_string "  sync: "; print_context sync;
-    match t with 
+    match goal with 
     | TArrow(t1, t2) -> 
         let x = fresh_id() in
         let async', sync' = append_bindings async sync [(x, t1)] in
         Lam(x, t1, invertRight async' sync' t2)
     | TAddConjPair(t1, t2) -> AddConjPair(invertRight async sync t1, invertRight async sync t2)
-    | TAtom a -> focusDecide async sync t
-    | _ -> invertLeft async sync t
+    | TAtom a -> focusDecideR sync sync goal
+    | _ -> invertLeft async sync goal
 
-and invertLeft async sync t =
-    print_endline ("invertLeft: " ^ type_to_string t);
+and invertLeft async sync goal =
+    print_endline ("invertLeft: " ^ type_to_string goal);
     print_string "  async: "; print_context async;
     print_string "  sync: "; print_context sync;
     match async with
@@ -115,54 +115,45 @@ and invertLeft async sync t =
         | TMultConjPair(t1, t2) ->
             let x1, x2 = fresh_id(), fresh_id() in
             let async'', sync'' = append_bindings async' sync [(x1, t1); (x2, t2)] in
-            Let2(x1, x2, Var(x), invertLeft async'' sync'' xt)
+            Let2(x1, x2, Var(x), invertLeft async'' sync'' goal)
         | TAddDisjCase(t1, t2) ->
             let x1, x2 = fresh_id(), fresh_id() in
             let async1, sync1 = append_bindings async' sync [(x1, t1)] in
             let async2, sync2 = append_bindings async' sync [(x2, t2)] in
-            AddDisjCase(Var(x), x1, invertLeft async1 sync1 t1, x2, invertLeft async2 sync2 t2)
+            AddDisjCase(Var(x), x1, invertLeft async1 sync1 goal, x2, invertLeft async2 sync2 goal)
         | _ -> raise (Fail("invertLeft: somehow a sync type wound up in async context"))
         end
-    | [] -> focusDecide sync sync t
+    | [] -> focusDecideR sync sync goal
 
-and focusDecide sync syncOriginal goal = 
-    print_endline ("focusDecide: ");
+and focusDecideR sync syncOriginal goal = 
+    print_endline ("focusDecideR: " ^ type_to_string goal);
     print_string "  sync: "; print_context sync;
-    print_endline ("  goal: " ^ type_to_string goal);
     match sync with
-    | [] -> raise (Fail("focusDecide: empty sync context"))
+    | [] -> raise (Fail "focusDecideR: empty sync context")
     | (x, t)::sync' -> 
         try 
-            if is_left_async t then focusRight syncOriginal x t goal
+            if is_left_async goal then focusRight syncOriginal goal
             else focusLeft syncOriginal x t goal
-        with Fail _ -> focusDecide sync' syncOriginal goal
+        with Fail _ -> focusDecideR sync' syncOriginal goal
 
-(* 
-Delta, (x:T); [T] |- ??:Atom
-----------------------------
-Delta |- ??:Atom
-
-pre: Var id : foc
-*)
-
-and focusRight sync id foc goal =
-    print_endline ("focusRight: " ^ type_to_string foc);
-    match foc with 
+and focusRight sync goal =
+    print_endline ("focusRight: " ^ type_to_string goal);
+    match goal with 
     | TMultConjPair(t1, t2) -> 
-        MultConjPair(focusRight sync id t1 goal, focusRight sync id t2 goal)
+        MultConjPair(focusRight sync t1, focusRight sync t2)
     | TAddDisjCase(t1, t2) -> 
         begin
             try begin
-                let e1 = focusRight sync id t1 goal in
+                let e1 = focusRight sync t1 in
                 AddDisjInL(e1, t2)
             end
             with Fail _ -> try begin
-                let e2 = focusRight sync id t2 goal in
+                let e2 = focusRight sync t2 in
                 AddDisjInR(t1, e2)
             end
             with Fail m -> raise (Fail m)
         end
-    | _ -> raise (Fail "focusRight: foc not right synchronous")
+    | _ -> invertRight [] sync goal
 
 and focusLeft sync id foc goal =
     print_endline ("focusLeft: " ^ type_to_string foc);
@@ -200,6 +191,5 @@ let targetType =
 let exp = Sessynth.invertRight [] [] targetType in
 print_endline (exp_to_string exp)
 
-(*
-x:(int ⊗ bool) -o let y, z = x in (z ⊗ y)
-expression: Lam("x", TMultConjPair(A, B), Let2("y", "z", Var("x"), MultConjPair(Var("z"), Var("y")))) *)
+(* x:(int ⊗ bool) -o let y, z = x in (z ⊗ y) *)
+(* Lam("x_0", TMultConjPair(TAtom("int"), TAtom("bool")), Let2("x_1", "x_2", Var("x_0"), MultConjPair(Var("x_2"), Var("x_1")))) *)
