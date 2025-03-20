@@ -186,7 +186,7 @@ end;;
 (* Running stuff *)
 
 let targetType = 
-    (*TArrow(TAddConjPair(TAtom("int"), TAtom("bool")), TAtom("int")) in*)
+    (*TArrow(TAddConjPair(TAtom("bool"), TAtom("int")), TAtom("int")) in*)
     TArrow(TMultConjPair(TAtom("int"), TAtom("bool")), TMultConjPair(TAtom("bool"), TAtom("int"))) in
 let exp = Sessynth.invertRight [] [] targetType in
 print_endline "" ; print_endline (exp_to_string exp)
