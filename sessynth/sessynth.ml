@@ -78,17 +78,6 @@ let is_left_async t =
     | TMultConjPair _ | TAddDisjCase _ -> true
     | _ -> false
 
-let is_right_sync t = (* TODO *)
-    match t with
-    | TArrow _ | TAddConjPair _ -> true
-    | _ -> false
-
-let is_left_sync t = (* TODO *)
-    match t with
-    | TArrow _ | TAddConjPair _ -> true
-    | _ -> false
-
-
 let is_async t = is_right_async t || is_right_async t
 
 let rec append_bindings_to_contexts async sync bindings =
@@ -134,8 +123,8 @@ and focusDecide sync syncOriginal goal =
      | [] -> raise (Fail("focusDecide: empty sync context"))
      | (x, t)::sync' -> 
         try 
-            if is_right_sync t then focusRight syncOriginal x t goal (* TODO: update is_right_sync and is_left_sync *)
-            else if is_left_sync t then focusLeft syncOriginal x t goal
+            if is_left_async t then focusRight syncOriginal x t goal
+            else if is_right_async t then focusLeft syncOriginal x t goal
             else raise (Fail "")
         with Fail _ -> focusDecide sync' syncOriginal goal
 
@@ -149,28 +138,40 @@ pre: Var id : foc
 
 and focusRight sync id foc goal =
     match foc with 
-    | TMultConjPair(t1, t2) -> Var("") (* TODO *)
-    | TAddDisjCase(t1, t2) -> Var("") (* TODO *)
-    | _ -> raise (Fail "foc not right asynchronous")
+    | TMultConjPair(t1, t2) -> 
+        MultConjPair(focusRight sync id t1 goal, focusRight sync id t2 goal)
+    | TAddDisjCase(t1, t2) -> 
+        begin
+            try begin
+                let e1 = focusRight sync id t1 goal in
+                AddDisjInL(e1, t2)
+            end
+            with Fail _ -> try begin
+                let e2 = focusRight sync id t2 goal in
+                AddDisjInR(t1, e2)
+            end
+            with Fail m -> raise (Fail m)
+        end
+    | _ -> raise (Fail "focusRight: foc not right synchronous")
 
 and focusLeft sync id foc goal =
     match foc with
-    | TArrow(t1,t2) -> 
+    | TArrow(t1, t2) -> 
         begin try
-            let y = fresh_id () in
-            let e2 = focusRight sync y t2 goal in (* ... y:t2 |- e2 : goal *) 
-            let e1 = invertRight sync sync t1 in (*  |- e1 : t1 *)
-            subst e2 y (App(Var(id), e1)) (* ... id:t1->t2 |- e2[y := (id e1)] : goal  *)
+            let x = fresh_id() in
+            let e1 = invertRight sync sync t1 in (* . |- e1 : t1 *)
+            let e2 = focusLeft sync x t2 goal in (* ... x:t2 |- e2:goal *) 
+            subst e2 x (App(Var(id), e1)) (* ... id:t1 -o t2 |- e2[x:=(id, e1)]:goal *)
         with Fail m -> raise (Fail m)
         end
     | TAddConjPair(t1, t2) -> 
             begin 
                 try begin
-                    let e = focusRight sync id t1 goal in (* ... y:t1 |- e : goal *)
-                    subst e id (AddConjFst (Var id)) (* ... id:t1&t2  |-     e{id := (Proj1 id)}    : goal *)
+                    let e = focusLeft sync id t1 goal in (* ... y:t1 |- e:goal *)
+                    subst e id (AddConjFst (Var id)) (* ... id:t1&t2 |- e{id=(fst id)}:goal *)
                 end
-                with Fail m -> try begin
-                    let e = focusRight sync id t2 goal in
+                with Fail _ -> try begin
+                    let e = focusLeft sync id t2 goal in
                     subst e id (AddConjSnd (Var id))
                 end
                 with Fail m -> raise (Fail m)
