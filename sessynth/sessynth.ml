@@ -101,8 +101,9 @@ let rec invertRight async sync goal =
         let x = fresh_id() in
         let async', sync' = append_bindings async sync [(x, t1)] in
         Lam(x, t1, invertRight async' sync' t2)
-    | TAddConjPair(t1, t2) -> AddConjPair(invertRight async sync t1, invertRight async sync t2)
-    | TAtom a -> focusDecideR sync sync goal
+    | TAddConjPair(t1, t2) -> 
+        AddConjPair(invertRight async sync t1, invertRight async sync t2)
+    | TAtom a -> focusDecide sync sync goal
     | _ -> invertLeft async sync goal
 
 and invertLeft async sync goal =
@@ -123,9 +124,9 @@ and invertLeft async sync goal =
             AddDisjCase(Var(x), x1, invertLeft async1 sync1 goal, x2, invertLeft async2 sync2 goal)
         | _ -> raise (Fail("invertLeft: somehow a sync type wound up in async context"))
         end
-    | [] -> focusDecideR sync sync goal
+    | [] -> focusDecide sync sync goal
 
-and focusDecideR sync syncOriginal goal = 
+and focusDecide sync syncOriginal goal = 
     print_endline ("focusDecideR: " ^ type_to_string goal);
     print_string "  sync: "; print_context sync;
     match sync with
@@ -134,7 +135,7 @@ and focusDecideR sync syncOriginal goal =
         try 
             if is_left_async goal then focusRight syncOriginal goal
             else focusLeft syncOriginal x t goal
-        with Fail _ -> focusDecideR sync' syncOriginal goal
+        with Fail _ -> focusDecide sync' syncOriginal goal
 
 and focusRight sync goal =
     print_endline ("focusRight: " ^ type_to_string goal);
@@ -181,14 +182,16 @@ and focusLeft sync id foc goal =
     | TAtom _ -> if foc = goal then Var(id) else raise (Fail "foc != goal")
     | _ -> raise (Fail("focusLeft: somehow foc type is left async: " ^ type_to_string foc))
 
+    let synth goal = invertRight [] [] goal
+
 end;;
 
 (* Running stuff *)
 
-let targetType = 
+let synthType = 
     (*TArrow(TAddConjPair(TAtom("bool"), TAtom("int")), TAtom("int")) in*)
     TArrow(TMultConjPair(TAtom("int"), TAtom("bool")), TMultConjPair(TAtom("bool"), TAtom("int"))) in
-let exp = Sessynth.invertRight [] [] targetType in
+let exp = Sessynth.synth synthType in
 print_endline "" ; print_endline (exp_to_string exp)
 
 (* x:(int ⊗ bool) -o let y, z = x in (z ⊗ y) *)
