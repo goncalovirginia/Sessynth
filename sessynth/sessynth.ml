@@ -103,7 +103,6 @@ let rec invertRight async sync goal =
         Lam(x, t1, invertRight async' sync' t2)
     | TAddConjPair(t1, t2) -> 
         AddConjPair(invertRight async sync t1, invertRight async sync t2)
-    | TAtom a -> focusDecide sync sync goal
     | _ -> invertLeft async sync goal
 
 and invertLeft async sync goal =
@@ -127,7 +126,7 @@ and invertLeft async sync goal =
     | [] -> focusDecide sync sync goal
 
 and focusDecide sync syncOriginal goal = 
-    print_endline ("focusDecideR: " ^ type_to_string goal);
+    print_endline ("focusDecide: " ^ type_to_string goal);
     print_string "  sync: "; print_context sync;
     match sync with
     | [] -> raise (Fail "focusDecideR: empty sync context")
@@ -154,7 +153,7 @@ and focusRight sync goal =
             end
             with Fail m -> raise (Fail m)
         end
-    | _ -> invertRight [] sync goal
+    | _ -> invertRight [] sync goal (* goal is not right sync, therefore switch back to inversion phase *)
 
 and focusLeft sync id foc goal =
     print_endline ("focusLeft: " ^ type_to_string foc);
