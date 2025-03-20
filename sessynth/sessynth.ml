@@ -189,7 +189,7 @@ let targetType =
     (*TArrow(TAddConjPair(TAtom("int"), TAtom("bool")), TAtom("int")) in*)
     TArrow(TMultConjPair(TAtom("int"), TAtom("bool")), TMultConjPair(TAtom("bool"), TAtom("int"))) in
 let exp = Sessynth.invertRight [] [] targetType in
-print_endline (exp_to_string exp)
+print_endline "" ; print_endline (exp_to_string exp)
 
 (* x:(int ⊗ bool) -o let y, z = x in (z ⊗ y) *)
 (* Lam("x_0", TMultConjPair(TAtom("int"), TAtom("bool")), Let2("x_1", "x_2", Var("x_0"), MultConjPair(Var("x_2"), Var("x_1")))) *)
