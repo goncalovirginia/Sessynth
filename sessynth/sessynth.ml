@@ -179,7 +179,7 @@ and focusLeft sync id foc goal =
                 with Fail m -> raise (Fail m)
             end
     | TAtom _ -> if foc = goal then Var(id) else raise (Fail "foc != goal")
-    | _ -> raise (Fail("focusLeft: pattern matching not defined for " ^ type_to_string foc))
+    | _ -> raise (Fail("focusLeft: somehow foc type is left async: " ^ type_to_string foc))
 
 end;;
 
