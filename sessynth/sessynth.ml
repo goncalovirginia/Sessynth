@@ -100,11 +100,16 @@ let rec invertRight async sync goal =
     match goal with 
     | TArrow(t1, t2) -> 
         let x = fresh_id() in
-        let async', sync' = append_bindings async sync [(x, t1)] in
-        Lam(x, t1, invertRight async' sync' t2)
+        let async, sync = append_bindings async sync [(x, t1)] in
+        let async', sync', e = invertRight async sync t2 in
+        assert (List.assoc_opt x async' = None && List.assoc_opt x sync' = None);
+        async', sync', Lam(x, t1, e)
     | TAddConjPair(t1, t2) -> 
-        AddConjPair(invertRight async sync t1, invertRight async sync t2)
-    | _ -> invertLeft async sync goal
+        let async', sync', e1 = invertRight async sync t1 in
+        let async'', sync'', e2 = invertRight async sync t2 in
+        assert (List.equal (=) async' async'' && List.equal (=) sync' sync'');
+        async'', sync'', AddConjPair(e1, e2)
+    | _ -> [], [], invertLeft async sync goal
 
 and invertLeft async sync goal =
     print_endline ("invertLeft: " ^ type_to_string goal);
@@ -154,14 +159,14 @@ and focusRight sync goal =
             end
             with Fail m -> raise (Fail m)
         end
-    | _ -> invertRight [] sync goal (* goal is not right sync, therefore switch back to inversion phase *)
+    | _ -> let _, _, e = invertRight [] sync goal in e (* goal is not right sync, therefore switch back to inversion phase *)
 
 and focusLeft sync id foc goal =
     print_endline ("focusLeft: " ^ type_to_string foc);
     match foc with
     | TArrow(t1, t2) -> 
         begin try
-            let e1 = invertRight sync sync t1 in (* . |- e1 : t1 *)
+            let _, _, e1 = invertRight sync sync t1 in (* . |- e1 : t1 *)
             let x = fresh_id() in
             let e2 = focusLeft sync x t2 goal in (* ... x:t2 |- e2:goal *) 
             subst e2 x (App(Var(id), e1)) (* ... id:t1 -o t2 |- e2[x:=(id, e1)]:goal *)
@@ -182,7 +187,10 @@ and focusLeft sync id foc goal =
     | TAtom _ -> if foc = goal then Var(id) else raise (Fail "foc != goal")
     | _ -> raise (Fail("focusLeft: somehow foc type is left async: " ^ type_to_string foc))
 
-    let synth goal = invertRight [] [] goal
+    let synth goal = 
+        let async', sync', e = invertRight [] [] goal in
+        assert (List.is_empty async' && List.is_empty sync');
+        e
 
 end;;
 
