@@ -17,13 +17,13 @@ type exp =
     | Lam of id * ty * exp (* x:t -o e *)
     | App of exp  * exp (* (x:t -o e) e *)
     | MultConjPair of exp * exp (* (e1 * e2) : T1 ⊗ T2 *)
-    | Let2 of id * id * exp * exp (* let x * y = e1 in e2 *)
+    | Let2 of id * id * exp * exp (* let x, y = e1 in e2 *)
     | AddConjPair of exp * exp (* (M1 * M2) : T1 & T2 *)
     | AddConjFst of exp (* fst (M1 * M2) -> M1 *)
     | AddConjSnd of exp (* snd (M1 * M2) -> M2 *)
     | AddDisjInL of exp * ty (* e:T1 then inl_T2 e : T1 ⊕ T2 *)
     | AddDisjInR of ty * exp (* e:T2 then inr_T1 e : T1 ⊕ T2 *)
-    | AddDisjCase of exp * id * exp * id * exp (* case e of inl x -> e1, inr y -> e2 *)
+    | AddDisjCase of exp * id * exp * id * exp (* case e of (inl x) -> e1 | (inr y) -> e2 *)
     (*
     TODO: process expressions
     | Send of id * exp * exp (* send c e; P *)
@@ -38,6 +38,7 @@ type exp =
 let fresh_id = 
     let unique = ref (-1) in
     fun () -> (incr unique; "x" ^ (string_of_int !unique))
+
 let rec type_to_string t =
     match t with 
     | TAtom a -> a
@@ -57,8 +58,8 @@ let rec exp_to_string e =
     | AddConjPair(e1, e2) -> "(" ^ exp_to_string e1 ^ " & " ^ exp_to_string e2 ^ ")"
     | AddConjFst e -> "fst " ^ exp_to_string e
     | AddConjSnd e -> "snd " ^ exp_to_string e
-    | AddDisjInL(e, t) -> exp_to_string e ^ ":" ^ type_to_string t ^ " then inl " ^ exp_to_string e ^ ":" ^ type_to_string t ^ "⊕ T2"
-    | AddDisjInR(t, e) -> exp_to_string e ^ ":" ^ type_to_string t ^ " then inr " ^ exp_to_string e ^ ":" ^ "T1 ⊕" ^ type_to_string t
+    | AddDisjInL(e, t) -> exp_to_string e ^ ":" ^ exp_to_string e ^ "T then (inl_" ^ type_to_string t ^ " " ^ exp_to_string e ^ "):" ^ "⊕{" ^ exp_to_string e ^ "T, " ^ type_to_string t ^ "}"
+    | AddDisjInR(t, e) -> exp_to_string e ^ ":" ^ exp_to_string e ^ "T then (inr_" ^ type_to_string t ^ " " ^ exp_to_string e ^ "):" ^ "⊕{" ^ type_to_string t ^ ", " ^ exp_to_string e ^ "T}"
     | AddDisjCase(e, x1, e1, x2, e2) -> "case " ^ exp_to_string e ^ "of inl " ^ x1 ^ " -> " ^ exp_to_string e1 ^ ", " ^ "inr " ^ x2 ^ " -> " ^ exp_to_string e2
 
 let rec print_context c = 
@@ -188,10 +189,10 @@ end;;
 (* Running stuff *)
 
 let synthType = 
-    (*TArrow(TAddConjPair(TAtom("bool"), TAtom("int")), TAtom("int")) in*)
-    TArrow(TMultConjPair(TAtom("int"), TAtom("bool")), TMultConjPair(TAtom("bool"), TAtom("int"))) in
+    TArrow(TAddConjPair(TAtom("bool"), TAtom("int")), TAtom("int"))
+    (*TArrow(TMultConjPair(TAtom("int"), TAtom("bool")), TMultConjPair(TAtom("bool"), TAtom("int")))*)
+    (*TArrow(TAtom("int"), TAddDisjCase(TAtom("int"), TAtom("bool")))*)
+    (*TArrow(TAddDisjCase(TAtom("int"), TAtom("bool")), TAtom("int"))*)
+in
 let exp = Sessynth.synth synthType in
 print_endline "" ; print_endline (exp_to_string exp)
-
-(* x:(int ⊗ bool) -o let y, z = x in (z ⊗ y) *)
-(* Lam("x_0", TMultConjPair(TAtom("int"), TAtom("bool")), Let2("x_1", "x_2", Var("x_0"), MultConjPair(Var("x_2"), Var("x_1")))) *)
