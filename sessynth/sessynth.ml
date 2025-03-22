@@ -209,7 +209,7 @@ end;;
 
 let synthType = 
     (*TArrow(TAddConjPair(TAtom("bool"), TAtom("int")), TAtom("int"))*)
-    TArrow(TMultConjPair(TAtom("int"), TAtom("bool")), TMultConjPair(TAtom("bool"), TAtom("int")))
+    TArrow(TAtom("float"), TArrow(TMultConjPair(TAtom("int"), TAtom("bool")), TMultConjPair(TAtom("bool"), TMultConjPair(TAtom("float"), TAtom("int")))))
     (*TArrow(TAtom("int"), TAddDisjCase(TAtom("int"), TAtom("bool")))*)
 in
 let exp = Sessynth.synth synthType in
