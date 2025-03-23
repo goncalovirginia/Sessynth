@@ -215,7 +215,7 @@ and focusLeft g sync xFocus tFocus goal =
                 end
                 with Fail m -> raise (Fail m)
             end
-    | TAtom _ | TMultConjUnit -> 
+    | TAtom _ -> 
         if tFocus = goal then g, [], List.remove_assoc xFocus sync, Var(xFocus)
         else raise (Fail "tFocus != goal")
     | _ -> raise (Fail("focusLeft: somehow foc type is left async: " ^ type_to_string tFocus))
