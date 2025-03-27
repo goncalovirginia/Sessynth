@@ -49,6 +49,10 @@ let fresh_id =
     let unique = ref (-1) in
     fun () -> (incr unique; "x" ^ (string_of_int !unique))
 
+let fresh_channel = 
+    let unique = ref (-1) in
+    fun () -> (incr unique; "c" ^ (string_of_int !unique))
+
 let rec label_type_list_to_string xtl =
     match xtl with
     | (x, t)::xtl' -> x ^ ":" ^ type_to_string t ^ ", " ^ label_type_list_to_string xtl' 
@@ -103,8 +107,8 @@ let rec subst e1 x e2 =
     | Var y -> if x=y then e2 else e1 
     | App(e, e') -> App(subst e x e2 , subst e' x e2)
     | Lam(y, t, e) -> if x <> y then Lam(y,t,(subst e x e2)) else e1 
-    | ExtChoice(e, e') -> ExtChoice(subst e x e2 , subst e' x e2)
-    | ExtChoiceSelect e -> ExtChoiceSelect (subst e x e2)
+    | Choice(e, e') -> ExtChoice(subst e x e2 , subst e' x e2)
+    | ChoiceSelect e -> ExtChoiceSelect (subst e x e2)
     | _ -> raise (Fail("subst pattern matching not defined for " ^ exp_to_string e1))
 
 let is_left_async t = 
@@ -119,6 +123,17 @@ let rec append_bindings async sync bindings =
         else append_bindings async ((x, t)::sync) bindings'
     | [] -> async, sync
 
+let rec deltas_are_equal inversions prevDelta = 
+    let async', sync' = prevDelta in
+    match inversions with
+    | (_, async'', sync'', _)::inversions' -> List.equal (=) async' async'' && List.equal (=) sync' sync'' && deltas_are_equal inversions' (async'', sync'')
+    | [] -> true
+
+let rec get_label_process_list labelsesslist inversions =
+    match labelsesslist, inversions with
+    | (l, _)::labelsesslist', (_, _, _, expP)::inversions' -> (l, expP)::get_label_process_list labelsesslist' inversions'
+    | [], [] | [], _ | _, [] -> []
+
 (* Focused type-driven synthesizer *)
 
 module Sessynth = struct 
@@ -128,17 +143,18 @@ let rec invertRight g async sync goal c =
     print_string "  async: "; print_context async;
     print_string "  sync: "; print_context sync;
     match goal with 
-    | TRecvChannel(s1, s2) -> 
+    | TRecvS(t1, t2) -> 
         let x = fresh_id() in
-        let a, s = append_bindings async sync [(x, s1)] in
-        let g, async', sync', e = invertRight g a s s2 c in
+        let a, s = append_bindings async sync [(x, t1)] in
+        let g, async', sync', e = invertRight g a s t2 c in
         assert (List.assoc_opt x async' = None && List.assoc_opt x sync' = None);
-        g, async', sync', RecvChannel(x, s1, e)
-    | TExtChoice(labelsessl) -> 
-        let g, async', sync', e1 = invertRight g async sync t1 c in
-        let g, async'', sync'', e2 = invertRight g async sync t2 c in
-        assert (List.equal (=) async' async'' && List.equal (=) sync' sync'');
-        g, async'', sync'', Choice(e1, e2)
+        g, async', sync', RecvS(x, c, e)
+    | TExtChoice(labelsesslist) ->
+        let inversions = List.map (fun (l, s) -> invertRight g async sync s c) labelsesslist in
+        let g, a1, s1, _ = List.hd inversions in
+        assert (deltas_are_equal (List.tl inversions) (a1, s1));
+        let labelprocesslist = get_label_process_list labelsesslist inversions in
+        g, a1, s1, Choice(c, labelprocesslist)
     | _ -> invertLeft g async sync goal
 
 and invertLeft g async sync goal =
@@ -247,6 +263,7 @@ end;;
 
 (* Running stuff *)
 
+(*
 let synthType = 
     (*TArrow(TAddConjPair(TAtom("bool"), TAtom("int")), TAtom("int"))*)
     TRecvS(TAtom("float"), TRecvS(TSendS(TAtom("int"), TAtom("bool")), TSendS(TAtom("bool"), TSendS(TAtom("float"), TAtom("int")))))
@@ -254,3 +271,4 @@ let synthType =
 in
 let exp = Sessynth.synth synthType in
 print_endline "" ; print_endline (exp_to_string exp)
+*)
