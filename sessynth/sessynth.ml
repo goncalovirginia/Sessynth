@@ -4,6 +4,45 @@ exception Fail of string
 
 type id = string
 
+type ty = 
+    (* ordinary functional types (F) *)
+    | TAtom of id (* id encoding any atomic type *)
+    | TExponential of ty (* !F *)
+    | TArrow of ty * ty (* F1 -> F2 *)
+    | TProcess of (id * ty) list * ty (* {c1:S1, ..., cn:Sn |- P :: c : S} *)
+    (* channel/session types (S) *)
+    | TSendF of ty * ty (* F ∧ S *)
+    | TRecvF of ty * ty (* F ⊃ S *)
+    | TSendS of ty * ty (* S1 ⊗ S2 *)
+    | TRecvS of ty * ty (* S1 -o S2 *)
+    | TUnit (* 1 *)
+    | TExtChoice of (id * ty) list (* &{ l1:S1, ..., ln:Sn } *)
+    | TIntChoice of (id * ty) list (* ⊕{ l1:S1, ..., ln:Sn } *)
+    (* session type declaration/binding onto an id *)
+    | TSDeclr of id * ty (* stype x = S *)
+
+type exp = 
+    (* functional terms (M) *)
+    | Var of id (* x *)
+    | Let of id * exp * exp (* let x = M1 in M2 *)
+    | Exponential of exp (* !M *)
+    | LetExponential of id * exp * exp (* let !x = M1 in M2 *)
+    | Lam of id * ty * exp (* x:F -> M *)
+    | App of exp  * exp (* (M1) M2 *)
+    | Process of id * exp * ty * (id * ty) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
+    (* process terms (P) *)
+    | SendF of id * exp * exp (* send c M; P : F ∧ S *)
+    | RecvF of id * id * exp (* x:F <- recv c; P : F ⊃ S *)
+    | SendS of id * id * exp (* send c1 c2; P : S1 ⊗ S2 *)
+    | RecvS of id * id * exp (* x:S <- recv c; P : S1 -o S2 *)
+    | Close of id (* close c : 1 *)
+    | Wait of id * exp (* wait c; P *)
+    | Fwd of id * id * tyS (* fwd c1 c2 :: c2 : S1 *)
+    | Choice of id * (id * exp) list (* case c of li:Pi :: c : &{ l1:S1, ..., ln:Sn } *)
+    | ChoiceSelect of id * id * exp (* c.l; P :: c : ⊕{ l1:S1, ..., ln:Sn } *)
+    | Spawn of id * exp * id list * exp (* c <- spawn M ci; P *)
+
+(*
 type tyF = (* ordinary functional types (F) *)
     | TAtom of id (* id encoding any atomic type *)
     | TExponential of tyF (* !F *)
@@ -42,6 +81,7 @@ and expP = (* process terms (P) *)
     | Choice of id * (id * expP) list (* case c of li:Pi :: c : &{ l1:S1, ..., ln:Sn } *)
     | ChoiceSelect of id * id * expP (* c.l; P :: c : ⊕{ l1:S1, ..., ln:Sn } *)
     | Spawn of id * expF * id list * expP (* c <- spawn M ci; P *)
+*)
 
 (* Auxiliary functions *)
 
@@ -64,14 +104,11 @@ and type_to_string t =
     | TExponential(t) -> "!" ^ type_to_string t
     | TArrow(t1, t2) -> ""
     | TProcess(tl, t) -> ""
-    | TSendChannel(t1, t2) -> "(" ^ type_to_string t1 ^ " ⊗ " ^ type_to_string t2 ^ ")"
-    | TRecvChannel(t1, t2) -> type_to_string t1 ^ " -o " ^ type_to_string t2
     | TUnit -> "1"
-    | TSendFuncT(t1, t2) -> ""
-    | TRecvFuncT(t1, t2) -> ""
     | TExtChoice(xtl) -> "&{" ^ label_type_list_to_string xtl ^ "}"
     | TIntChoice(xtl) -> "⊕{" ^ label_type_list_to_string xtl ^ "}"
     | TSDeclr(x, t) -> ""
+    | _ -> ""
 
 let rec exp_to_string e = (* process terms (P) *)
     match e with 
@@ -82,18 +119,11 @@ let rec exp_to_string e = (* process terms (P) *)
     | LetExponential(x, e1, e2) -> "let !" ^ x ^ " = " ^ exp_to_string e1 ^ " in " ^exp_to_string e2
     | Lam(x, t, e) -> x ^ ":" ^ type_to_string t ^ " -o " ^ exp_to_string e 
     | App(e1, e2) -> "(" ^ exp_to_string e1 ^ ") " ^ exp_to_string e2
-    | Process(c, e1, cl) -> ""
     (* process terms (P) *)
-    | SendChannel(e1, e2) -> "(" ^ exp_to_string e1 ^ " ⊗ " ^ exp_to_string e2 ^ ")"
-    | RecvChannel(e1, e2) -> ""
-    | SendFuncTerm(e1, e2) -> ""
-    | RecvFuncTerm(e1, e2) -> ""
     | Close(c) -> "1"
     | Wait(c, e) -> ""
-    | Fwd(c1, c2) -> ""
-    | ExtChoice(c, labelsessl) -> ""
-    | ExtChoiceSelect(c, l, labelsessl) -> ""
     | Spawn(c, e1, cl, e2) -> ""
+    | _ -> ""
 
 let rec context_to_string c = 
     match c with
@@ -107,8 +137,8 @@ let rec subst e1 x e2 =
     | Var y -> if x=y then e2 else e1 
     | App(e, e') -> App(subst e x e2 , subst e' x e2)
     | Lam(y, t, e) -> if x <> y then Lam(y,t,(subst e x e2)) else e1 
-    | Choice(e, e') -> ExtChoice(subst e x e2 , subst e' x e2)
-    | ChoiceSelect e -> ExtChoiceSelect (subst e x e2)
+    (*| Choice(e, e') -> Choice(subst e x e2 , subst e' x e2)
+    | ChoiceSelect(c, l, e) -> ChoiceSelect(subst e x e2)*)
     | _ -> raise (Fail("subst pattern matching not defined for " ^ exp_to_string e1))
 
 let is_left_async t = 
@@ -151,38 +181,44 @@ let rec invertRight g async sync goal c =
         g, async', sync', RecvS(x, c, e)
     | TExtChoice(labelsesslist) ->
         let inversions = List.map (fun (l, s) -> invertRight g async sync s c) labelsesslist in
-        let g, a1, s1, _ = List.hd inversions in
+        let g1, a1, s1, _ = List.hd inversions in
         assert (deltas_are_equal (List.tl inversions) (a1, s1));
         let labelprocesslist = get_label_process_list labelsesslist inversions in
-        g, a1, s1, Choice(c, labelprocesslist)
-    | _ -> invertLeft g async sync goal
+        g1, a1, s1, Choice(c, labelprocesslist)
+    | _ -> invertLeft g async sync goal c
 
-and invertLeft g async sync goal =
+and invertLeft g async sync goal c =
     print_endline ("invertLeft: " ^ type_to_string goal);
     print_string "  async: "; print_context async;
     print_string "  sync: "; print_context sync;
     match async with
     | (x, t)::async' ->
         begin match t with 
-        | TSendChannel(t1, t2) ->
-            let x1, x2 = fresh_id(), fresh_id() in
-            let a, s = append_bindings async' sync [(x1, t1); (x2, t2)] in
-            let g, async', sync', e = invertLeft g a s goal in
-            assert (List.assoc_opt x1 async' = None && List.assoc_opt x1 sync' = None && List.assoc_opt x2 async' = None && List.assoc_opt x2 sync' = None);
-            g, async', sync', Let2(x1, x2, Var(x), e)
+        | TSendS(t1, t2) ->
+            let x, c' = fresh_id(), fresh_channel() in
+            let a, s = append_bindings async' sync [(x, t1); (c, t2)] in
+            let g, async', sync', e = invertLeft g a s goal c' in
+            assert (List.assoc_opt x async' = None && List.assoc_opt x sync' = None && List.assoc_opt c async' = None && List.assoc_opt c sync' = None);
+            g, async', sync', RecvS(x, c, e)
         | TUnit -> 
-            invertLeft g async' sync goal
-        | TAddDisjCase(t1, t2) ->
-            let x1, x2 = fresh_id(), fresh_id() in
-            let a1, s1 = append_bindings async' sync [(x1, t1)] in
-            let a2, s2 = append_bindings async' sync [(x2, t2)] in
-            let g, async', sync', e1 = invertLeft g a1 s1 goal in
-            let g, async'', sync'', e2 = invertLeft g a2 s2 goal in
-            assert (List.assoc_opt x1 async' = None && List.assoc_opt x1 sync' = None && List.assoc_opt x2 async'' = None && List.assoc_opt x2 sync'' = None && List.equal (=) async' async'' && List.equal (=) sync' sync'');
-            g, async'', sync'', AddDisjCase(Var(x), x1, e1, x2, e2)
+            let c' = fresh_channel() in
+            let g, async', sync', e = invertLeft g async' sync goal c' in
+            g, async', sync', Wait(c, e)
+        | TIntChoice(labelsesslist) ->
+            let inversions = List.map (fun (l, s) -> 
+                let xn = fresh_id() in
+                let a, s = append_bindings async' sync [(xn, s)] in
+                let g, a', s', e = invertLeft g a s goal c in
+                assert (List.assoc_opt xn a' = None && List.assoc_opt xn s' = None);
+                g, a', s', e
+            ) labelsesslist in
+            let g1, a1, s1, _ = List.hd inversions in
+            assert (deltas_are_equal (List.tl inversions) (a1, s1));
+            let labelprocesslist = get_label_process_list labelsesslist inversions in
+            g1, a1, s1, Choice(x, labelprocesslist)
         | TExponential t ->
             let x1 = fresh_id() in
-            let g', async', sync', e = invertLeft ((x1, t)::g) async' sync t in
+            let g', async', sync', e = invertLeft ((x1, t)::g) async' sync t c in
             g', async', sync', LetExponential(x1, Var(x), e)
         | _ -> raise (Fail("invertLeft: somehow a sync type wound up in async context"))
         end
@@ -229,7 +265,7 @@ and focusRight g sync goal =
 and focusLeft g sync xFocus tFocus goal =
     print_endline ("focusLeft: " ^ type_to_string tFocus);
     match tFocus with
-    | TRecvChannel(t1, t2) -> 
+    | TRecvS(t1, t2) -> 
         begin try
             let y = fresh_id() in
             let g, async', sync', e2 = focusLeft g sync y t2 goal in (* ... x:t2 |- e2:goal *) 
@@ -237,7 +273,7 @@ and focusLeft g sync xFocus tFocus goal =
             g, async'', sync'', subst e2 y (App(Var(xFocus), e1)) (* ... id:t1 -o t2 |- e2[x:=(id, e1)]:goal *)
         with Fail m -> raise (Fail m)
         end
-    | TAddConjPair(t1, t2) -> 
+    | TExtChoice(labelsesslist) -> 
             begin 
                 try begin
                     let g, async', sync', e = focusLeft g sync xFocus t1 goal in (* ... y:t1 |- e:goal *)
