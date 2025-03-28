@@ -33,7 +33,7 @@ type exp =
     (* process terms (P) *)
     | SendF of id * exp * exp (* send c M; P : F ∧ S *)
     | RecvF of id * id * exp (* x:F <- recv c; P : F ⊃ S *)
-    | SendS of id * id * exp (* send c1 c2; P : S1 ⊗ S2 *)
+    | SendS of id * id * exp * exp (* send c1 (c2 P2); P : S1 ⊗ S2 *)
     | RecvS of id * id * exp (* x:S <- recv c; P : S1 -o S2 *)
     | Close of id (* close c : 1 *)
     | Wait of id * exp (* wait c; P *)
@@ -73,7 +73,7 @@ type expF = (* functional terms (M) *)
 and expP = (* process terms (P) *)
     | SendF of id * expF * expP (* send c M; P : F ∧ S *)
     | RecvF of id * id * expP (* x:F <- recv c; P : F ⊃ S *)
-    | SendS of id * id * expP (* send c1 c2; P : S1 ⊗ S2 *)
+    | SendS of id * id * expP * expP (* send c1 c2 P2; P : S1 ⊗ S2 *)
     | RecvS of id * id * expP (* x:S <- recv c; P : S1 -o S2 *)
     | Close of id (* close c : 1 *)
     | Wait of id * expP (* wait c; P *)
@@ -131,15 +131,6 @@ let rec context_to_string c =
     | (x, t)::c' -> x ^ ":" ^ (type_to_string t) ^ "; " ^ context_to_string c'
 
 let rec print_context c = print_endline (context_to_string c)
-
-let rec subst e1 x e2 =
-    match e1 with 
-    | Var y -> if x=y then e2 else e1 
-    | App(e, e') -> App(subst e x e2 , subst e' x e2)
-    | Lam(y, t, e) -> if x <> y then Lam(y,t,(subst e x e2)) else e1 
-    (*| Choice(e, e') -> Choice(subst e x e2 , subst e' x e2)
-    | ChoiceSelect(c, l, e) -> ChoiceSelect(subst e x e2)*)
-    | _ -> raise (Fail("subst pattern matching not defined for " ^ exp_to_string e1))
 
 let is_left_async t = 
     match t with
@@ -239,9 +230,10 @@ and focusRight g sync goal c =
     print_endline ("focusRight: " ^ type_to_string goal);
     match goal with 
     | TSendS(t1, t2) -> 
-        let g, async', sync', e1 = focusRight g sync t1 c in
+        let y = fresh_channel() in
+        let g, async', sync', e1 = focusRight g sync t1 y in
         let g, async'', sync'', e2 = focusRight g sync' t2 c in
-        g, async'', sync'', SendS(c, , e2)
+        g, async'', sync'', SendS(c, y, e1 , e2)
     | TUnit ->
         g, [], sync, Close(c)
     | TIntChoice(labelsesslist) -> 
@@ -272,9 +264,9 @@ and focusLeft g sync xFocus tFocus goal c =
     | TRecvS(t1, t2) -> 
         begin try
             let y = fresh_id() in
-            let g, async', sync', e2 = focusLeft g sync y t2 goal c in (* ... x:t2 |- e2:goal *) 
-            let g, async'', sync'', e1 = invertRight g async' sync' t1 c in (* . |- e1 : t1 *)
-            g, async'', sync'', subst e2 y (App(Var(xFocus), e1)) (* ... id:t1-ot2 |- e2[x:=(id, e1)]:goal *)
+            let g, async', sync', e2 = focusLeft g sync xFocus t2 goal c in (* ... x:t2 |- e2:goal *) 
+            let g, async'', sync'', e1 = invertRight g async' sync' t1 y in (* . |- e1 : t1 *)
+            g, async'', sync'', SendS(xFocus, y, e1, e2) 
         with Fail m -> raise (Fail m)
         end
     | TExtChoice(labelsesslist) -> 
@@ -284,7 +276,7 @@ and focusLeft g sync xFocus tFocus goal c =
                 begin 
                     try begin
                         let g, async', sync', e = focusLeft g sync xFocus s goal c in (* ... y:t1 |- e:goal *)
-                        g, async', sync', subst e xFocus (ChoiceSelect(c, l, Var(xFocus))) (* ... id:t1&t2 |- e{id=(fst id)}:goal *)
+                        g, async', sync', ChoiceSelect(xFocus, l, e)
                     end
                     with Fail _ -> try begin
                         iter_labels labelsesslist'
