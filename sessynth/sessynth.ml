@@ -145,105 +145,104 @@ let rec append_bindings async sync bindings =
     | [] -> async, sync
 
 let rec deltas_are_equal inversions prevDelta = 
-    let async', sync' = prevDelta in
+    let daPrev, dsPrev = prevDelta in
     match inversions with
-    | (_, async'', sync'', _)::inversions' -> List.equal (=) async' async'' && List.equal (=) sync' sync'' && deltas_are_equal inversions' (async'', sync'')
+    | (_, da', ds', _)::inversions' -> List.equal (=) daPrev da' && List.equal (=) dsPrev ds' && deltas_are_equal inversions' (da', ds')
     | [] -> true
 
-let rec get_label_process_list labelsesslist inversions =
+let rec build_label_expP_list labelsesslist inversions =
     match labelsesslist, inversions with
-    | (l, _)::labelsesslist', (_, _, _, expP)::inversions' -> (l, expP)::get_label_process_list labelsesslist' inversions'
+    | (l, _)::labelsesslist', (_, _, _, expP)::inversions' -> (l, expP)::build_label_expP_list labelsesslist' inversions'
     | [], [] | [], _ | _, [] -> []
 
 (* Focused type-driven synthesizer *)
 
 module Sessynth = struct 
 
-let rec invertRight g async sync goal c = 
+let rec invertRight g da ds c goal = 
     print_endline ("invertRight: " ^ type_to_string goal);
-    print_string "  async: "; print_context async;
-    print_string "  sync: "; print_context sync;
+    print_string "  ds: "; print_context da;
+    print_string "  da: "; print_context ds;
     match goal with 
     | TRecvS(t1, t2) -> 
         let x = fresh_id() in
-        let a, s = append_bindings async sync [(x, t1)] in
-        let g, async', sync', e = invertRight g a s t2 c in
-        assert (List.assoc_opt x async' = None && List.assoc_opt x sync' = None);
-        g, async', sync', RecvS(x, c, e)
+        let da1, ds1 = append_bindings da ds [(x, t1)] in
+        let g, da', ds', e = invertRight g da1 ds1 c t2 in
+        assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
+        g, da', ds', RecvS(x, c, e)
     | TExtChoice(labelsesslist) ->
-        let inversions = List.map (fun (l, s) -> invertRight g async sync s c) labelsesslist in
+        let inversions = List.map (fun (l, s) -> invertRight g da ds c s) labelsesslist in
         let g1, a1, s1, _ = List.hd inversions in
         assert (deltas_are_equal (List.tl inversions) (a1, s1));
-        let labelprocesslist = get_label_process_list labelsesslist inversions in
+        let labelprocesslist = build_label_expP_list labelsesslist inversions in
         g1, a1, s1, Choice(c, labelprocesslist)
-    | _ -> invertLeft g async sync goal c
+    | _ -> invertLeft g da ds c goal
 
-and invertLeft g async sync goal c =
+and invertLeft g da ds c goal =
     print_endline ("invertLeft: " ^ type_to_string goal);
-    print_string "  async: "; print_context async;
-    print_string "  sync: "; print_context sync;
-    match async with
-    | (x, t)::async' ->
+    print_string "  da: "; print_context da;
+    print_string "  ds: "; print_context ds;
+    match da with
+    | (x, t)::da' ->
         begin match t with 
         | TSendS(t1, t2) ->
             let x, c' = fresh_id(), fresh_channel() in
-            let a, s = append_bindings async' sync [(x, t1); (c, t2)] in
-            let g, async', sync', e = invertLeft g a s goal c' in
-            assert (List.assoc_opt x async' = None && List.assoc_opt x sync' = None && List.assoc_opt c async' = None && List.assoc_opt c sync' = None);
-            g, async', sync', RecvS(x, c, e)
+            let da1, ds1 = append_bindings da' ds [(x, t1); (c, t2)] in
+            let g, da', ds', e = invertLeft g da1 ds1 c' goal in
+            assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
+            g, da', ds', RecvS(x, c, e)
         | TUnit -> 
             let c' = fresh_channel() in
-            let g, async', sync', e = invertLeft g async' sync goal c' in
-            g, async', sync', Wait(c, e)
+            let g, da', ds', e = invertLeft g da' ds c' goal in
+            g, da', ds', Wait(c, e)
         | TIntChoice(labelsesslist) ->
             let inversions = List.map (fun (l, s) -> 
                 let xn = fresh_id() in
-                let a, s = append_bindings async' sync [(xn, s)] in
-                let g, a', s', e = invertLeft g a s goal c in
-                assert (List.assoc_opt xn a' = None && List.assoc_opt xn s' = None);
-                g, a', s', e
+                let da1, ds1 = append_bindings da' ds [(xn, s)] in
+                let g, da', ds', e = invertLeft g da1 ds1 c goal in
+                assert (List.assoc_opt xn da' = None && List.assoc_opt xn ds' = None);
+                g, da', ds', e
             ) labelsesslist in
-            let g1, a1, s1, _ = List.hd inversions in
-            assert (deltas_are_equal (List.tl inversions) (a1, s1));
-            let labelprocesslist = get_label_process_list labelsesslist inversions in
-            g1, a1, s1, Choice(x, labelprocesslist)
+            let g1, da1, ds1, _ = List.hd inversions in
+            assert (deltas_are_equal (List.tl inversions) (da1, ds1));
+            let labelprocesslist = build_label_expP_list labelsesslist inversions in
+            g1, da1, ds1, Choice(x, labelprocesslist)
         | TExponential t ->
             let x1 = fresh_id() in
-            let g', async', sync', e = invertLeft ((x1, t)::g) async' sync t c in
-            g', async', sync', LetExponential(x1, Var(x), e)
+            let g', da', ds', e = invertLeft ((x1, t)::g) da' ds c t in
+            g', da', ds', LetExponential(x1, Var(x), e)
         | _ -> raise (Fail("invertLeft: somehow a sync type wound up in async context"))
         end
-    | [] -> focusDecide g sync sync goal c
+    | [] -> focusDecide g ds ds c goal
 
-and focusDecide g sync syncOriginal goal c = 
+and focusDecide g ds dsOriginal c goal = 
     print_endline ("focusDecide: " ^ type_to_string goal);
-    print_string "  sync: "; print_context sync;
-    match sync with
+    print_string "  ds: "; print_context ds;
+    match ds with
     | [] -> raise (Fail "focusDecide: empty sync context")
-    | (xFocus, tFocus)::sync' -> 
-        try 
-            if is_left_async goal then focusRight g syncOriginal goal c
-            else focusLeft g syncOriginal xFocus tFocus goal c
-        with Fail _ -> focusDecide g sync' syncOriginal goal c
+    | (xFocus, tFocus)::ds' -> try 
+            if is_left_async goal then focusRight g dsOriginal c goal
+            else focusLeft g dsOriginal xFocus tFocus c goal
+        with Fail _ -> focusDecide g ds' dsOriginal c goal
 
-and focusRight g sync goal c =
+and focusRight g ds c goal =
     print_endline ("focusRight: " ^ type_to_string goal);
     match goal with 
     | TSendS(t1, t2) -> 
         let y = fresh_channel() in
-        let g, async', sync', e1 = focusRight g sync t1 y in
-        let g, async'', sync'', e2 = focusRight g sync' t2 c in
-        g, async'', sync'', SendS(c, y, e1 , e2)
+        let g, da', ds', e1 = focusRight g ds y t1 in
+        let g, da'', ds'', e2 = focusRight g ds' c t2 in
+        g, da'', ds'', SendS(c, y, e1 , e2)
     | TUnit ->
-        g, [], sync, Close(c)
+        g, [], ds, Close(c)
     | TIntChoice(labelsesslist) -> 
         let rec iter_labels labelsesslist =
             match labelsesslist with
             | (l, s)::labelsesslist' ->
                 begin 
                     try begin
-                        let g, async', sync', e1 = focusRight g sync s c in
-                        g, async', sync', ChoiceSelect(c, l, e1)
+                        let g, da', ds', e1 = focusRight g ds c s in
+                        g, da', ds', ChoiceSelect(c, l, e1)
                     end
                     with Fail _ -> try begin
                         iter_labels labelsesslist'
@@ -253,20 +252,20 @@ and focusRight g sync goal c =
             | [] -> raise (Fail "focusLeft: TExtChoice has no valid label-sess option")
         in iter_labels labelsesslist
     | TExponential t ->
-        let g', async', sync', e = invertRight g [] sync goal c in
-        assert (List.is_empty async' && List.equal (=) sync sync');
-        g', async', sync', Exponential(e)
-    | _ -> invertRight g [] sync goal c (* goal is not right sync, therefore switch back to inversion phase *)
+        let g', da', ds', e = invertRight g [] ds c goal in
+        assert (List.is_empty da' && List.equal (=) ds ds');
+        g', da', ds', Exponential(e)
+    | _ -> invertRight g [] ds c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
-and focusLeft g sync xFocus tFocus goal c =
+and focusLeft g ds xFocus tFocus c goal =
     print_endline ("focusLeft: " ^ type_to_string tFocus);
     match tFocus with
     | TRecvS(t1, t2) -> 
         begin try
             let y = fresh_id() in
-            let g, async', sync', e2 = focusLeft g sync xFocus t2 goal c in (* ... x:t2 |- e2:goal *) 
-            let g, async'', sync'', e1 = invertRight g async' sync' t1 y in (* . |- e1 : t1 *)
-            g, async'', sync'', SendS(xFocus, y, e1, e2) 
+            let g, da', ds', e2 = focusLeft g ds xFocus t2 c goal in
+            let g, da'', ds'', e1 = invertRight g da' ds' y t1 in
+            g, da'', ds'', SendS(xFocus, y, e1, e2) 
         with Fail m -> raise (Fail m)
         end
     | TExtChoice(labelsesslist) -> 
@@ -275,8 +274,8 @@ and focusLeft g sync xFocus tFocus goal c =
             | (l, s)::labelsesslist' ->
                 begin 
                     try begin
-                        let g, async', sync', e = focusLeft g sync xFocus s goal c in (* ... y:t1 |- e:goal *)
-                        g, async', sync', ChoiceSelect(xFocus, l, e)
+                        let g, da', ds', e = focusLeft g ds xFocus s c goal in
+                        g, da', ds', ChoiceSelect(xFocus, l, e)
                     end
                     with Fail _ -> try begin
                         iter_labels labelsesslist'
@@ -286,12 +285,12 @@ and focusLeft g sync xFocus tFocus goal c =
             | [] -> raise (Fail "focusLeft: TExtChoice has no valid label-sess option")
         in iter_labels labelsesslist
     | TAtom _ -> 
-        if tFocus = goal then g, [], List.remove_assoc xFocus sync, Var(xFocus)
+        if tFocus = goal then g, [], List.remove_assoc xFocus ds, Var(xFocus)
         else raise (Fail "tFocus != goal")
     | _ -> raise (Fail("focusLeft: somehow foc type is left async: " ^ type_to_string tFocus))
 
     let synth goal = 
-        let g, async', sync', e = invertRight [] [] [] goal (fresh_channel()) in
+        let g, async', sync', e = invertRight [] [] [] (fresh_channel()) goal in
         if List.is_empty async' && List.is_empty sync' then e
         else raise (Fail("Synthesized expression did not use all linear resources:\n  async: " ^ context_to_string async' ^ "\n  sync: " ^ context_to_string sync' ^ "\n"))
 
