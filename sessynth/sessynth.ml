@@ -170,8 +170,15 @@ and invertLeftS g p da ds c goal =
     match da with
     | (x, t)::da' ->
         begin match t with 
-        | TSendS(t1, t2) ->
+        | TSendF(t1, t2) ->
             let x, c' = fresh_id(), fresh_channel() in
+            let p1 = (x, t1)::p in
+            let da1, ds1 = append_bindings da' ds [(c, t2)] in
+            let g, p', da', ds', e = invertLeftS g p1 da1 ds1 c' goal in
+            assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
+            g, p', da', ds', RecvF(x, c, e)
+        | TSendS(t1, t2) ->
+            let x, c' = fresh_channel(), fresh_channel() in
             let da1, ds1 = append_bindings da' ds [(x, t1); (c, t2)] in
             let g, p', da', ds', e = invertLeftS g p da1 ds1 c' goal in
             assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
@@ -221,6 +228,10 @@ and focusDecideS g p ds dsOriginal c goal =
 and focusRightS g p ds c goal =
     print_endline ("focusRight: " ^ tyS_to_string goal);
     match goal with 
+    | TSendF(t1, t2) ->
+        let g, p', e1 = focusRightF g p t1 in
+        let g, p'', da'', ds'', e2 = focusRightS g p' ds c t2 in
+        g, p'', da'', ds'', SendF(c, e1 , e2)
     | TSendS(t1, t2) -> 
         let y = fresh_channel() in
         let g, p', da', ds', e1 = focusRightS g p ds y t1 in
@@ -256,14 +267,15 @@ and focusRightF g p goal =
 and focusLeftS g p ds xFocus tFocus c goal =
     print_endline ("focusLeft: " ^ tyS_to_string tFocus);
     match tFocus with
+    | TRecvF(t1, t2) ->
+        let g, p', da', ds', e2 = focusLeftS g p ds xFocus t2 c goal in
+        let g, p'', e1 = invertRightF g p' t1 in
+        g, p'', da', ds', SendF(xFocus, e1, e2) 
     | TRecvS(t1, t2) -> 
-        begin try
-            let y = fresh_id() in
-            let g, p', da', ds', e2 = focusLeftS g p ds xFocus t2 c goal in
-            let g, p'', da'', ds'', e1 = invertRightS g p' da' ds' y t1 in
-            g, p'', da'', ds'', SendS(xFocus, y, e1, e2) 
-        with Fail m -> raise (Fail m)
-        end
+        let y = fresh_id() in
+        let g, p', da', ds', e2 = focusLeftS g p ds xFocus t2 c goal in
+        let g, p'', da'', ds'', e1 = invertRightS g p' da' ds' y t1 in
+        g, p'', da'', ds'', SendS(xFocus, y, e1, e2) 
     | TExtChoice(labelsesslist) -> 
         let rec iter_labels labelsesslist =
             match labelsesslist with
