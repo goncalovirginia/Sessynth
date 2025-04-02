@@ -296,10 +296,10 @@ and focusLeftS g p ds xFocus tFocus c goal =
 
 and focusLeftF g p xFocus tFocus goal =
     match tFocus with
+    | TArrow _
     | TAtom _ -> 
         if tFocus = goal then g, [], List.remove_assoc xFocus p, Var(xFocus)
         else raise (Fail "tFocus != goal")
-    | TArrow _
     | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
     let synth goal = 
