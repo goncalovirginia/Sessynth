@@ -5,7 +5,7 @@ exception Fail of string
 type id = string
 
 type tyF = (* ordinary functional types (F) *)
-    | TAtom of id (* id encoding any atomic type *)
+    | TAtom of id (* id encoding any atomic type (int, bool, string, etc) *)
     | TExponential of tyF (* !F *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
     | TProcess of (id * tyS) list * tyS (* {c1:S1, ..., cn:Sn |- P :: c : S} *)
@@ -18,6 +18,8 @@ and tyS = (* channel/session types (S) *)
     | TUnit (* 1 *)
     | TExtChoice of (id * tyS) list (* &{ l1:S1, ..., ln:Sn } *)
     | TIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
+    | TRecS of id * tyS (* mu t . T *)
+    | TVarS of id (* t *)
 
 type tySDeclr = (* session type declaration/binding onto an id *)
     | TSDeclr of id * tyS (* stype x = S *)
@@ -30,6 +32,7 @@ type expF = (* functional terms (M) *)
     | Lam of id * tyF * expF (* x:F -> M *)
     | App of expF  * expF (* (M1) M2 *)
     | Process of id * expP * tyS * (id * tyS) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
+    | LetRec of id * expF (* let x = M1 *)
 
 and expP = (* process terms (P) *)
     | SendF of id * expF * expP (* send c M; P : F ∧ S *)
@@ -42,6 +45,40 @@ and expP = (* process terms (P) *)
     | Choice of id * (id * expP) list (* case c of li:Pi :: c : &{ l1:S1, ..., ln:Sn } *)
     | ChoiceSelect of id * id * expP (* c.l; P :: c : ⊕{ l1:S1, ..., ln:Sn } *)
     | Spawn of id * expF * id list * expP (* c <- spawn M ci; P *)
+
+(*
+TRec of id * tyS (* mu t . T *)
+TVar of id   (* t *)
+
+!S.T
+?S.T
+
+SendInts = mu t . !int.t  ~ !int.(mu t.!int.t)
+
+sendIntsRec : () -> { mu t . !int.t }
+let rec sendIntsRec = fun () -> c <- {
+  //c:!int. t
+  send c 0 ;
+  //c: mu t . !int.t
+  d <- spawn SendIntsRec () ;
+  //d: mu t . !int.t |- c: mu t . !int.t
+  fwd d c
+}
+
+let rec sendIntsRecBad = fun () -> c  <- {
+  d <- spawn sendIntsRecBad () ;
+  fwd d c
+ }
+
+mu t . &{ l1 => !int.t ; l2 => !string.t ; done => 1 }
+
+let rec foo = fun () -> c <- {
+ case c of
+  l1 => send c 0 ; d <- spawn foo() ; fwd d c
+  l2 => send c "xpto" ; d <- spawn foo() ; fwd d c 
+  done => close c
+}
+*)
 
 (* Auxiliary functions *)
 
@@ -303,7 +340,7 @@ and focusLeftF g p xFocus tFocus goal =
     | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
     let synth goal = 
-        let g, p', da', ds', e = invertRightS [] [] [] [] (fresh_channel()) goal in
+        let g, p', da', ds', e = invertRightS [] ([], []) [] [] (fresh_channel()) goal in
         if List.is_empty da' && List.is_empty ds' then e
         else raise (Fail("Synthesized expression did not use all linear resources:\n  async: " ^ delta_to_string da' ^ "\n  sync: " ^ delta_to_string ds' ^ "\n"))
 
