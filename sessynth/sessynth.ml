@@ -8,7 +8,7 @@ type tyF = (* ordinary functional types (F) *)
     | TAtom of id (* id encoding any atomic type (int, bool, string, etc) *)
     | TExponential of tyF (* !F *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
-    | TProcess of (id * tyS) list * tyS (* {c1:S1, ..., cn:Sn |- P :: c : S} *)
+    | TProcess of tyS list * tyS (* {S1, ..., Sn |- P :: c : S} *)
 
 and tyS = (* channel/session types (S) *)
     | TSendF of tyF * tyS (* F ∧ S *)
@@ -32,6 +32,7 @@ type expF = (* functional terms (M) *)
     | Lam of id * tyF * expF (* x:F -> M *)
     | App of expF  * expF (* (M1) M2 *)
     | Process of id * expP * tyS * (id * tyS) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
+    | ExecProcess of expF (* M *)
     | LetRec of id * expF * expF (* let rec x = M1 in M2 *)
 
 and expP = (* process terms (P) *)
@@ -154,18 +155,18 @@ let is_tyS_left_async t =
     | TSendS _ | TUnit | TIntChoice _ -> true
     | _ -> false
 
-let rec append_bindings_tyF pa ps bindings =
+let rec append_bindings_psi pa ps bindings =
     match bindings with
     | (x, t)::bindings' ->
-        if is_tyF_left_async t then append_bindings_tyF ((x, t)::pa) ps bindings'
-        else append_bindings_tyF pa ((x, t)::ps) bindings'
+        if is_tyF_left_async t then append_bindings_psi ((x, t)::pa) ps bindings'
+        else append_bindings_psi pa ((x, t)::ps) bindings'
     | [] -> pa, ps
 
-let rec append_bindings_tyS da ds bindings =
+let rec append_bindings_delta da ds bindings =
     match bindings with
     | (x, t)::bindings' ->
-        if is_tyS_left_async t then append_bindings_tyS ((x, t)::da) ds bindings'
-        else append_bindings_tyS da ((x, t)::ds) bindings'
+        if is_tyS_left_async t then append_bindings_delta ((x, t)::da) ds bindings'
+        else append_bindings_delta da ((x, t)::ds) bindings'
     | [] -> da, ds
 
 let rec deltas_are_equal inversions prevDelta = 
@@ -179,6 +180,13 @@ let rec build_label_expP_list labelsesslist inversions =
     | (l, _)::labelsesslist', (_, _, _, _, expP)::inversions' -> (l, expP)::build_label_expP_list labelsesslist' inversions'
     | [], [] | [], _ | _, [] -> []
 
+let rec subst e1 x e2 =
+    match e1 with 
+    | Var y -> if x=y then e2 else e1 
+    | App(e, e') -> App (subst e x e2 , subst e' x e2)
+    | Lam(y, t, e) -> if x <> y then Lam (y,t,(subst e x e2)) else e1 
+    | _ -> raise (Fail("subst pattern matching not defined for " ^ expF_to_string e1))
+
 (* Focused type-driven synthesizer *)
 
 module Sessynth = struct 
@@ -191,13 +199,13 @@ let rec invertRightS g p da ds c goal =
     match goal with 
     | TRecvF(t1, t2) ->
         let x = fresh_id() in
-        let p1 = append_bindings_tyF (fst p) (snd p) [(x, t1)] in
+        let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
         let g, p', da', ds', e = invertRightS g p1 da ds c t2 in
         assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
         g, p', da', ds', RecvF(x, c, e)
     | TRecvS(t1, t2) -> 
         let x = fresh_id() in
-        let da1, ds1 = append_bindings_tyS da ds [(x, t1)] in
+        let da1, ds1 = append_bindings_delta da ds [(x, t1)] in
         let g, p', da', ds', e = invertRightS g p da1 ds1 c t2 in
         assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
         g, p', da', ds', RecvS(x, c, e)
@@ -216,11 +224,15 @@ and invertRightF g p d c goal =
     match goal with 
     | TArrow(t1, t2) ->
         let x = fresh_id() in
-        let p1 = append_bindings_tyF (fst p) (snd p) [(x, t1)] in
+        let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
         let g, p', da', ds', e = invertRightF g p1 d c t2 in
-        assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
         g, p', da', ds', Lam(x, t1, e)
-    | TProcess _
+    | TProcess(insl, outs) ->
+        let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
+        let outcs = (fresh_channel(), outs) in
+        let da1, ds1 = append_bindings_delta (fst d) (snd d) (outcs::incsl) in
+        let g', p', da', ds', e = invertRightS g p da1 ds1 c outs in
+        g', p', da', ds', Process(fst outcs, e, outs, incsl)
     | _ -> invertLeftF g p d c goal
 
 and invertLeftS g p da ds c goal =
@@ -232,14 +244,14 @@ and invertLeftS g p da ds c goal =
         begin match t with 
         | TSendF(t1, t2) ->
             let x, c' = fresh_id(), fresh_channel() in
-            let p1 = append_bindings_tyF (fst p) (snd p) [(x, t1)] in
-            let da1, ds1 = append_bindings_tyS da' ds [(c, t2)] in
+            let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
+            let da1, ds1 = append_bindings_delta da' ds [(c, t2)] in
             let g, p', da', ds', e = invertLeftS g p1 da1 ds1 c' goal in
             assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
             g, p', da', ds', RecvF(x, c, e)
         | TSendS(t1, t2) ->
             let x, c' = fresh_channel(), fresh_channel() in
-            let da1, ds1 = append_bindings_tyS da' ds [(x, t1); (c, t2)] in
+            let da1, ds1 = append_bindings_delta da' ds [(x, t1); (c, t2)] in
             let g, p', da', ds', e = invertLeftS g p da1 ds1 c' goal in
             assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
             g, p', da', ds', RecvS(x, c, e)
@@ -250,7 +262,7 @@ and invertLeftS g p da ds c goal =
         | TIntChoice(labelsesslist) ->
             let inversions = List.map (fun (l, s) -> 
                 let xn = fresh_id() in
-                let da1, ds1 = append_bindings_tyS da' ds [(xn, s)] in
+                let da1, ds1 = append_bindings_delta da' ds [(xn, s)] in
                 let g, p', da', ds', e = invertLeftS g p da1 ds1 c goal in
                 assert (List.assoc_opt xn da' = None && List.assoc_opt xn ds' = None);
                 g, p', da', ds', e
@@ -265,7 +277,6 @@ and invertLeftS g p da ds c goal =
 
 and invertLeftF g p d c goal =
     let pa, ps = p in
-    let da, ds = d in
     match pa with
     | (x, t)::pa' ->
         begin match t with
@@ -273,7 +284,7 @@ and invertLeftF g p d c goal =
             let x1 = fresh_id() in
             let g', p', da', ds', e = invertLeftF ((x1, t)::g) p d c t1 in
             g', p', da', ds', LetExponential(x1, Var(x), e)
-        | _ -> g, p, da, ds, Var("TODO")
+        | _ -> raise (Fail("invertLeftF: somehow a sync type wound up in async context"))
         end
     | [] -> focusDecideF g ps ps d c goal 
 
@@ -293,8 +304,8 @@ and focusDecideF g ps psOriginal d c goal =
     match ps with
     | [] -> raise (Fail "focusDecide: empty sync context")
     | (xFocus, tFocus)::ps' -> try 
-            if is_tyF_left_async goal then focusRightF g ps psOriginal d c goal
-            else focusLeftF g ps psOriginal xFocus tFocus d c goal
+            if is_tyF_left_async goal then focusRightF g psOriginal d c goal
+            else focusLeftF g psOriginal xFocus tFocus d c goal
         with Fail _ -> focusDecideF g ps' psOriginal d c goal
 
 and focusRightS g p ds c goal =
@@ -329,7 +340,7 @@ and focusRightS g p ds c goal =
         in iter_labels labelsesslist
     | _ -> invertRightS g p [] ds c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
-and focusRightF g ps psOriginal d c goal =
+and focusRightF g ps d c goal =
     match goal with
     | TExponential t ->
         let g', p', da', ds', e = invertRightF g ([], ps) d c goal in
@@ -366,18 +377,22 @@ and focusLeftS g p ds xFocus tFocus c goal =
         in iter_labels labelsesslist
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
-and focusLeftF g ps psOriginal xFocus tFocus d c goal =
+and focusLeftF g ps xFocus tFocus d c goal =
     match tFocus with
-    | TArrow _
+    | TArrow(t1, t2) ->
+        let y = fresh_id() in
+        let g', p', da', ds', e2 = focusLeftF g ps y t2 d c goal in
+        let g'', p'', da'', ds'', e1 = invertRightF g ([], ps) d c t1 in
+        g'', p'', da'', ds'', subst e2 y (App(Var(xFocus), e1))
     | TAtom _ -> 
-        if tFocus = goal then g, ([], psOriginal), fst d, snd d, Var(xFocus)
+        if tFocus = goal then g, ([], ps), fst d, snd d, Var(xFocus)
         else raise (Fail "tFocus != goal")
     | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
     let synth goal = 
         let g, p', da', ds', e = invertRightS [] ([], []) [] [] (fresh_channel()) goal in
         if List.is_empty da' && List.is_empty ds' then e
-        else raise (Fail("Synthesized expression did not use all linear resources:\n  async: " ^ delta_to_string da' ^ "\n  sync: " ^ delta_to_string ds' ^ "\n"))
+        else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string da' ^ "\n  ds: " ^ delta_to_string ds' ^ "\n"))
 
 end;;
 
