@@ -152,7 +152,7 @@ let is_tyF_left_async t =
 
 let is_tyS_left_async t =
     match t with
-    | TSendS _ | TUnit | TIntChoice _ -> true
+    | TSendF _ | TSendS _ | TUnit | TIntChoice _ -> true
     | _ -> false
 
 let rec append_bindings_psi pa ps bindings =
@@ -384,6 +384,8 @@ and focusLeftF g ps xFocus tFocus d c goal =
         let g', p', da', ds', e2 = focusLeftF g ps y t2 d c goal in
         let g'', p'', da'', ds'', e1 = invertRightF g ([], ps) d c t1 in
         g'', p'', da'', ds'', subst e2 y (App(Var(xFocus), e1))
+    | TProcess _
+        (* TODO, is it even necessary? *)
     | TAtom _ -> 
         if tFocus = goal then g, ([], ps), fst d, snd d, Var(xFocus)
         else raise (Fail "tFocus != goal")
