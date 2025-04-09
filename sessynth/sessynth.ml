@@ -11,18 +11,18 @@ type tyF = (* ordinary functional types (F) *)
     | TProcess of tyS list * tyS (* {S1, ..., Sn |- P :: c : S} *)
 
 and tyS = (* channel/session types (S) *)
-    | TSendF of tyF * tyS (* F ∧ S *)
-    | TRecvF of tyF * tyS (* F ⊃ S *)
-    | TSendS of tyS * tyS (* S1 ⊗ S2 *)
-    | TRecvS of tyS * tyS (* S1 -o S2 *)
-    | TUnit (* 1 *)
-    | TExtChoice of (id * tyS) list (* &{ l1:S1, ..., ln:Sn } *)
-    | TIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
-    | TRecS of id * tyS (* mu x . S *)
-    | TVarS of id (* x *)
+    | STSendF of tyF * tyS (* F ∧ S *)
+    | STRecvF of tyF * tyS (* F ⊃ S *)
+    | STSendS of tyS * tyS (* S1 ⊗ S2 *)
+    | STRecvS of tyS * tyS (* S1 -o S2 *)
+    | STUnit (* 1 *)
+    | STExtChoice of (id * tyS) list (* &{ l1:S1, ..., ln:Sn } *)
+    | STIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
+    | STRec of id * tyS (* mu x . S *)
+    | STVarRec of id (* x *)
 
 type tySDeclr = (* session type declaration/binding onto an id *)
-    | TSDeclr of id * tyS (* stype x = S *)
+    | STDeclr of id * tyS (* stype x = S *)
 
 type expF = (* functional terms (M) *)
     | Var of id (* x *)
@@ -106,9 +106,9 @@ and tyF_to_string t =
 
 and tyS_to_string t =
     match t with 
-    | TUnit -> "1"
-    | TExtChoice(xtl) -> "&{" ^ label_tyS_list_to_string xtl ^ "}"
-    | TIntChoice(xtl) -> "⊕{" ^ label_tyS_list_to_string xtl ^ "}"
+    | STUnit -> "1"
+    | STExtChoice(xtl) -> "&{" ^ label_tyS_list_to_string xtl ^ "}"
+    | STIntChoice(xtl) -> "⊕{" ^ label_tyS_list_to_string xtl ^ "}"
     | _ -> ""
 
 let rec expF_to_string e =
@@ -152,7 +152,7 @@ let is_tyF_left_async t =
 
 let is_tyS_left_async t =
     match t with
-    | TSendF _ | TSendS _ | TUnit | TIntChoice _ -> true
+    | STSendF _ | STSendS _ | STUnit | STIntChoice _ -> true
     | _ -> false
 
 let rec append_bindings_psi pa ps bindings =
@@ -187,6 +187,30 @@ let rec subst e1 x e2 =
     | Lam(y, t, e) -> if x <> y then Lam (y,t,(subst e x e2)) else e1 
     | _ -> raise (Fail("subst pattern matching not defined for " ^ expF_to_string e1))
 
+let rec consume_channels d insl consumed_csl =
+    let da, ds = d in
+    match insl with
+    | s::insl' -> 
+        begin
+            try begin
+                let c = get_first_channel_with_session da s in
+                let da' = List.remove_assoc c da in
+                consume_channels (da', ds) insl' ((c, s)::consumed_csl)
+            end 
+            with Fail _ -> try begin
+                let c = get_first_channel_with_session ds s in
+                let ds' = List.remove_assoc c ds in
+                consume_channels (da, ds') insl' ((c, s)::consumed_csl)
+            end
+            with Fail m -> raise (Fail m)
+        end
+    | [] -> d, consumed_csl
+
+and get_first_channel_with_session d sFind =
+    match d with
+    | (c, s)::d' -> if sFind = s then c else get_first_channel_with_session d' sFind
+    | [] -> raise (Fail("No existing binding for a channel with session type " ^ tyS_to_string sFind))
+
 (* Focused type-driven synthesizer *)
 
 module Sessynth = struct 
@@ -197,24 +221,26 @@ let rec invertRightS g p da ds c goal =
     print_string "  ds: "; print_delta da;
     print_string "  da: "; print_delta ds;
     match goal with 
-    | TRecvF(t1, t2) ->
+    | STRecvF(t1, t2) ->
         let x = fresh_id() in
         let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
         let g, p', da', ds', e = invertRightS g p1 da ds c t2 in
         assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
         g, p', da', ds', RecvF(x, c, e)
-    | TRecvS(t1, t2) -> 
+    | STRecvS(t1, t2) -> 
         let x = fresh_id() in
         let da1, ds1 = append_bindings_delta da ds [(x, t1)] in
         let g, p', da', ds', e = invertRightS g p da1 ds1 c t2 in
         assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
         g, p', da', ds', RecvS(x, c, e)
-    | TExtChoice(labelsesslist) ->
+    | STExtChoice(labelsesslist) ->
         let inversions = List.map (fun (l, s) -> invertRightS g p da ds c s) labelsesslist in
         let g1, p1, a1, s1, _ = List.hd inversions in
         assert (deltas_are_equal (List.tl inversions) (a1, s1));
         let labelprocesslist = build_label_expP_list labelsesslist inversions in
         g1, p1, a1, s1, Choice(c, labelprocesslist)
+    | STRec(x, t) -> (* TODO *)
+        g, p, da, ds, Close("TODO")
     | _ -> invertLeftS g p da ds c goal
 
 and invertRightF g p d c goal =
@@ -230,9 +256,9 @@ and invertRightF g p d c goal =
     | TProcess(insl, outs) ->
         let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
         let outcs = (fresh_channel(), outs) in
-        let da1, ds1 = append_bindings_delta (fst d) (snd d) (outcs::incsl) in
+        let da1, ds1 = append_bindings_delta (fst d) (snd d) incsl in
         let g', p', da', ds', e = invertRightS g p da1 ds1 c outs in
-        g', p', da', ds', Process(fst outcs, e, outs, incsl)
+        g', p', da', ds', Process(fst outcs, e, snd outcs, incsl)
     | _ -> invertLeftF g p d c goal
 
 and invertLeftS g p da ds c goal =
@@ -242,24 +268,24 @@ and invertLeftS g p da ds c goal =
     match da with
     | (x, t)::da' ->
         begin match t with 
-        | TSendF(t1, t2) ->
+        | STSendF(t1, t2) ->
             let x, c' = fresh_id(), fresh_channel() in
             let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
             let da1, ds1 = append_bindings_delta da' ds [(c, t2)] in
             let g, p', da', ds', e = invertLeftS g p1 da1 ds1 c' goal in
             assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
             g, p', da', ds', RecvF(x, c, e)
-        | TSendS(t1, t2) ->
+        | STSendS(t1, t2) ->
             let x, c' = fresh_channel(), fresh_channel() in
             let da1, ds1 = append_bindings_delta da' ds [(x, t1); (c, t2)] in
             let g, p', da', ds', e = invertLeftS g p da1 ds1 c' goal in
             assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
             g, p', da', ds', RecvS(x, c, e)
-        | TUnit -> 
+        | STUnit -> 
             let c' = fresh_channel() in
             let g, p', da', ds', e = invertLeftS g p da' ds c' goal in
             g, p', da', ds', Wait(c, e)
-        | TIntChoice(labelsesslist) ->
+        | STIntChoice(labelsesslist) ->
             let inversions = List.map (fun (l, s) -> 
                 let xn = fresh_id() in
                 let da1, ds1 = append_bindings_delta da' ds [(xn, s)] in
@@ -311,18 +337,18 @@ and focusDecideF g ps psOriginal d c goal =
 and focusRightS g p ds c goal =
     print_endline ("focusRight: " ^ tyS_to_string goal);
     match goal with 
-    | TSendF(t1, t2) ->
+    | STSendF(t1, t2) ->
         let g, p', da', ds', e1 = focusDecideF g (snd p) (snd p) ([], ds) c t1 in
         let g, p'', da'', ds'', e2 = focusRightS g p' ds' c t2 in
         g, p'', da'', ds'', SendF(c, e1 , e2)
-    | TSendS(t1, t2) -> 
+    | STSendS(t1, t2) -> 
         let y = fresh_channel() in
         let g, p', da', ds', e1 = focusRightS g p ds y t1 in
         let g, p'', da'', ds'', e2 = focusRightS g p' ds' c t2 in
         g, p'', da'', ds'', SendS(c, y, e1 , e2)
-    | TUnit ->
+    | STUnit ->
         g, p, [], ds, Close(c)
-    | TIntChoice(labelsesslist) -> 
+    | STIntChoice(labelsesslist) -> 
         let rec iter_labels labelsesslist =
             match labelsesslist with
             | (l, s)::labelsesslist' ->
@@ -350,16 +376,16 @@ and focusRightF g ps d c goal =
 and focusLeftS g p ds xFocus tFocus c goal =
     print_endline ("focusLeftS: " ^ tyS_to_string tFocus);
     match tFocus with
-    | TRecvF(t1, t2) ->
+    | STRecvF(t1, t2) ->
         let g, p', da', ds', e2 = focusLeftS g p ds xFocus t2 c goal in
         let g, p'', da'', ds'', e1 = invertRightF g p' (da', ds') c t1 in
         g, p'', da'', ds'', SendF(xFocus, e1, e2) 
-    | TRecvS(t1, t2) -> 
+    | STRecvS(t1, t2) -> 
         let y = fresh_id() in
         let g, p', da', ds', e2 = focusLeftS g p ds xFocus t2 c goal in
         let g, p'', da'', ds'', e1 = invertRightS g p' da' ds' y t1 in
         g, p'', da'', ds'', SendS(xFocus, y, e1, e2) 
-    | TExtChoice(labelsesslist) -> 
+    | STExtChoice(labelsesslist) -> 
         let rec iter_labels labelsesslist =
             match labelsesslist with
             | (l, s)::labelsesslist' ->
@@ -384,8 +410,12 @@ and focusLeftF g ps xFocus tFocus d c goal =
         let g', p', da', ds', e2 = focusLeftF g ps y t2 d c goal in
         let g'', p'', da'', ds'', e1 = invertRightF g ([], ps) d c t1 in
         g'', p'', da'', ds'', subst e2 y (App(Var(xFocus), e1))
-    | TProcess _
-        (* TODO, is it even necessary? *)
+    | TProcess(insl, outs) ->
+        let c1 = fresh_channel() in
+        let d', consumed_csl = consume_channels d insl [] in
+        let da1, ds1 = append_bindings_delta (fst d') (snd d') [(c1, outs)] in
+        let g'', p'', da'', ds'', e = invertRightS g ([], ps) da1 ds1 c outs in
+        g'', p'', da'', ds'', Spawn(c1, tFocus, c, e)
     | TAtom _ -> 
         if tFocus = goal then g, ([], ps), fst d, snd d, Var(xFocus)
         else raise (Fail "tFocus != goal")
