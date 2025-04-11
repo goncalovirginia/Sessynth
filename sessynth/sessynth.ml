@@ -46,43 +46,7 @@ and expP = (* process terms (P) *)
     | Choice of id * (id * expP) list (* case c of li:Pi :: c : &{ l1:S1, ..., ln:Sn } *)
     | ChoiceSelect of id * id * expP (* c.l; P :: c : ⊕{ l1:S1, ..., ln:Sn } *)
     | Spawn of id * expF * id list * expP (* c <- spawn M [c1; ...; cn]; P *)
-
-(*
-TRec of id * tyS (* mu t . T *)
-TVar of id   (* t *)
-
-!S.T
-?S.T
-
-SendInts = mu t . !int.t  ~ !int.(mu t.!int.t)
-
-sendIntsRec : () -> { mu t . !int.t }
-let rec sendIntsRec = fun () -> c <- {
-  //c:!int. t
-  send c 0 ;
-  //c: mu t . !int.t
-  d <- spawn SendIntsRec () ;
-  //d: mu t . !int.t |- c: mu t . !int.t
-  fwd d c
-}
-
-let rec sendIntsRecBad = fun () -> c  <- {
-  d <- spawn sendIntsRecBad () ;
-  fwd d c
- }
-
-mu t . &{ l1 => !int.t ; l2 => !string.t ; done => 1 }
-
-let rec foo = fun () -> c <- {
- case c of
-  l1 => send c 0 ; d <- spawn foo() ; fwd d c
-  l2 => send c "xpto" ; d <- spawn foo() ; fwd d c 
-  done => close c
-}
-*)
-
-(* Auxiliary functions *)
-
+    
 let fresh_id = 
     let unique = ref (-1) in
     fun () -> (incr unique; "x" ^ (string_of_int !unique))
@@ -187,7 +151,27 @@ let rec subst e1 x e2 =
     | Lam(y, t, e) -> if x <> y then Lam (y,t,(subst e x e2)) else e1 
     | _ -> raise (Fail("subst pattern matching not defined for " ^ expF_to_string e1))
 
-let rec consume_channels d insl consumed_csl =
+let get_keys kvl =
+    List.map (fun (k, v) -> k) kvl
+
+let get_and_remove k kvl =
+    let v = List.assoc k kvl in
+    let kvl' = List.remove_assoc k kvl in
+    kvl', v
+
+let consume_channel d c =
+    let da, ds = d in
+    try begin
+        let da', s = get_and_remove c da in
+        (da', ds), s
+    end 
+    with Not_found -> try begin
+        let ds', s = get_and_remove c ds in
+        (da, ds'), s
+    end
+    with Not_found -> raise (Fail("consume_channel: channel " ^ c ^ " not found"))
+
+let rec consume_channels_with_sessions d insl consumed_csl =
     let da, ds = d in
     match insl with
     | s::insl' -> 
@@ -195,12 +179,12 @@ let rec consume_channels d insl consumed_csl =
             try begin
                 let c = get_first_channel_with_session da s in
                 let da' = List.remove_assoc c da in
-                consume_channels (da', ds) insl' ((c, s)::consumed_csl)
+                consume_channels_with_sessions (da', ds) insl' ((c, s)::consumed_csl)
             end 
             with Fail _ -> try begin
                 let c = get_first_channel_with_session ds s in
                 let ds' = List.remove_assoc c ds in
-                consume_channels (da, ds') insl' ((c, s)::consumed_csl)
+                consume_channels_with_sessions (da, ds') insl' ((c, s)::consumed_csl)
             end
             with Fail m -> raise (Fail m)
         end
@@ -239,7 +223,7 @@ let rec invertRightS g p da ds c goal =
         assert (deltas_are_equal (List.tl inversions) (a1, s1));
         let labelprocesslist = build_label_expP_list labelsesslist inversions in
         g1, p1, a1, s1, Choice(c, labelprocesslist)
-    | STRec(x, t) -> (* TODO *)
+    | STRec(x, t) ->
         g, p, da, ds, Close("TODO")
     | _ -> invertLeftS g p da ds c goal
 
@@ -255,10 +239,10 @@ and invertRightF g p d c goal =
         g, p', da', ds', Lam(x, t1, e)
     | TProcess(insl, outs) ->
         let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
-        let outcs = (fresh_channel(), outs) in
+        let outc = fresh_channel() in
         let da1, ds1 = append_bindings_delta (fst d) (snd d) incsl in
         let g', p', da', ds', e = invertRightS g p da1 ds1 c outs in
-        g', p', da', ds', Process(fst outcs, e, snd outcs, incsl)
+        g', p', da', ds', Process(outc, e, outs, incsl)
     | _ -> invertLeftF g p d c goal
 
 and invertLeftS g p da ds c goal =
@@ -401,6 +385,8 @@ and focusLeftS g p ds xFocus tFocus c goal =
                 end
             | [] -> raise (Fail "focusLeft: TExtChoice has no valid label-sess option")
         in iter_labels labelsesslist
+    | STRec(x, t) -> (* TODO *)
+        g, p, [], ds, Close("TODO")
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
 and focusLeftF g ps xFocus tFocus d c goal =
@@ -410,12 +396,6 @@ and focusLeftF g ps xFocus tFocus d c goal =
         let g', p', da', ds', e2 = focusLeftF g ps y t2 d c goal in
         let g'', p'', da'', ds'', e1 = invertRightF g ([], ps) d c t1 in
         g'', p'', da'', ds'', subst e2 y (App(Var(xFocus), e1))
-    | TProcess(insl, outs) ->
-        let c1 = fresh_channel() in
-        let d', consumed_csl = consume_channels d insl [] in
-        let da1, ds1 = append_bindings_delta (fst d') (snd d') [(c1, outs)] in
-        let g'', p'', da'', ds'', e = invertRightS g ([], ps) da1 ds1 c outs in
-        g'', p'', da'', ds'', Spawn(c1, tFocus, c, e)
     | TAtom _ -> 
         if tFocus = goal then g, ([], ps), fst d, snd d, Var(xFocus)
         else raise (Fail "tFocus != goal")
@@ -426,7 +406,57 @@ and focusLeftF g ps xFocus tFocus d c goal =
         if List.is_empty da' && List.is_empty ds' then e
         else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string da' ^ "\n  ds: " ^ delta_to_string ds' ^ "\n"))
 
+and spawn_process g p d tProcess c goal =
+    match tProcess with
+    | TProcess(insl, outs) ->
+        let c1 = fresh_channel() in
+        let g', p', da', ds', spawnedP = invertRightF g p d c1 tProcess in
+        let d', consumed_csl = consume_channels_with_sessions d insl [] in
+        let incl = get_keys consumed_csl in
+        let da1, ds1 = append_bindings_delta (fst d') (snd d') [(c1, outs)] in
+        let g'', p'', da'', ds'', e = invertRightS g p da1 ds1 c outs in
+        g'', p'', da'', ds'', Spawn(c1, spawnedP, incl, e)
+    | _ -> raise (Fail "spawn_process: tFocus not of type TProcess")
+
+and fwd_channel d c1 c2 =
+    let d', s1 = consume_channel d c1 in
+    d', Fwd(c1, c2, s1)
+
 end;;
+
+(*
+TRec of id * tyS (* mu t . T *)
+TVar of id   (* t *)
+
+!S.T
+?S.T
+
+SendInts = mu t . !int.t  ~ !int.(mu t.!int.t)
+
+sendIntsRec : () -> { mu t . !int.t }
+let rec sendIntsRec = fun () -> c <- {
+  //c:!int. t
+  send c 0 ;
+  //c: mu t . !int.t
+  d <- spawn SendIntsRec () ;
+  //d: mu t . !int.t |- c: mu t . !int.t
+  fwd d c
+}
+
+let rec sendIntsRecBad = fun () -> c  <- {
+  d <- spawn sendIntsRecBad () ;
+  fwd d c
+ }
+
+mu t . &{ l1 => !int.t ; l2 => !string.t ; done => 1 }
+
+let rec foo = fun () -> c <- {
+ case c of
+  l1 => send c 0 ; d <- spawn foo() ; fwd d c
+  l2 => send c "xpto" ; d <- spawn foo() ; fwd d c 
+  done => close c
+}
+*)
 
 (* Running stuff *)
 
