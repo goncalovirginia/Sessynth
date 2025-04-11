@@ -119,19 +119,19 @@ let is_tyS_left_async t =
     | STSendF _ | STSendS _ | STUnit | STIntChoice _ -> true
     | _ -> false
 
-let rec append_bindings_psi pa ps bindings =
+let rec append_bindings context bindings is_left_async_func =
+    let contexta, contexts = context in
     match bindings with
     | (x, t)::bindings' ->
-        if is_tyF_left_async t then append_bindings_psi ((x, t)::pa) ps bindings'
-        else append_bindings_psi pa ((x, t)::ps) bindings'
-    | [] -> pa, ps
+        if is_left_async_func t then append_bindings ((x, t)::contexta, contexts) bindings' is_left_async_func
+        else append_bindings (contexta, (x, t)::contexts) bindings' is_left_async_func
+    | [] -> context
 
-let rec append_bindings_delta da ds bindings =
-    match bindings with
-    | (x, t)::bindings' ->
-        if is_tyS_left_async t then append_bindings_delta ((x, t)::da) ds bindings'
-        else append_bindings_delta da ((x, t)::ds) bindings'
-    | [] -> da, ds
+let rec append_bindings_psi p bindings = 
+    append_bindings p bindings is_tyF_left_async
+
+let rec append_bindings_delta d bindings =
+    append_bindings d bindings is_tyS_left_async
 
 let rec deltas_are_equal inversions prevDelta = 
     let daPrev, dsPrev = prevDelta in
@@ -195,6 +195,11 @@ and get_first_channel_with_session d sFind =
     | (c, s)::d' -> if sFind = s then c else get_first_channel_with_session d' sFind
     | [] -> raise (Fail("No existing binding for a channel with session type " ^ tyS_to_string sFind))
 
+let rec unfold_TArrow t =
+    match t with
+    | TArrow(t1, t2) -> unfold_TArrow t2
+    | _ -> t
+
 (* Focused type-driven synthesizer *)
 
 module Sessynth = struct 
@@ -207,13 +212,13 @@ let rec invertRightS g p da ds c goal =
     match goal with 
     | STRecvF(t1, t2) ->
         let x = fresh_id() in
-        let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
+        let p1 = append_bindings_psi p [(x, t1)] in
         let g, p', da', ds', e = invertRightS g p1 da ds c t2 in
         assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
         g, p', da', ds', RecvF(x, c, e)
     | STRecvS(t1, t2) -> 
         let x = fresh_id() in
-        let da1, ds1 = append_bindings_delta da ds [(x, t1)] in
+        let da1, ds1 = append_bindings_delta (da, ds) [(x, t1)] in
         let g, p', da', ds', e = invertRightS g p da1 ds1 c t2 in
         assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None);
         g, p', da', ds', RecvS(x, c, e)
@@ -224,8 +229,21 @@ let rec invertRightS g p da ds c goal =
         let labelprocesslist = build_label_expP_list labelsesslist inversions in
         g1, p1, a1, s1, Choice(c, labelprocesslist)
     | STRec(x, t) ->
-        g, p, da, ds, Close("TODO")
+        let expSpawn = spawn_process_rec in
+        g, p, da, ds, expSpawn
     | _ -> invertLeftS g p da ds c goal
+
+(*
+nats : int -> {rec t. int * t }
+let nats = fun x ->
+  c <- { 
+    // nats: int -> {rec t. int * t} , x:int |- c: rec t. int * t
+    // nats: int -> {rec t. int * t} , x:int |- c: int * (rec t. int * t)
+    send c 0 ;  
+    d <- spawn (nats 0); // nats: int -> {rec t. int * t} , x:int ; empty |- c: t // c: rec t. int * t
+	fwd d c // nats: int -> {rec t. int * t} , x:int ; d:rec t.int*t |- c: t // c:rec t . int*t
+	}
+*)
 
 and invertRightF g p d c goal =
     print_endline ("invertRightF: " ^ tyF_to_string goal);
@@ -234,13 +252,13 @@ and invertRightF g p d c goal =
     match goal with 
     | TArrow(t1, t2) ->
         let x = fresh_id() in
-        let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
+        let p1 = append_bindings_psi p [(x, t1)] in
         let g, p', da', ds', e = invertRightF g p1 d c t2 in
         g, p', da', ds', Lam(x, t1, e)
     | TProcess(insl, outs) ->
         let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
         let outc = fresh_channel() in
-        let da1, ds1 = append_bindings_delta (fst d) (snd d) incsl in
+        let da1, ds1 = append_bindings_delta d incsl in
         let g', p', da', ds', e = invertRightS g p da1 ds1 c outs in
         g', p', da', ds', Process(outc, e, outs, incsl)
     | _ -> invertLeftF g p d c goal
@@ -254,14 +272,14 @@ and invertLeftS g p da ds c goal =
         begin match t with 
         | STSendF(t1, t2) ->
             let x, c' = fresh_id(), fresh_channel() in
-            let p1 = append_bindings_psi (fst p) (snd p) [(x, t1)] in
-            let da1, ds1 = append_bindings_delta da' ds [(c, t2)] in
+            let p1 = append_bindings_psi p [(x, t1)] in
+            let da1, ds1 = append_bindings_delta (da', ds) [(c, t2)] in
             let g, p', da', ds', e = invertLeftS g p1 da1 ds1 c' goal in
             assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
             g, p', da', ds', RecvF(x, c, e)
         | STSendS(t1, t2) ->
             let x, c' = fresh_channel(), fresh_channel() in
-            let da1, ds1 = append_bindings_delta da' ds [(x, t1); (c, t2)] in
+            let da1, ds1 = append_bindings_delta (da', ds) [(x, t1); (c, t2)] in
             let g, p', da', ds', e = invertLeftS g p da1 ds1 c' goal in
             assert (List.assoc_opt x da' = None && List.assoc_opt x ds' = None && List.assoc_opt c da' = None && List.assoc_opt c ds' = None);
             g, p', da', ds', RecvS(x, c, e)
@@ -272,7 +290,7 @@ and invertLeftS g p da ds c goal =
         | STIntChoice(labelsesslist) ->
             let inversions = List.map (fun (l, s) -> 
                 let xn = fresh_id() in
-                let da1, ds1 = append_bindings_delta da' ds [(xn, s)] in
+                let da1, ds1 = append_bindings_delta (da', ds) [(xn, s)] in
                 let g, p', da', ds', e = invertLeftS g p da1 ds1 c goal in
                 assert (List.assoc_opt xn da' = None && List.assoc_opt xn ds' = None);
                 g, p', da', ds', e
@@ -401,26 +419,28 @@ and focusLeftF g ps xFocus tFocus d c goal =
         else raise (Fail "tFocus != goal")
     | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
-    let synth goal = 
-        let g, p', da', ds', e = invertRightS [] ([], []) [] [] (fresh_channel()) goal in
-        if List.is_empty da' && List.is_empty ds' then e
-        else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string da' ^ "\n  ds: " ^ delta_to_string ds' ^ "\n"))
-
-and spawn_process g p d tProcess c goal =
-    match tProcess with
+and spawn_rec_process_and_fwd g p d x t c =
+    let goal = unfold_TArrow t in
+    let g', p', da', ds', spawnedP = focusLeftF g p x t d c goal in
+    match goal with
     | TProcess(insl, outs) ->
-        let c1 = fresh_channel() in
-        let g', p', da', ds', spawnedP = invertRightF g p d c1 tProcess in
-        let d', consumed_csl = consume_channels_with_sessions d insl [] in
-        let incl = get_keys consumed_csl in
-        let da1, ds1 = append_bindings_delta (fst d') (snd d') [(c1, outs)] in
-        let g'', p'', da'', ds'', e = invertRightS g p da1 ds1 c outs in
-        g'', p'', da'', ds'', Spawn(c1, spawnedP, incl, e)
-    | _ -> raise (Fail "spawn_process: tFocus not of type TProcess")
+        let cNew = fresh_channel() in
+        let dRemainder, dConsumed = consume_channels_with_sessions d insl [] in
+        let inChannels = get_keys dConsumed in
+        let dFwd = append_bindings_delta dRemainder [(cNew, outs)] in
+        let dFwd', eFwd = fwd_channel dFwd cNew c in
+        assert (List.is_empty (fst dFwd') && List.is_empty (snd dFwd'));
+        Spawn(cNew, spawnedP, inChannels, eFwd)
+    | _ -> raise (Fail "spawn_process: t not of type TProcess")
 
 and fwd_channel d c1 c2 =
     let d', s1 = consume_channel d c1 in
     d', Fwd(c1, c2, s1)
+
+let synth goal = 
+    let g, p', da', ds', e = invertRightS [] ([], []) [] [] (fresh_channel()) goal in
+    if List.is_empty da' && List.is_empty ds' then e
+    else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string da' ^ "\n  ds: " ^ delta_to_string ds' ^ "\n"))
 
 end;;
 
