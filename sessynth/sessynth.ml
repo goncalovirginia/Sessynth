@@ -45,7 +45,7 @@ and expP = (* process terms (P) *)
     
 (* Records *)
 
-type flags = { unfolded : bool; funcId : id }
+type flags = { isUnfolded : bool; recLamId : id }
 
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
 
@@ -262,18 +262,14 @@ let rec invertRightS f ctxts c goal =
         assert (deltas_are_equal (List.tl inversions) ctxts);
         let labelprocesslist = build_label_expP_list labelsesslist inversions in
         f, ctxts1, Choice(c, labelprocesslist)
-    (*| STRec(x, t) ->
-        (* new id for the recursive function *)
-        let xRecLam = fresh_id() in
-        (* instantiate spawn and fwd expressions for the continuation (recursive call) of the synthesized process *)
-        let cRec = fresh_channel() in
-        let eSpawn = Spawn(cRec, Var(xRecLam), [], Fwd(cRec, c, t)) in
-        (* unfold t once *)
-        let tUnfolded = unfold t goal x in
-        (* synthesize tUnfolded into process expression, and append eSpawn as continuing expression *)
-        let eRecProcess = Process() in 
-        let eRecLam = Lam(x1, t1, Lam(x2, t2, eRecProcess)) in (* append Lam as continuations for all function arguments, then append the final recursive eProcess *)
-        g, p, da, ds, LetRec(xRecLam, eRecLam)*)
+    | STRec(x, t) ->
+        if f.isUnfolded then
+            let cRec = fresh_channel() in
+            f, ctxts, Spawn(cRec, Var(f.recLamId), [], Fwd(cRec, c, t))
+        else 
+            let tUnfolded = unfold t goal x in
+            let f = {f with isUnfolded = true } in
+            invertRightS f ctxts c tUnfolded
     | STDeclr(x, t1, t2) ->
         let ctxts1 = append_bindings_gamma ctxts [(x, t1)] in
         invertRightS f ctxts1 c t2
@@ -348,9 +344,23 @@ and invertRightF f ctxts c goal =
     match goal with 
     | TArrow(t1, t2) ->
         let x = fresh_id() in
-        let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-        let f, ctxts', e = invertRightF f ctxts1 c t2 in
-        f, ctxts', Lam(x, t1, e)
+        begin match get_TArrow_return_type goal with
+        | TProcess(_, STRec _) ->
+            if not (List.mem_assoc f.recLamId ctxts.g.a || List.mem_assoc f.recLamId ctxts.g.s) then
+                let y = fresh_id() in
+                let f = { f with recLamId = y } in
+                let ctxts1 = append_bindings_psi ctxts [(x, t1); (y, goal)] in
+                let f, ctxts', e = invertRightF f ctxts1 c t2 in
+                f, ctxts', LetRec(y, Lam(x, t1, e))
+            else
+                let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+                let f, ctxts', e = invertRightF f ctxts1 c t2 in
+                f, ctxts, Lam(x, t1, e)
+        | _ ->
+            let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+            let f, ctxts', e = invertRightF f ctxts1 c t2 in
+            f, ctxts', Lam(x, t1, e)
+        end
     | TProcess(insl, outs) ->
         let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
         let outc = fresh_channel() in
@@ -501,7 +511,7 @@ and focusLeftF f ctxts xFocus tFocus c goal =
     | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
 let synth goal = 
-    let f : flags = { unfolded = false ; funcId = "" } in
+    let f : flags = { isUnfolded = false ; recLamId = "" } in
     let g : gamma = { a = []; s = [] } in
     let p : psi = { a = []; s = [] } in
     let d : delta = { a = []; s = [] } in
