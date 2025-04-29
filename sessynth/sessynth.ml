@@ -7,7 +7,7 @@ type id = string
 type tyF = (* ordinary functional types (F) *)
     | TInt (* integer *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
-    | TProcess of tyS list * tyS (* {S1, ..., Sn |- P :: c : S} *)
+    | TProcess of tyS list * tyS (* { S1, ..., Sn |- P :: c : S } *)
 
 and tyS = (* channel/session types (S) *)
     | STSendF of tyF * tyS (* F ∧ S *)
@@ -45,7 +45,7 @@ and expP = (* process terms (P) *)
     
 (* Records *)
 
-type flags = { isUnfolded : bool; recLamId : id }
+type flags = { isUnfolded : bool; xRecLam : id }
 
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
 
@@ -265,7 +265,7 @@ let rec invertRightS f ctxts c goal =
     | STRec(x, t) ->
         if f.isUnfolded then
             let cRec = fresh_channel() in
-            f, ctxts, Spawn(cRec, Var(f.recLamId), [], Fwd(cRec, c, t))
+            f, ctxts, Spawn(cRec, Var(f.xRecLam), [], Fwd(cRec, c, t))
         else 
             let tUnfolded = unfold t goal x in
             let f = {f with isUnfolded = true } in
@@ -346,12 +346,11 @@ and invertRightF f ctxts c goal =
         let x = fresh_id() in
         begin match get_TArrow_return_type goal with
         | TProcess(_, STRec _) ->
-            if not (List.mem_assoc f.recLamId ctxts.g.a || List.mem_assoc f.recLamId ctxts.g.s) then
-                let y = fresh_id() in
-                let f = { f with recLamId = y } in
-                let ctxts1 = append_bindings_psi ctxts [(x, t1); (y, goal)] in
+            if not (List.mem_assoc f.xRecLam ctxts.g.a || List.mem_assoc f.xRecLam ctxts.g.s) then
+                let f = { f with xRecLam = fresh_id() } in
+                let ctxts1 = append_bindings_psi ctxts [(x, t1); (f.xRecLam, goal)] in
                 let f, ctxts', e = invertRightF f ctxts1 c t2 in
-                f, ctxts', LetRec(y, Lam(x, t1, e))
+                f, ctxts', LetRec(f.xRecLam, Lam(x, t1, e))
             else
                 let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
                 let f, ctxts', e = invertRightF f ctxts1 c t2 in
@@ -494,8 +493,8 @@ and focusLeftS f ctxts xFocus tFocus c goal =
                 end
             | [] -> raise (Fail "focusLeft: TExtChoice has no valid label-sess option")
         in iter_labels labelsesslist
-    | STRec(x, t) -> (* TODO *)
-        f, ctxts, Close("TODO")
+    | STRec(x, t) ->
+        raise (Fail "TODO")
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
 and focusLeftF f ctxts xFocus tFocus c goal =
@@ -505,17 +504,19 @@ and focusLeftF f ctxts xFocus tFocus c goal =
         let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
         let f, ctxts'', e1 = invertRightF f ctxts c t1 in
         f, ctxts'', subst e2 y (App(Var(xFocus), e1))
-    (*| TAtom _ -> 
-        if tFocus = goal then g, ([], ps), fst d, snd d, Var(xFocus)
-        else raise (Fail "tFocus != goal")*)
+    | TInt -> 
+        if tFocus = goal then f, ctxts, Var(xFocus)
+        else raise (Fail "tFocus != goal")
+    | TProcess _ ->
+        raise (Fail "TODO")
     | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
 let synth goal = 
-    let f : flags = { isUnfolded = false ; recLamId = "" } in
+    let f : flags = { isUnfolded = false ; xRecLam = "" } in
     let g : gamma = { a = []; s = [] } in
     let p : psi = { a = []; s = [] } in
     let d : delta = { a = []; s = [] } in
-    let ctxts :contexts = { g = g; p = p; d = d } in
+    let ctxts : contexts = { g = g; p = p; d = d } in
     let f, ctxts', e = invertRightS f ctxts (fresh_channel()) goal in
     if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
     else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
