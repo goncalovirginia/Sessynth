@@ -6,6 +6,7 @@ type id = string
 
 type tyF = (* ordinary functional types (F) *)
     | TInt (* integer *)
+    | TBool (* boolean *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
     | TProcess of tyS list * tyS (* { S1, ..., Sn |- P :: c : S } *)
 
@@ -23,12 +24,12 @@ and tyS = (* channel/session types (S) *)
 
 type expF = (* functional terms (M) *)
     | Int of int
+    | Bool of bool
     | Var of id (* x *)
     | Let of id * expF * expF (* let x = M1 in M2 *)
     | Lam of id * tyF * expF (* fun x:F -> M *)
     | App of expF  * expF (* (M1) M2 *)
     | Process of id * expP * tyS * (id * tyS) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
-    | ExecProcess of expF (* M *)
     | LetRec of id * expF (* let rec x = M1 *)
 
 and expP = (* process terms (P) *)
@@ -65,40 +66,73 @@ let fresh_channel =
     let unique = ref (-1) in
     fun () -> (incr unique; "c" ^ (string_of_int !unique))
 
-let rec label_tyS_list_to_string xtl =
-    match xtl with
-    | (x, t)::xtl' -> x ^ ":" ^ tyS_to_string t ^ ", " ^ label_tyS_list_to_string xtl' 
-    | [] -> ""
-
-and tyF_to_string t =
+let rec tyF_to_string t =
     match t with 
     | TInt -> "TInt"
-    | TArrow(t1, t2) -> ""
-    | TProcess(tl, t) -> ""
-    | _ -> ""
+    | TBool -> "TBool"
+    | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
+    | TProcess(tl, t) -> "{ " ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ " }\n"
 
 and tyS_to_string t =
     match t with 
-    | STUnit -> "1"
+    | STDeclr(x, t1, t2) -> "stype " ^ x ^ " = " ^ tyS_to_string t1 ^ ";\n" ^ tyS_to_string t2
+    | STSendF(t1, t2) -> tyF_to_string t1 ^ " ∧ " ^ tyS_to_string t2
+    | STRecvF(t1, t2) -> tyF_to_string t1 ^ " ⊃ " ^ tyS_to_string t2
+    | STSendS(t1, t2) -> tyS_to_string t1 ^ " ⊗ " ^ tyS_to_string t2
+    | STRecvS(t1, t2) -> tyS_to_string t1 ^ " -o " ^ tyS_to_string t2
     | STExtChoice(xtl) -> "&{" ^ label_tyS_list_to_string xtl ^ "}"
     | STIntChoice(xtl) -> "⊕{" ^ label_tyS_list_to_string xtl ^ "}"
-    | _ -> ""
+    | STRec(x, t) -> "𝜇" ^ x ^ "." ^ tyS_to_string t
+    | STRecVar(x) -> x
+    | STUnit -> "1"
+
+and tyS_list_to_string tl =
+    match tl with
+    | [] -> ""
+    | [t] -> tyS_to_string t
+    | t::tl' -> tyS_to_string t ^ ", " ^ tyS_list_to_string tl'
+
+and label_tyS_list_to_string xtl =
+    match xtl with
+    | [] -> ""
+    | [(l, t)] -> l ^ ":" ^ tyS_to_string t
+    | (l, t)::xtl' -> l ^ ":" ^ tyS_to_string t ^ ", " ^ label_tyS_list_to_string xtl' 
 
 let rec expF_to_string e =
     match e with 
+    | Int(v) -> string_of_int v
+    | Bool(v) -> string_of_bool v
     | Var x -> x
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
     | Lam(x, t, e) -> x ^ ":" ^ tyF_to_string t ^ " -o " ^ expF_to_string e 
     | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
-    | _ -> ""
+    | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "} <- [ " ^ label_tyS_list_to_string xtl ^ "]\n"
+    | LetRec(x, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
 
-let rec expP_to_string e =
+and expP_to_string e =
     match e with 
-    | Var x -> x
-    | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
-    | Lam(x, t, e) -> x ^ ":" ^ tyF_to_string t ^ " -o " ^ expF_to_string e 
-    | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
-    | _ -> ""
+    | SendF(c, eF, eP) -> "send " ^ c ^ " " ^ expF_to_string eF ^ ";\n" ^ expP_to_string eP
+    | RecvF(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
+    | SendS(c1, c2, eP1, eP2) -> "send " ^ c1 ^ " (" ^ c2 ^ " <- " ^ expP_to_string eP1 ^ ");\n" ^ expP_to_string eP2
+    | RecvS(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
+    | Close(c) -> "close " ^ c ^ ";\n"
+    | Wait(c, eP) -> "wait " ^ c ^ ";\n" ^ expP_to_string eP
+    | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ ":" ^ tyS_to_string tS
+    | Choice(c, labelprocesslist) -> "case " ^ c ^ " of [ " ^ label_process_list_to_string labelprocesslist ^ " ]" 
+    | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP
+    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ " [ " ^ c_list_to_string cl ^ " ];\n" ^ expP_to_string eP
+
+and label_process_list_to_string labelprocesslist = 
+    match labelprocesslist with
+    | [] -> ""
+    | [(l, eP)] -> l ^ ":" ^ expP_to_string eP
+    | (l, eP)::labelprocesslist' -> l ^ ":" ^ expP_to_string eP ^ ", " ^ label_process_list_to_string labelprocesslist' 
+
+and c_list_to_string cl =
+    match cl with
+    | [] -> ""
+    | [c] -> c
+    | c::cl' -> c ^ ", " ^ c_list_to_string cl'
 
 let rec delta_to_string c = 
     match c with
@@ -275,68 +309,6 @@ let rec invertRightS f ctxts c goal =
         invertRightS f ctxts1 c t2
     | _ -> invertLeftS f ctxts c goal
 
-(*
-and spawn_rec_process_and_fwd g p d x t c =
-    let goal = unfold_TArrow t in
-    let g', p', da', ds', spawnedP = focusLeftF g p x t d c goal in
-    match goal with
-    | TProcess(insl, outs) ->
-        let cNew = fresh_channel() in
-        let dRemainder, dConsumed = consume_channels_with_sessions d insl [] in
-        let inChannels = get_keys dConsumed in
-        let dFwd = append_bindings_delta dRemainder [(cNew, outs)] in
-        let dFwd', eFwd = fwd_channel dFwd cNew c in
-        assert (List.is_empty (fst dFwd') && List.is_empty (snd dFwd'));
-        Spawn(cNew, spawnedP, inChannels, eFwd)
-    | _ -> raise (Fail "spawn_process: t not of type TProcess")
-*)
-
-(*
-nats : int -> {rec t . int * t}
-let nats = fun x ->
-  c <- { 
-    // nats: int -> {rec t. int * t} , x:int |- c: rec t. int * t
-    // nats: int -> {rec t. int * t} , x:int |- c: int * (rec t. int * t)
-    send c 0 ;  
-    d <- spawn (nats 0); // nats: int -> {rec t. int * t} , x:int ; empty |- c: t // c: rec t. int * t
-	fwd d c // nats: int -> {rec t. int * t} , x:int ; d:rec t.int*t |- c: t // c:rec t . int*t
-	}
-*)
-
-(*
-TRec of id * tyS (* mu t . T *)
-TVar of id   (* t *)
-
-!S.T
-?S.T
-
-SendInts = mu t . !int.t  ~ !int.(mu t.!int.t)
-
-sendIntsRec : () -> { mu t . !int.t }
-let rec sendIntsRec = fun () -> c <- {
-  //c:!int. t
-  send c 0 ;
-  //c: mu t . !int.t
-  d <- spawn SendIntsRec () ;
-  //d: mu t . !int.t |- c: mu t . !int.t
-  fwd d c
-}
-
-let rec sendIntsRecBad = fun () -> c  <- {
-  d <- spawn sendIntsRecBad () ;
-  fwd d c
- }
-
-mu t . &{ l1 => !int.t ; l2 => !string.t ; done => 1 }
-
-let rec foo = fun () -> c <- {
- case c of
-  l1 => send c 0 ; d <- spawn foo() ; fwd d c
-  l2 => send c "xpto" ; d <- spawn foo() ; fwd d c 
-  done => close c
-}
-*)
-
 and invertRightF f ctxts c goal =
     print_endline ("invertRightF: " ^ tyF_to_string goal);
     print_string "  pa: "; print_psi ctxts.p.a;
@@ -431,7 +403,7 @@ and focusDecideF f ctxts ps' c goal =
     print_endline ("focusDecideF: " ^ tyF_to_string goal);
     print_string "  ps: "; print_psi ps';
     match ps' with
-    | [] -> raise (Fail "focusDecide: empty sync context")
+    | [] -> focusRightF f ctxts c goal
     | (xFoc, tFoc)::ps'' -> try 
             if is_tyF_left_async goal then focusRightF f ctxts c goal
             else focusLeftF f ctxts xFoc tFoc c goal
@@ -467,6 +439,8 @@ and focusRightS f ctxts c goal =
 
 and focusRightF f ctxts c goal =
     match goal with
+    | TInt -> f, ctxts, Int(1)
+    | TBool -> f, ctxts, Bool(true)
     | _ -> invertRightF f ctxts c goal
 
 and focusLeftS f ctxts xFocus tFocus c goal =
@@ -493,8 +467,6 @@ and focusLeftS f ctxts xFocus tFocus c goal =
                 end
             | [] -> raise (Fail "focusLeft: TExtChoice has no valid label-sess option")
         in iter_labels labelsesslist
-    | STRec(x, t) ->
-        raise (Fail "TODO")
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
 and focusLeftF f ctxts xFocus tFocus c goal =
@@ -504,11 +476,9 @@ and focusLeftF f ctxts xFocus tFocus c goal =
         let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
         let f, ctxts'', e1 = invertRightF f ctxts c t1 in
         f, ctxts'', subst e2 y (App(Var(xFocus), e1))
-    | TInt -> 
+    | TInt | TBool -> 
         if tFocus = goal then f, ctxts, Var(xFocus)
         else raise (Fail "tFocus != goal")
-    | TProcess _ ->
-        raise (Fail "TODO")
     | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
 let synth goal = 
@@ -517,7 +487,7 @@ let synth goal =
     let p : psi = { a = []; s = [] } in
     let d : delta = { a = []; s = [] } in
     let ctxts : contexts = { g = g; p = p; d = d } in
-    let f, ctxts', e = invertRightS f ctxts (fresh_channel()) goal in
+    let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
     if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
     else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
 
@@ -525,12 +495,72 @@ end;;
 
 (* Running stuff *)
 
-(*
 let synthType = 
-    (*TArrow(TAddConjPair(TAtom("bool"), TAtom("int")), TAtom("int"))*)
-    TRecvS(TAtom("float"), TRecvS(TSendS(TAtom("int"), TAtom("bool")), TSendS(TAtom("bool"), TSendS(TAtom("float"), TAtom("int")))))
-    (*TArrow(TAtom("int"), TAddDisjCase(TAtom("int"), TAtom("bool")))*)
+    TProcess([], STSendF(TInt, STSendF(TBool, STUnit)))
 in
-let exp = Sessynth.synth synthType in
-print_endline "" ; print_endline (exp_to_string exp)
+let synthExp = Sessynth.synth synthType in
+print_endline "" ; print_endline (expF_to_string synthExp)
+
+(* Examples and stuff *)
+
+(*
+and spawn_rec_process_and_fwd g p d x t c =
+    let goal = unfold_TArrow t in
+    let g', p', da', ds', spawnedP = focusLeftF g p x t d c goal in
+    match goal with
+    | TProcess(insl, outs) ->
+        let cNew = fresh_channel() in
+        let dRemainder, dConsumed = consume_channels_with_sessions d insl [] in
+        let inChannels = get_keys dConsumed in
+        let dFwd = append_bindings_delta dRemainder [(cNew, outs)] in
+        let dFwd', eFwd = fwd_channel dFwd cNew c in
+        assert (List.is_empty (fst dFwd') && List.is_empty (snd dFwd'));
+        Spawn(cNew, spawnedP, inChannels, eFwd)
+    | _ -> raise (Fail "spawn_process: t not of type TProcess")
+*)
+
+(*
+nats : int -> {rec t . int * t}
+let nats = fun x ->
+  c <- { 
+    // nats: int -> {rec t. int * t} , x:int |- c: rec t. int * t
+    // nats: int -> {rec t. int * t} , x:int |- c: int * (rec t. int * t)
+    send c 0 ;  
+    d <- spawn (nats 0); // nats: int -> {rec t. int * t} , x:int ; empty |- c: t // c: rec t. int * t
+	fwd d c // nats: int -> {rec t. int * t} , x:int ; d:rec t.int*t |- c: t // c:rec t . int*t
+	}
+*)
+
+(*
+TRec of id * tyS (* mu t . T *)
+TVar of id   (* t *)
+
+!S.T
+?S.T
+
+SendInts = mu t . !int.t  ~ !int.(mu t.!int.t)
+
+sendIntsRec : () -> { mu t . !int.t }
+let rec sendIntsRec = fun () -> c <- {
+  //c:!int. t
+  send c 0 ;
+  //c: mu t . !int.t
+  d <- spawn SendIntsRec () ;
+  //d: mu t . !int.t |- c: mu t . !int.t
+  fwd d c
+}
+
+let rec sendIntsRecBad = fun () -> c  <- {
+  d <- spawn sendIntsRecBad () ;
+  fwd d c
+ }
+
+mu t . &{ l1 => !int.t ; l2 => !string.t ; done => 1 }
+
+let rec foo = fun () -> c <- {
+ case c of
+  l1 => send c 0 ; d <- spawn foo() ; fwd d c
+  l2 => send c "xpto" ; d <- spawn foo() ; fwd d c 
+  done => close c
+}
 *)
