@@ -117,10 +117,10 @@ and expP_to_string e =
     | RecvS(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
     | Close(c) -> "close " ^ c ^ ";\n"
     | Wait(c, eP) -> "wait " ^ c ^ ";\n" ^ expP_to_string eP
-    | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ ":" ^ tyS_to_string tS ^ "\n"
+    | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ "\n"
     | Choice(c, labelprocesslist) -> "case " ^ c ^ " of [" ^ label_process_list_to_string labelprocesslist ^ "]" 
     | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP
-    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ " [" ^ c_list_to_string cl ^ "];\n" ^ expP_to_string eP
+    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ ";\n" ^ expP_to_string eP
 
 and label_process_list_to_string labelprocesslist = 
     match labelprocesslist with
@@ -334,10 +334,9 @@ and invertRightF f ctxts c goal =
         end
     | TProcess(insl, outs) ->
         let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
-        let outc = fresh_channel() in
         let ctxts1 = append_bindings_delta ctxts incsl in
         let f, ctxts', e = invertRightS f ctxts1 c outs in
-        f, ctxts', Process(outc, e, outs, incsl)
+        f, ctxts', Process(c, e, outs, incsl)
     | _ -> invertLeftF f ctxts c goal
 
 and invertLeftS f ctxts c goal =
