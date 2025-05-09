@@ -20,7 +20,7 @@ and tyS = (* channel/session types (S) *)
     | STIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
     | STRec of id * tyS (* mu t . S *)
     | STRecVar of id (* t *)
-    | STDeclr of id * tyS * tyS (* stype x = S; S *)
+    | STDeclr of id * tyS * tyS (* stype x = S1; S2 *)
 
 type expF = (* functional terms (M) *)
     | Int of int
@@ -71,7 +71,7 @@ let rec tyF_to_string t =
     | TInt -> "TInt"
     | TBool -> "TBool"
     | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
-    | TProcess(tl, t) -> "{ " ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ " }\n"
+    | TProcess(tl, t) -> "{ " ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ " }"
 
 and tyS_to_string t =
     match t with 
@@ -104,9 +104,9 @@ let rec expF_to_string e =
     | Bool(v) -> string_of_bool v
     | Var x -> x
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
-    | Lam(x, t, e) -> x ^ ":" ^ tyF_to_string t ^ " -o " ^ expF_to_string e 
+    | Lam(x, t, e) -> x ^ ":" ^ tyF_to_string t ^ " -> " ^ expF_to_string e 
     | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
-    | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "} <- [ " ^ label_tyS_list_to_string xtl ^ "]\n"
+    | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "} <- [" ^ label_tyS_list_to_string xtl ^ "]\n"
     | LetRec(x, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
 
 and expP_to_string e =
@@ -117,10 +117,10 @@ and expP_to_string e =
     | RecvS(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
     | Close(c) -> "close " ^ c ^ ";\n"
     | Wait(c, eP) -> "wait " ^ c ^ ";\n" ^ expP_to_string eP
-    | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ ":" ^ tyS_to_string tS
-    | Choice(c, labelprocesslist) -> "case " ^ c ^ " of [ " ^ label_process_list_to_string labelprocesslist ^ " ]" 
+    | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ ":" ^ tyS_to_string tS ^ "\n"
+    | Choice(c, labelprocesslist) -> "case " ^ c ^ " of [" ^ label_process_list_to_string labelprocesslist ^ "]" 
     | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP
-    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ " [ " ^ c_list_to_string cl ^ " ];\n" ^ expP_to_string eP
+    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ " [" ^ c_list_to_string cl ^ "];\n" ^ expP_to_string eP
 
 and label_process_list_to_string labelprocesslist = 
     match labelprocesslist with
@@ -393,7 +393,7 @@ and focusDecideS f ctxts ds' c goal =
     print_endline ("focusDecideS: " ^ tyS_to_string goal);
     print_string "  ds: "; print_delta ds';
     match ds' with
-    | [] -> raise (Fail "focusDecide: empty sync context")
+    | [] -> focusRightS f ctxts c goal
     | (xFoc, tFoc)::ds'' -> try 
             if is_tyS_left_async goal then focusRightS f ctxts c goal
             else focusLeftS f ctxts xFoc tFoc c goal
@@ -496,7 +496,8 @@ end;;
 (* Running stuff *)
 
 let synthType = 
-    TProcess([], STSendF(TInt, STSendF(TBool, STUnit)))
+    (*TProcess([], STSendF(TInt, STSendF(TBool, STUnit)))*)
+    TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STRecVar("t")))))
 in
 let synthExp = Sessynth.synth synthType in
 print_endline "" ; print_endline (expF_to_string synthExp)
