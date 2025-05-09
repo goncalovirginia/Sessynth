@@ -106,8 +106,12 @@ let rec expF_to_string e =
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
     | Lam(x, t, e) -> x ^ ":" ^ tyF_to_string t ^ " -> " ^ expF_to_string e 
     | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
-    | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "} <- [" ^ label_tyS_list_to_string xtl ^ "]\n"
+    | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
     | LetRec(x, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
+
+and process_input_channels_to_string xtl =
+    if List.is_empty xtl then ""
+    else " <- [" ^ label_tyS_list_to_string xtl ^ "]" 
 
 and expP_to_string e =
     match e with 
