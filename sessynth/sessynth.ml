@@ -509,12 +509,10 @@ and focusLeftF f ctxts xFocus tFocus c goal =
     assert (f.currDepth <= f.maxDepth);
     match tFocus with
     | TArrow(t1, t2) ->
-        if get_TArrow_return_type tFocus = goal then
-            let y = fresh_id() in
-            let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
-            let f, ctxts'', e1 = invertRightF f ctxts c t1 in
-            f, ctxts'', subst e2 y (App(Var(xFocus), e1))
-        else raise (Fail "TArrow return type != goal")
+        let y = fresh_id() in
+        let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
+        let f, ctxts'', e1 = invertRightF f ctxts c t1 in
+        f, ctxts'', subst e2 y (App(Var(xFocus), e1))
     | TProcess _ | TInt | TBool -> 
         if tFocus = goal then f, ctxts, Var(xFocus)
         else raise (Fail "tFocus != goal")
