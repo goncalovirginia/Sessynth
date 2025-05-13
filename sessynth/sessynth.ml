@@ -46,7 +46,7 @@ and expP = (* process terms (P) *)
     
 (* Records *)
 
-type flags = { isUnfolded : bool; xRecLam : id }
+type flags = { isUnfolded : bool; xRecLam : id; currDepth : int; maxDepth : int }
 
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
 
@@ -130,23 +130,25 @@ and label_process_list_to_string labelprocesslist =
     match labelprocesslist with
     | [] -> ""
     | [(l, eP)] -> l ^ ":" ^ expP_to_string eP
-    | (l, eP)::labelprocesslist' -> l ^ ":" ^ expP_to_string eP ^ ", " ^ label_process_list_to_string labelprocesslist' 
+    | (l, eP)::labelprocesslist' -> l ^ ":" ^ expP_to_string eP ^ "; " ^ label_process_list_to_string labelprocesslist' 
 
 and c_list_to_string cl =
     match cl with
     | [] -> ""
     | [c] -> c
-    | c::cl' -> c ^ ", " ^ c_list_to_string cl'
+    | c::cl' -> c ^ "; " ^ c_list_to_string cl'
 
 let rec delta_to_string c = 
     match c with
     | [] -> "";
-    | (x, t)::c' -> x ^ ":" ^ (tyS_to_string t) ^ "; " ^ delta_to_string c'
+    | [(x, t)] -> x ^ ":" ^ tyS_to_string t
+    | (x, t)::c' -> x ^ ":" ^ tyS_to_string t ^ "; " ^ delta_to_string c'
 
 let rec psi_to_string c = 
     match c with
     | [] -> "";
-    | (x, t)::c' -> x ^ ":" ^ (tyF_to_string t) ^ "; " ^ psi_to_string c'
+    | [(x, t)] -> x ^ ":" ^ tyF_to_string t
+    | (x, t)::c' -> x ^ ":" ^ tyF_to_string t ^ "; " ^ psi_to_string c'
 
 let rec print_delta c = print_endline (delta_to_string c)
 
@@ -281,6 +283,9 @@ let rec invertRightS f ctxts c goal =
     print_endline ("invertRightS: " ^ tyS_to_string goal);
     print_string "  da: "; print_delta ctxts.d.a;
     print_string "  ds: "; print_delta ctxts.d.s;
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
     match goal with 
     | STRecvF(t1, t2) ->
         let x = fresh_id() in
@@ -303,7 +308,10 @@ let rec invertRightS f ctxts c goal =
     | STRec(x, t) ->
         if f.isUnfolded then
             let cRec = fresh_channel() in
-            f, ctxts, Spawn(cRec, Var(f.xRecLam), [], Fwd(cRec, c, t))
+            let tRecLam = List.assoc f.xRecLam ctxts.p.s in
+            let tReturn = get_TArrow_return_type tRecLam in
+            let f, ctxts, eApp = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
+            f, ctxts, Spawn(cRec, eApp, [], Fwd(cRec, c, t))
         else 
             let tUnfolded = unfold t goal x in
             let f = {f with isUnfolded = true } in
@@ -317,12 +325,15 @@ and invertRightF f ctxts c goal =
     print_endline ("invertRightF: " ^ tyF_to_string goal);
     print_string "  pa: "; print_psi ctxts.p.a;
     print_string "  ps: "; print_psi ctxts.p.s;
-    match goal with 
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
+    match goal with
     | TArrow(t1, t2) ->
         let x = fresh_id() in
         begin match get_TArrow_return_type goal with
         | TProcess(_, STRec _) ->
-            if not (List.mem_assoc f.xRecLam ctxts.g.a || List.mem_assoc f.xRecLam ctxts.g.s) then
+            if not (List.mem_assoc f.xRecLam ctxts.p.a || List.mem_assoc f.xRecLam ctxts.p.s) then
                 let f = { f with xRecLam = fresh_id() } in
                 let ctxts1 = append_bindings_psi ctxts [(x, t1); (f.xRecLam, goal)] in
                 let f, ctxts', e = invertRightF f ctxts1 c t2 in
@@ -344,9 +355,12 @@ and invertRightF f ctxts c goal =
     | _ -> invertLeftF f ctxts c goal
 
 and invertLeftS f ctxts c goal =
-    print_endline ("invertLeft: " ^ tyS_to_string goal);
+    print_endline ("invertLeftS: " ^ tyS_to_string goal);
     print_string "  da: "; print_delta ctxts.d.a;
     print_string "  ds: "; print_delta ctxts.d.s;
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
     match ctxts.d.a with
     | (x, t)::da' ->
         let ctxts = { ctxts with d = { a = da'; s = ctxts.d.s } } in
@@ -385,10 +399,16 @@ and invertLeftS f ctxts c goal =
     | [] -> focusDecideS f ctxts ctxts.d.s c goal
 
 and invertLeftF f ctxts c goal =
+    print_endline ("invertLeftF: " ^ tyF_to_string goal);
+    print_string "  pa: "; print_psi ctxts.p.a;
+    print_string "  ps: "; print_psi ctxts.p.s;
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
     match ctxts.p.a with
     | (x, t)::pa' ->
         begin match t with
-        | _ -> raise (Fail("invertLeftF: somehow a sync type wound up in async context"))
+        | _ -> raise (Fail("invertLeftF: pattern matching not defined for " ^ tyF_to_string t))
         end
     | [] -> focusDecideF f ctxts ctxts.p.s c goal 
 
@@ -413,7 +433,10 @@ and focusDecideF f ctxts ps' c goal =
         with Fail _ -> focusDecideF f ctxts ps'' c goal
 
 and focusRightS f ctxts c goal =
-    print_endline ("focusRight: " ^ tyS_to_string goal);
+    print_endline ("focusRightS: " ^ tyS_to_string goal);
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
     match goal with 
     | STSendF(t1, t2) ->
         let f, ctxts', e1 = focusDecideF f ctxts ctxts.p.s c t1 in
@@ -441,6 +464,10 @@ and focusRightS f ctxts c goal =
     | _ -> invertRightS f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
 and focusRightF f ctxts c goal =
+    print_endline ("focusRightF: " ^ tyF_to_string goal);
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
     match goal with
     | TInt -> f, ctxts, Int(1)
     | TBool -> f, ctxts, Bool(true)
@@ -448,6 +475,9 @@ and focusRightF f ctxts c goal =
 
 and focusLeftS f ctxts xFocus tFocus c goal =
     print_endline ("focusLeftS: " ^ tyS_to_string tFocus);
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
     match tFocus with
     | STRecvF(t1, t2) ->
         let f, ctxts', e2 = focusLeftS f ctxts xFocus t2 c goal in
@@ -473,19 +503,24 @@ and focusLeftS f ctxts xFocus tFocus c goal =
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
 and focusLeftF f ctxts xFocus tFocus c goal =
+    print_endline ("focusLeftF: tFocus: " ^ tyF_to_string tFocus ^ "    goal: " ^ tyF_to_string goal);
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
     match tFocus with
     | TArrow(t1, t2) ->
-        let y = fresh_id() in
-        let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
-        let f, ctxts'', e1 = invertRightF f ctxts c t1 in
-        f, ctxts'', subst e2 y (App(Var(xFocus), e1))
-    | TInt | TBool -> 
+        if get_TArrow_return_type tFocus = goal then
+            let y = fresh_id() in
+            let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
+            let f, ctxts'', e1 = invertRightF f ctxts c t1 in
+            f, ctxts'', subst e2 y (App(Var(xFocus), e1))
+        else raise (Fail "TArrow return type != goal")
+    | TProcess _ | TInt | TBool -> 
         if tFocus = goal then f, ctxts, Var(xFocus)
         else raise (Fail "tFocus != goal")
-    | _ -> raise (Fail("focusLeftF: somehow foc type is left async: " ^ tyF_to_string tFocus))
 
 let synth goal = 
-    let f : flags = { isUnfolded = false ; xRecLam = "" } in
+    let f : flags = { isUnfolded = false ; xRecLam = ""; currDepth = 0; maxDepth = 100 } in
     let g : gamma = { a = []; s = [] } in
     let p : psi = { a = []; s = [] } in
     let d : delta = { a = []; s = [] } in
@@ -500,7 +535,8 @@ end;;
 
 let synthType = 
     (*TProcess([], STSendF(TInt, STSendF(TBool, STUnit)))*)
-    TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STRecVar("t")))))
+    (*TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STRecVar("t")))))*)
+    TArrow(TBool, TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STSendF(TBool, STRecVar("t")))))))
 in
 let synthExp = Sessynth.synth synthType in
 print_endline "" ; print_endline (expF_to_string synthExp)
