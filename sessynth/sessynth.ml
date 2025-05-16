@@ -4,9 +4,29 @@ exception Fail of string
 
 type id = string
 
-type tyF = (* ordinary functional types (F) *)
+and tyA = (* atomic types (A) *)
     | TInt (* integer *)
     | TBool (* boolean *)
+
+type tyR = (* refinement types (R) *)
+    | RTAnd of tyR * tyR (* R && R *)
+    | RTOr of tyR * tyR (* R || R *)
+    | RTEq of tyR * tyR (* R == R *)
+    | RTGr of tyR * tyR (* R > R *)
+    | RTLt of tyR * tyR (* R < R *)
+    | RTGrE of tyR * tyR (* R >= R *)
+    | RTLtE of tyR * tyR (* R <= R *)
+    | RTSum of tyR * tyR (* R + R *)
+    | RTSub of tyR * tyR (* R - R *)
+    | RTMult of tyR * tyR (* R * R *)
+    | RTDiv of tyR * tyR (* R / R *)
+    | RTInt of int
+    | RTBool of bool
+    | RTVar of id (* x *)
+
+and tyF = (* ordinary functional types (F) *)
+    | TAtomic of tyA (* A *)
+    | TRefinement of id * tyA * tyR (* { x:A | R } *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
     | TProcess of tyS list * tyS (* { S1, ..., Sn |- P :: c : S } *)
 
@@ -66,12 +86,34 @@ let fresh_channel =
     let unique = ref (-1) in
     fun () -> (incr unique; "c" ^ (string_of_int !unique))
 
-let rec tyF_to_string t =
-    match t with 
+let rec tyA_to_string t =
+    match t with
     | TInt -> "TInt"
     | TBool -> "TBool"
+
+and tyR_to_string t =
+    match t with
+    | RTAnd(t1, t2) -> tyR_to_string t1 ^ " && " ^ tyR_to_string t2
+    | RTOr(t1, t2) -> tyR_to_string t1 ^ " || " ^ tyR_to_string t2
+    | RTEq(t1, t2) -> tyR_to_string t1 ^ " == " ^ tyR_to_string t2
+    | RTGr(t1, t2) -> tyR_to_string t1 ^ " > " ^ tyR_to_string t2
+    | RTLt(t1, t2) -> tyR_to_string t1 ^ " < " ^ tyR_to_string t2
+    | RTGrE(t1, t2) -> tyR_to_string t1 ^ " >= " ^ tyR_to_string t2
+    | RTLtE (t1, t2) -> tyR_to_string t1 ^ " <= " ^ tyR_to_string t2
+    | RTSum (t1, t2) -> tyR_to_string t1 ^ " + " ^ tyR_to_string t2
+    | RTSub (t1, t2) -> tyR_to_string t1 ^ " - " ^ tyR_to_string t2
+    | RTMult(t1, t2) -> tyR_to_string t1 ^ " * " ^ tyR_to_string t2
+    | RTDiv (t1, t2) -> tyR_to_string t1 ^ " / " ^ tyR_to_string t2
+    | RTInt(v) -> string_of_int v
+    | RTBool(v) -> string_of_bool v
+    | RTVar(x) -> x
+
+and tyF_to_string t =
+    match t with 
+    | TAtomic(t) -> tyA_to_string t
+    | TRefinement(x, t1, t2) -> "{" ^ x ^ ":" ^ tyA_to_string t1 ^ " | " ^ tyR_to_string t2 ^ "}"
     | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
-    | TProcess(tl, t) -> "{ " ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ " }"
+    | TProcess(tl, t) -> "{" ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ "}"
 
 and tyS_to_string t =
     match t with 
@@ -469,8 +511,9 @@ and focusRightF f ctxts c goal =
     print_endline ("  currDepth: " ^ string_of_int f.currDepth);
     assert (f.currDepth <= f.maxDepth);
     match goal with
-    | TInt -> f, ctxts, Int(1)
-    | TBool -> f, ctxts, Bool(true)
+    | TAtomic(TInt) -> f, ctxts, Int(1)
+    | TAtomic(TBool) -> f, ctxts, Bool(true)
+    | TRefinement(x, t1, t2) -> f, ctxts, Bool(true) (* TODO - get all variables and constraints called in t2, translate and call Z3 solver, exception if not satisfiable, translate back to local types and synthesize with possibly multiple solutions *)
     | _ -> invertRightF f ctxts c goal
 
 and focusLeftS f ctxts xFocus tFocus c goal =
@@ -513,7 +556,7 @@ and focusLeftF f ctxts xFocus tFocus c goal =
         let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
         let f, ctxts'', e1 = invertRightF f ctxts c t1 in
         f, ctxts'', subst e2 y (App(Var(xFocus), e1))
-    | TProcess _ | TInt | TBool -> 
+    | TProcess _ | TAtomic _ | TRefinement _ -> 
         if tFocus = goal then f, ctxts, Var(xFocus)
         else raise (Fail "tFocus != goal")
 
@@ -534,7 +577,7 @@ end;;
 let synthType = 
     (*TProcess([], STSendF(TInt, STSendF(TBool, STUnit)))*)
     (*TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STRecVar("t")))))*)
-    TArrow(TBool, TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STSendF(TBool, STRecVar("t")))))))
+    TArrow(TAtomic(TBool), TArrow(TAtomic(TInt), TProcess([], STRec("t", STSendF(TAtomic(TInt), STSendF(TAtomic(TBool), STRecVar("t")))))))
 in
 let synthExp = Sessynth.synth synthType in
 print_endline "" ; print_endline (expF_to_string synthExp)
