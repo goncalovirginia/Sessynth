@@ -1,80 +1,9 @@
+open Language;;
+open Z3adapter;;
+
 exception Fail of string
 
-(* Types and terms *)
-
-type id = string
-
-and tyA = (* atomic types (A) *)
-    | TInt (* integer *)
-    | TBool (* boolean *)
-
-type tyR = (* refinement types (R) *)
-    | RTAnd of tyR * tyR (* R && R *)
-    | RTOr of tyR * tyR (* R || R *)
-    | RTEq of tyR * tyR (* R == R *)
-    | RTGr of tyR * tyR (* R > R *)
-    | RTLt of tyR * tyR (* R < R *)
-    | RTGrE of tyR * tyR (* R >= R *)
-    | RTLtE of tyR * tyR (* R <= R *)
-    | RTSum of tyR * tyR (* R + R *)
-    | RTSub of tyR * tyR (* R - R *)
-    | RTMult of tyR * tyR (* R * R *)
-    | RTDiv of tyR * tyR (* R / R *)
-    | RTInt of int
-    | RTBool of bool
-    | RTVar of id (* x *)
-
-and tyF = (* ordinary functional types (F) *)
-    | TAtomic of tyA (* A *)
-    | TRefinement of id * tyA * tyR (* { x:A | R } *)
-    | TArrow of tyF * tyF (* F1 -> F2 *)
-    | TProcess of tyS list * tyS (* { S1, ..., Sn |- P :: c : S } *)
-
-and tyS = (* channel/session types (S) *)
-    | STSendF of tyF * tyS (* F ∧ S *)
-    | STRecvF of tyF * tyS (* F ⊃ S *)
-    | STSendS of tyS * tyS (* S1 ⊗ S2 *)
-    | STRecvS of tyS * tyS (* S1 -o S2 *)
-    | STUnit (* 1 *)
-    | STExtChoice of (id * tyS) list (* &{ l1:S1, ..., ln:Sn } *)
-    | STIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
-    | STRec of id * tyS (* mu t . S *)
-    | STRecVar of id (* t *)
-    | STDeclr of id * tyS * tyS (* stype x = S1; S2 *)
-
-type expF = (* functional terms (M) *)
-    | Int of int
-    | Bool of bool
-    | Var of id (* x *)
-    | Let of id * expF * expF (* let x = M1 in M2 *)
-    | Lam of id * tyF * expF (* fun x:F -> M *)
-    | App of expF  * expF (* (M1) M2 *)
-    | Process of id * expP * tyS * (id * tyS) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
-    | LetRec of id * expF (* let rec x = M1 *)
-
-and expP = (* process terms (P) *)
-    | SendF of id * expF * expP (* send c M; P : F ∧ S *)
-    | RecvF of id * id * expP (* x:F <- recv c; P : F ⊃ S *)
-    | SendS of id * id * expP * expP (* send c1 c2 P2; P : S1 ⊗ S2 *)
-    | RecvS of id * id * expP (* x:S <- recv c; P : S1 -o S2 *)
-    | Close of id (* close c : 1 *)
-    | Wait of id * expP (* wait c; P *)
-    | Fwd of id * id * tyS (* fwd c1 c2 :: c2 : S1 *)
-    | Choice of id * (id * expP) list (* case c of li:Pi :: c : &{ l1:S1, ..., ln:Sn } *)
-    | ChoiceSelect of id * id * expP (* c.l; P :: c : ⊕{ l1:S1, ..., ln:Sn } *)
-    | Spawn of id * expF * id list * expP (* c <- spawn M [c1; ...; cn]; P *)
-    
-(* Records *)
-
-type flags = { isUnfolded : bool; xRecLam : id; currDepth : int; maxDepth : int }
-
-type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
-
-type psi = { a : (id * tyF) list; s :  (id * tyF) list }
-
-type delta = { a : (id * tyS) list; s :  (id * tyS) list }
-
-type contexts = { g : gamma; p : psi; d : delta }
+let solve1 = solve (RTBool(true))
 
 (* Auxiliary functions *)
 
@@ -192,9 +121,9 @@ let rec psi_to_string c =
     | [(x, t)] -> x ^ ":" ^ tyF_to_string t
     | (x, t)::c' -> x ^ ":" ^ tyF_to_string t ^ "; " ^ psi_to_string c'
 
-let rec print_delta c = print_endline (delta_to_string c)
+let print_delta c = print_endline (delta_to_string c)
 
-let rec print_psi c = print_endline (psi_to_string c)
+let print_psi c = print_endline (psi_to_string c)
 
 let is_tyF_left_async t = 
     match t with
@@ -213,15 +142,15 @@ let rec append_bindings ctxt bindings is_left_async_func =
         else append_bindings (ctxta, (x, t)::ctxts) bindings' is_left_async_func
     | [] -> ctxt
 
-let rec append_bindings_gamma ctxts bindings =
+let append_bindings_gamma ctxts bindings =
     let ga', gs' = append_bindings (ctxts.g.a, ctxts.g.s) bindings is_tyS_left_async in
     { ctxts with g = { a = ga'; s = gs' } }
 
-let rec append_bindings_psi ctxts bindings = 
+let append_bindings_psi ctxts bindings = 
     let pa', ps' = append_bindings (ctxts.p.a, ctxts.p.s) bindings is_tyF_left_async in
     { ctxts with p = { a = pa'; s = ps' } }
 
-let rec append_bindings_delta ctxts bindings =
+let append_bindings_delta ctxts bindings =
     let da', ds' = append_bindings (ctxts.d.a, ctxts.d.s) bindings is_tyS_left_async in
     { ctxts with d = { a = da'; s = ds' } }
 
@@ -316,9 +245,7 @@ let rec unfold tUnfold stRecReplacement xReplace =
         else STRecVar(x)
     | _ -> raise (Fail "Unexpected STDeclr while unfolding recursive session-type")
 
-(* Focused type-driven synthesizer *)
-
-module Sessynth = struct 
+(* Inversion and Focusing *)
 
 (* flags + gamma-async; gamma-sync; psi-async; psi-async; delta-async; delta-sync |- P :: c : goal *)
 let rec invertRightS f ctxts c goal = 
@@ -569,18 +496,6 @@ let synth goal =
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
     if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
     else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
-
-end;;
-
-(* Running stuff *)
-
-let synthType = 
-    (*TProcess([], STSendF(TInt, STSendF(TBool, STUnit)))*)
-    (*TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STRecVar("t")))))*)
-    TArrow(TAtomic(TBool), TArrow(TAtomic(TInt), TProcess([], STRec("t", STSendF(TAtomic(TInt), STSendF(TAtomic(TBool), STRecVar("t")))))))
-in
-let synthExp = Sessynth.synth synthType in
-print_endline "" ; print_endline (expF_to_string synthExp)
 
 (* Examples and stuff *)
 

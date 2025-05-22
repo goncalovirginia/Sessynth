@@ -1,0 +1,4 @@
+(executables
+(names main)
+(flags (:standard -w -26 -w -27 -w - -w ))
+(libraries z3))
