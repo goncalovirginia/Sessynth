@@ -1,19 +1,10 @@
 open Language;;
 
 open Z3;;
-open Z3.Symbol;;
-open Z3.Sort;;
-open Z3.Expr;;
 open Z3.Boolean;;
-open Z3.FuncDecl;;
-open Z3.Goal;;
-open Z3.Tactic;;
-open Z3.Tactic.ApplyResult;;
-open Z3.Probe;;
 open Z3.Solver;;
 open Z3.Arithmetic;;
 open Z3.Arithmetic.Integer;;
-open Z3.Model;;
 
 exception Unsatisfiable of string
 exception Unknown of string
@@ -50,19 +41,24 @@ let tyR_to_expr p z3ctxt tR =
         | RTVar(x) -> x_tyA_to_expr z3ctxt x (get_x_tyA p x)
     in tyR_to_expr' z3ctxt tR
 
-let x_tyF_to_expr p z3ctxt x tF =
-    match tF with
-    | TAtomic(tA) -> x_tyA_to_expr z3ctxt x tA
-    | TRefinement(x, tA, tR) -> tyR_to_expr p z3ctxt tR
-    | _ -> raise (Error "Z3adapter only handles TAtomic and TRefinement")
+let psi_to_expr_list p z3ctxt =
+    List.filter_map(fun (x, t) -> 
+        match t with 
+        | TRefinement(x, tA, tR) -> Some (tyR_to_expr p z3ctxt tR)
+        | TAtomic _ -> None
+        | _ -> raise (Error "Z3adapter only handles TAtomic and TRefinement")
+    ) p
 
-let rec psi_to_expr_list p z3ctxt =
-    List.map(fun (x, t) -> x_tyF_to_expr p z3ctxt x t) p
+let append_goal_tyA_and_get_tyR p goal =
+    match goal with
+    | TRefinement(x, tA, tR) -> (x, TAtomic(tA))::p, tR
+    | _ -> raise (Error "Z3adapter.solve goal is not of type TRefinement")
 
 let solve p goal =
+    let p, goal_tR = append_goal_tyA_and_get_tyR p goal in
     let ctxt = mk_context [] in
     let psi_expr_list = psi_to_expr_list p ctxt in
-    let goal_expr = tyR_to_expr p ctxt goal in
+    let goal_expr = tyR_to_expr p ctxt goal_tR in
     let constraints = goal_expr::psi_expr_list in
     let s = Solver.mk_simple_solver ctxt in
     match Solver.check s constraints with
