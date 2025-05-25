@@ -54,6 +54,22 @@ let append_goal_tyA_and_get_tyR p goal =
     | TRefinement(x, tA, tR) -> (x, TAtomic(tA))::p, tR
     | _ -> raise (Error "Z3adapter.solve goal is not of type TRefinement")
 
+let model_expr_to_expF v =
+    let v_string = Expr.to_string v in
+    if Arithmetic.is_int v then Int(int_of_string v_string)
+    else if Boolean.is_bool v then Bool(bool_of_string v_string)
+    else raise (Error "Unsuported generated model value")
+
+let model_to_id_expF_list m =
+    let consts = Model.get_const_decls m in
+    List.map(fun c -> 
+        let x = Symbol.to_string (FuncDecl.get_name c) in
+        let v_option = Model.get_const_interp m c in
+        match v_option with
+        | Some v -> (x, model_expr_to_expF v)
+        | None -> raise (Error "Somehow model variable does not have a value")
+    ) consts
+
 let solve p goal =
     let p, goal_tR = append_goal_tyA_and_get_tyR p goal in
     let ctxt = mk_context [] in
@@ -66,5 +82,7 @@ let solve p goal =
     | UNKNOWN -> raise (Unknown (get_reason_unknown s))
     | SATISFIABLE -> 
         match get_model s with
-        | Some m -> m
+        | Some m -> 
+            print_endline (Z3.Model.to_string m);
+            model_to_id_expF_list m
         | None -> raise (Error "Expression is satisfiable but no model was returned")
