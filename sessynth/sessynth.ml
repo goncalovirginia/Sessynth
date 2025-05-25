@@ -1,9 +1,18 @@
 open Language;;
-open Z3adapter;;
 
 exception Fail of string
 
-let solve1 = solve (RTBool(true))
+(* Records *)
+
+type flags = { isUnfolded : bool; xRecLam : id; currDepth : int; maxDepth : int }
+    
+type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
+    
+type psi = { a : (id * tyF) list; s :  (id * tyF) list }
+    
+type delta = { a : (id * tyS) list; s :  (id * tyS) list }
+    
+type contexts = { g : gamma; p : psi; d : delta }
 
 (* Auxiliary functions *)
 
