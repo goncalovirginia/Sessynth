@@ -44,6 +44,7 @@ let tyR_to_expr p z3ctxt tR =
 let psi_to_expr_list p z3ctxt =
     List.filter_map(fun (x, t) -> 
         match t with 
+        | TRefinement(_, _, RTVar(_)) -> None
         | TRefinement(x, tA, tR) -> Some (tyR_to_expr p z3ctxt tR)
         | TAtomic _ -> None
         | _ -> raise (Error "Z3adapter only handles TAtomic and TRefinement")

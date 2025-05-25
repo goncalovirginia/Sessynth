@@ -321,9 +321,15 @@ and invertRightF f ctxts c goal =
                 let f, ctxts', e = invertRightF f ctxts1 c t2 in
                 f, ctxts, Lam(x, t1, e)
         | _ ->
-            let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-            let f, ctxts', e = invertRightF f ctxts1 c t2 in
-            f, ctxts', Lam(x, t1, e)
+            match t1 with
+            | TRefinement(x, _, _) ->
+                let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+                let f, ctxts', e = invertRightF f ctxts1 c t2 in
+                f, ctxts', Lam(x, t1, e)
+            | _ ->
+                let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+                let f, ctxts', e = invertRightF f ctxts1 c t2 in
+                f, ctxts', Lam(x, t1, e)
         end
     | TProcess(insl, outs) ->
         let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
@@ -449,7 +455,9 @@ and focusRightF f ctxts c goal =
     match goal with
     | TAtomic(TInt) -> f, ctxts, Int(1)
     | TAtomic(TBool) -> f, ctxts, Bool(true)
-    | TRefinement(x, t1, t2) -> f, ctxts, Bool(true) (* TODO - get all variables and constraints called in t2, translate and call Z3 solver, exception if not satisfiable, translate back to local types and synthesize with possibly multiple solutions *)
+    | TRefinement(x, t1, t2) ->
+        let solution = Z3adapter.solve ctxts.p.s goal in
+        f, ctxts, List.assoc x solution
     | _ -> invertRightF f ctxts c goal
 
 and focusLeftS f ctxts xFocus tFocus c goal =
