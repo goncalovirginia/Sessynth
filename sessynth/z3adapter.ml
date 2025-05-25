@@ -56,9 +56,8 @@ let append_goal_tyA_and_get_tyR p goal =
     | _ -> raise (Error "Z3adapter.solve goal is not of type TRefinement")
 
 let model_expr_to_expF v =
-    let v_string = Expr.to_string v in
-    if Arithmetic.is_int v then Int(int_of_string v_string)
-    else if Boolean.is_bool v then Bool(bool_of_string v_string)
+    if Arithmetic.is_int v then Int(int_of_string (Integer.numeral_to_string v))
+    else if Boolean.is_bool v then Bool(bool_of_string (Expr.to_string v))
     else raise (Error "Unsuported generated model value")
 
 let model_to_id_expF_list m =

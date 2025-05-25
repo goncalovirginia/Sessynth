@@ -8,7 +8,8 @@ let synthType =
     (*TProcess([], STSendF(TInt, STSendF(TBool, STUnit)))*)
     (*TArrow(TInt, TProcess([], STRec("t", STSendF(TInt, STRecVar("t")))))*)
     (*TArrow(TAtomic(TBool), TArrow(TAtomic(TInt), TProcess([], STRec("t", STSendF(TAtomic(TInt), STSendF(TAtomic(TBool), STRecVar("t")))))))*)
-    TArrow(TRefinement("x", TInt, RTVar("x")), TRefinement("y", TInt, RTGr(RTVar("y"), RTVar("x"))))
+    (*TArrow(TRefinement("x", TInt, RTVar("x")), TRefinement("y", TInt, RTGr(RTVar("y"), RTVar("x"))))*)
+    TArrow(TRefinement("x", TInt, RTVar("x")), TArrow(TRefinement("y", TInt, RTGr(RTVar("y"), RTVar("x"))), TRefinement("z", TInt, RTGr(RTVar("z"), RTVar("y")))))
 in
 let synthExp = Sessynth.synth synthType in
 print_endline "\nSynthesized expression:\n" ; print_endline (Sessynth.expF_to_string synthExp);
