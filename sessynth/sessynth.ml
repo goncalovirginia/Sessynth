@@ -20,14 +20,18 @@ let fresh_id =
     let unique = ref (-1) in
     fun () -> (incr unique; "x" ^ (string_of_int !unique))
 
+let fresh_function = 
+    let unique = ref (-1) in
+    fun () -> (incr unique; "f" ^ (string_of_int !unique))
+
 let fresh_channel = 
     let unique = ref (-1) in
     fun () -> (incr unique; "c" ^ (string_of_int !unique))
 
 let rec tyA_to_string t =
     match t with
-    | TInt -> "TInt"
-    | TBool -> "TBool"
+    | TInt -> "int"
+    | TBool -> "bool"
 
 and tyR_to_string t =
     match t with
@@ -319,28 +323,19 @@ and invertRightF f ctxts c goal =
     assert (f.currDepth <= f.maxDepth);
     match goal with
     | TArrow(t1, t2) ->
-        let x = fresh_id() in
-        begin match get_TArrow_return_type goal with
-        | TProcess(_, STRec _) ->
-            if not (List.mem_assoc f.xRecLam ctxts.p.a || List.mem_assoc f.xRecLam ctxts.p.s) then
-                let f = { f with xRecLam = fresh_id() } in
-                let ctxts1 = append_bindings_psi ctxts [(x, t1); (f.xRecLam, goal)] in
-                let f, ctxts', e = invertRightF f ctxts1 c t2 in
+        let x = match t1 with
+            | TRefinement(x, _, _) -> x
+            | _ -> fresh_id() in 
+        let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+        begin match get_TArrow_return_type t2 with
+        | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p.a || List.mem_assoc f.xRecLam ctxts.p.s) ->
+                let f = { f with xRecLam = fresh_function() } in
+                let ctxts2 = append_bindings_psi ctxts1 [(f.xRecLam, goal)] in
+                let f, ctxts', e = invertRightF f ctxts2 c t2 in
                 f, ctxts', LetRec(f.xRecLam, Lam(x, t1, e))
-            else
-                let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-                let f, ctxts', e = invertRightF f ctxts1 c t2 in
-                f, ctxts, Lam(x, t1, e)
-        | _ ->
-            match t1 with
-            | TRefinement(x, _, _) ->
-                let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-                let f, ctxts', e = invertRightF f ctxts1 c t2 in
-                f, ctxts', Lam(x, t1, e)
-            | _ ->
-                let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-                let f, ctxts', e = invertRightF f ctxts1 c t2 in
-                f, ctxts', Lam(x, t1, e)
+        | _ -> 
+            let f, ctxts', e = invertRightF f ctxts1 c t2 in
+            f, ctxts', Lam(x, t1, e)
         end
     | TProcess(insl, outs) ->
         let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
