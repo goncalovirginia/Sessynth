@@ -82,6 +82,17 @@ let rec expF_to_string e =
     match e with 
     | Int(v) -> string_of_int v
     | Bool(v) -> string_of_bool v
+    | And(e1, e2) -> expF_to_string e1 ^ " && " ^ expF_to_string e2
+    | Or(e1, e2) -> expF_to_string e1 ^ " || " ^ expF_to_string e2
+    | Eq(e1, e2) -> expF_to_string e1 ^ " == " ^ expF_to_string e2
+    | Gr(e1, e2) -> expF_to_string e1 ^ " > " ^ expF_to_string e2
+    | Lt(e1, e2) -> expF_to_string e1 ^ " < " ^ expF_to_string e2
+    | GrE(e1, e2) -> expF_to_string e1 ^ " >= " ^ expF_to_string e2
+    | LtE(e1, e2) -> expF_to_string e1 ^ " <= " ^ expF_to_string e2
+    | Sum(e1, e2) -> expF_to_string e1 ^ " + " ^ expF_to_string e2
+    | Sub(e1, e2) -> expF_to_string e1 ^ " - " ^ expF_to_string e2
+    | Mult(e1, e2) -> expF_to_string e1 ^ " * " ^ expF_to_string e2
+    | Div(e1, e2) -> expF_to_string e1 ^ " / " ^ expF_to_string e2
     | Var x -> x
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
     | Lam(x, t, e) -> x ^ ":" ^ tyF_to_string t ^ " -> " ^ expF_to_string e 
