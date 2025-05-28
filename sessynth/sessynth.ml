@@ -414,7 +414,8 @@ and focusDecideS f ctxts ds' c goal =
 
 and focusDecideF f ctxts ps' c goal = 
     print_endline ("focusDecideF: " ^ tyF_to_string goal);
-    print_string "  ps: "; print_psi ps';
+    print_string "  ps: "; print_psi ctxts.p.s;
+    print_string "  ps': "; print_psi ps';
     match ps' with
     | [] -> focusRightF f ctxts c goal
     | (xFoc, tFoc)::ps'' -> try 
@@ -463,7 +464,8 @@ and focusRightF f ctxts c goal =
     | TAtomic(TBool) -> f, ctxts, Bool(true)
     | TRefinement(x, t1, t2) ->
         let solution = Z3adapter.solve ctxts.p.s goal in
-        f, ctxts, List.assoc x solution
+        print_endline (expF_to_string solution);
+        f, ctxts, solution
     | _ -> invertRightF f ctxts c goal
 
 and focusLeftS f ctxts xFocus tFocus c goal =
