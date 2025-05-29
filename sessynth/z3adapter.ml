@@ -81,6 +81,15 @@ let get_vars_sorts xl p z3ctxt =
         tyA_to_sort z3ctxt tA
     ) xl
 
+let construct_app_eq_expr tR z3ctxt goal_app goal_expr =
+    match tR with
+    | RTEq _ -> mk_eq z3ctxt goal_app goal_expr
+    | RTGr _ -> mk_gt z3ctxt goal_app goal_expr
+    | RTLt _ -> mk_lt z3ctxt goal_app goal_expr
+    | RTGrE _ -> mk_gt z3ctxt goal_app goal_expr
+    | RTLtE _ -> mk_le z3ctxt goal_app goal_expr
+    | _ -> raise (Error "construct_tyR: invalid function application predicate")
+
 let goal_to_constraint goal p z3ctxt =
     match goal with
     | TRefinement(x, tA, tR) -> 
@@ -96,7 +105,7 @@ let goal_to_constraint goal p z3ctxt =
             let referenced_vars_expr = List.map(fun (x, s) -> Expr.mk_const z3ctxt (Symbol.mk_string z3ctxt x) s) referenced_vars_sorts in
             let goal_app = Expr.mk_app z3ctxt goal_declr referenced_vars_expr in
             let goal_expr = tyR_to_expr p z3ctxt tR' in
-            let goal_app_eq_expr = Boolean.mk_eq z3ctxt goal_app goal_expr in
+            let goal_app_eq_expr = construct_app_eq_expr tR z3ctxt goal_app goal_expr in
             let goal_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
             referenced_vars_ints, x, goal_forall_expr
         | _ -> raise (Error "Z3adapter: invalid goal refinement predicate")
