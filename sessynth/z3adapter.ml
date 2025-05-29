@@ -134,24 +134,31 @@ let expr_to_expF expr referenced_vars_ints =
             let decl = Expr.get_func_decl expr in
             let name = FuncDecl.get_name decl |> Symbol.to_string in
             let args = Expr.get_args expr in
-            begin match name, args with
-            | "and", [a; b] -> And (expr_to_expF' a, expr_to_expF' b)
-            | "or", [a; b] -> Or (expr_to_expF' a, expr_to_expF' b)
-            | "=", [a; b] -> Eq (expr_to_expF' a, expr_to_expF' b)
-            | ">", [a; b] -> Gr (expr_to_expF' a, expr_to_expF' b)
-            | "<", [a; b] -> Lt (expr_to_expF' a, expr_to_expF' b)
-            | ">=", [a; b] -> GrE (expr_to_expF' a, expr_to_expF' b)
-            | "<=", [a; b] -> LtE (expr_to_expF' a, expr_to_expF' b)
-            | "+", [a; b] -> Sum (expr_to_expF' a, expr_to_expF' b)
-            | "+", [a; b; c] -> Sum (expr_to_expF' a, Sum (expr_to_expF' b, expr_to_expF' c))
-            | "-", [a; b] -> Sub (expr_to_expF' a, expr_to_expF' b)
-            | "*", [a; b] -> Mult (expr_to_expF' a, expr_to_expF' b)
-            | "div", [a; b] -> Div (expr_to_expF' a, expr_to_expF' b)
-            | _ -> raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
-            end
+            let rec expr_list_to_expF name args =
+                begin match name, args with
+                | "and", [e1; e2] -> And(expr_to_expF' e1, expr_to_expF' e2)
+                | "and", e::el -> And(expr_to_expF' e, expr_list_to_expF name el)
+                | "or", [e1; e2] -> Or(expr_to_expF' e1, expr_to_expF' e2)
+                | "or", e::el -> Or(expr_to_expF' e, expr_list_to_expF name el)
+                | "=", e::el -> Eq(expr_to_expF' e, expr_list_to_expF name el)
+                | ">", e::el -> Gr(expr_to_expF' e, expr_list_to_expF name el)
+                | "<", e::el -> Lt(expr_to_expF' e, expr_list_to_expF name el)
+                | ">=", e::el -> GrE(expr_to_expF' e, expr_list_to_expF name el)
+                | "<=", e::el -> LtE(expr_to_expF' e, expr_list_to_expF name el)
+                | "+", [e1; e2] -> Sum(expr_to_expF' e1, expr_to_expF' e2)
+                | "+", e::el -> Sum(expr_to_expF' e, expr_list_to_expF name el)
+                | "-", [e1; e2] -> Sub(expr_to_expF' e1, expr_to_expF' e2)
+                | "-", e::el -> Sub(expr_to_expF' e, expr_list_to_expF name el)
+                | "*", [e1; e2] -> Mult(expr_to_expF' e1, expr_to_expF' e2)
+                | "*", e::el -> Mult(expr_to_expF' e, expr_list_to_expF name el)
+                | "div", [e1; e2] -> Div(expr_to_expF' e1, expr_to_expF' e2)
+                | "div", e::el -> Div(expr_to_expF' e, expr_list_to_expF name el)
+                | _ -> raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
+                end
+            in expr_list_to_expF name args
         | Z3enums.NUMERAL_AST -> 
-            if Arithmetic.is_int expr then Int (int_of_string (Integer.numeral_to_string expr))
-            else if Boolean.is_bool expr then Bool (expr |> Expr.to_string |> bool_of_string)
+            if Arithmetic.is_int expr then Int(int_of_string (Integer.numeral_to_string expr))
+            else if Boolean.is_bool expr then Bool(expr |> Expr.to_string |> bool_of_string)
             else raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
         | Z3enums.VAR_AST ->
             let var_index = string_of_int (Quantifier.get_index expr) in
