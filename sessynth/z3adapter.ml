@@ -122,7 +122,7 @@ let goal_to_constraints goal p z3ctxt =
             let goal_app_eq_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
             let goal_app_constraint_expr = construct_app_constraint_expr tR z3ctxt goal_app goal_expr in
             let goal_app_constraint_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_constraint_expr None [] [] (Some goal_sym) None) in
-            referenced_vars_ints, x, [goal_app_eq_expr; goal_app_constraint_forall_expr]
+            referenced_vars_ints, x, [goal_app_eq_forall_expr; goal_app_constraint_forall_expr]
         | _ -> raise (Error "Z3adapter: invalid goal refinement predicate")
         end
     | _ -> raise (Error "Z3adapter: goal is not of type TRefinement")
@@ -143,20 +143,21 @@ let expr_to_expF expr referenced_vars_ints =
             | ">=", [a; b] -> GrE (expr_to_expF' a, expr_to_expF' b)
             | "<=", [a; b] -> LtE (expr_to_expF' a, expr_to_expF' b)
             | "+", [a; b] -> Sum (expr_to_expF' a, expr_to_expF' b)
+            | "+", [a; b; c] -> Sum (expr_to_expF' a, Sum (expr_to_expF' b, expr_to_expF' c))
             | "-", [a; b] -> Sub (expr_to_expF' a, expr_to_expF' b)
             | "*", [a; b] -> Mult (expr_to_expF' a, expr_to_expF' b)
             | "div", [a; b] -> Div (expr_to_expF' a, expr_to_expF' b)
-            | _ -> failwith ("Unsupported expr: " ^ Expr.to_string expr)
+            | _ -> raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
             end
         | Z3enums.NUMERAL_AST -> 
             if Arithmetic.is_int expr then Int (int_of_string (Integer.numeral_to_string expr))
             else if Boolean.is_bool expr then Bool (expr |> Expr.to_string |> bool_of_string)
-            else failwith ("Unsupported expr: " ^ Expr.to_string expr)
+            else raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
         | Z3enums.VAR_AST ->
             let var_index = string_of_int (Quantifier.get_index expr) in
             let var_id = fst (List.find (fun (_, v) -> v = var_index) referenced_vars_ints) in
             Var(var_id)
-        | _ -> failwith ("Unsupported expr: " ^ Expr.to_string expr)
+        | _ -> raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
     in expr_to_expF' expr
 
 let model_to_expF m goal_id referenced_vars_ints =
