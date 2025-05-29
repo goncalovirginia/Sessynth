@@ -17,10 +17,18 @@ let get_x_tyA p x =
     | TRefinement(_, tA, _) -> tA
     | _ -> raise (Error "Z3adapter only handles TAtomic and TRefinement")
 
-let x_tyA_to_expr z3ctxt x tA =
+let x_tyA_to_exp z3ctxt x tA =
     let sym = Symbol.mk_string z3ctxt x in
     match tA with
     | TInt -> Integer.mk_const z3ctxt sym
+    | TBool -> Boolean.mk_const z3ctxt sym
+
+let x_tyA_to_expr_with_coefficient z3ctxt x tA =
+    let sym = Symbol.mk_string z3ctxt x in
+    match tA with
+    | TInt -> 
+        let coefficient_sym = Symbol.mk_string z3ctxt ("_" ^ x) in 
+        mk_mul z3ctxt [Integer.mk_const z3ctxt coefficient_sym; Integer.mk_const z3ctxt sym]
     | TBool -> Boolean.mk_const z3ctxt sym
 
 let tyA_to_sort z3ctxt tA =
@@ -28,7 +36,7 @@ let tyA_to_sort z3ctxt tA =
     | TInt -> Integer.mk_sort z3ctxt
     | TBool -> Boolean.mk_sort z3ctxt
 
-let tyR_to_expr p z3ctxt tR =
+let tyR_to_expr p z3ctxt tR withCoefficients =
     let rec tyR_to_expr' z3ctxt t =
         match t with
         | RTAnd(t1, t2) -> mk_and z3ctxt [tyR_to_expr' z3ctxt t1; tyR_to_expr' z3ctxt t2]
@@ -44,7 +52,7 @@ let tyR_to_expr p z3ctxt tR =
         | RTDiv(t1, t2) -> mk_div z3ctxt (tyR_to_expr' z3ctxt t1) (tyR_to_expr' z3ctxt t2)
         | RTInt(v) -> mk_numeral_i z3ctxt v
         | RTBool(v) -> (if v then mk_true else mk_false) z3ctxt
-        | RTVar(x) -> x_tyA_to_expr z3ctxt x (get_x_tyA p x)
+        | RTVar(x) -> (if withCoefficients then x_tyA_to_expr_with_coefficient else x_tyA_to_exp) z3ctxt x (get_x_tyA p x)
     in tyR_to_expr' z3ctxt tR
 
 let psi_to_constraints p z3ctxt =
@@ -54,7 +62,7 @@ let psi_to_constraints p z3ctxt =
         | TRefinement(x, tA, tR) -> 
             begin match tR with
             | RTEq(RTVar(x), tR') | RTGr(RTVar(x), tR') | RTGrE(RTVar(x), tR') | RTLt(RTVar(x), tR') | RTLtE(RTVar(x), tR') ->
-                Some (tyR_to_expr p z3ctxt tR')
+                Some (tyR_to_expr p z3ctxt tR' false)
             | _ -> raise (Error "Invalid parameter refinement predicate")
             end
         | _ -> None
@@ -81,7 +89,7 @@ let get_vars_sorts xl p z3ctxt =
         tyA_to_sort z3ctxt tA
     ) xl
 
-let construct_app_eq_expr tR z3ctxt goal_app goal_expr =
+let construct_app_constraint_expr tR z3ctxt goal_app goal_expr =
     match tR with
     | RTEq _ -> mk_eq z3ctxt goal_app goal_expr
     | RTGr _ -> mk_gt z3ctxt goal_app goal_expr
@@ -90,7 +98,7 @@ let construct_app_eq_expr tR z3ctxt goal_app goal_expr =
     | RTLtE _ -> mk_le z3ctxt goal_app goal_expr
     | _ -> raise (Error "construct_tyR: invalid function application predicate")
 
-let goal_to_constraint goal p z3ctxt =
+let goal_to_constraints goal p z3ctxt =
     match goal with
     | TRefinement(x, tA, tR) -> 
         begin match tR with
@@ -104,10 +112,17 @@ let goal_to_constraint goal p z3ctxt =
             let goal_declr = FuncDecl.mk_func_decl z3ctxt goal_sym referenced_sorts goal_sort in
             let referenced_vars_expr = List.map(fun (x, s) -> Expr.mk_const z3ctxt (Symbol.mk_string z3ctxt x) s) referenced_vars_sorts in
             let goal_app = Expr.mk_app z3ctxt goal_declr referenced_vars_expr in
-            let goal_expr = tyR_to_expr p z3ctxt tR' in
-            let goal_app_eq_expr = construct_app_eq_expr tR z3ctxt goal_app goal_expr in
-            let goal_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
-            referenced_vars_ints, x, goal_forall_expr
+            let goal_expr = tyR_to_expr p z3ctxt tR' false in
+            let goal_expr_with_coefficients = tyR_to_expr p z3ctxt tR' true in
+            let goal_expr_with_coefficients = 
+                if Sort.get_sort_kind (Expr.get_sort goal_expr_with_coefficients) = Z3enums.INT_SORT 
+                then mk_add z3ctxt [goal_expr_with_coefficients; Integer.mk_const z3ctxt (Symbol.mk_string z3ctxt "_c")]
+                else goal_expr_with_coefficients in
+            let goal_app_eq_expr = construct_app_constraint_expr (RTEq(RTInt(-1), RTInt(-1))) z3ctxt goal_app goal_expr_with_coefficients in
+            let goal_app_eq_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
+            let goal_app_constraint_expr = construct_app_constraint_expr tR z3ctxt goal_app goal_expr in
+            let goal_app_constraint_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_constraint_expr None [] [] (Some goal_sym) None) in
+            referenced_vars_ints, x, [goal_app_eq_expr; goal_app_constraint_forall_expr]
         | _ -> raise (Error "Z3adapter: invalid goal refinement predicate")
         end
     | _ -> raise (Error "Z3adapter: goal is not of type TRefinement")
@@ -168,8 +183,8 @@ let model_to_expF m goal_id referenced_vars_ints =
 let solve p goal =
     let z3ctxt = mk_context [] in
     let psi_constraints = psi_to_constraints p z3ctxt in
-    let referenced_vars_ints, goal_id, goal_constraint = goal_to_constraint goal p z3ctxt in
-    let constraints = goal_constraint::psi_constraints in
+    let referenced_vars_ints, goal_id, goal_constraints = goal_to_constraints goal p z3ctxt in
+    let constraints = psi_constraints@goal_constraints in
     List.iter (fun e -> print_endline (Expr.to_string e)) constraints;
     let s = Solver.mk_simple_solver z3ctxt in
     match Solver.check s constraints with
