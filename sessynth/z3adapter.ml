@@ -51,7 +51,12 @@ let psi_to_constraints p z3ctxt =
     List.filter_map(fun (x, t) -> 
         match t with 
         | TRefinement(_, _, RTBool(_)) -> None
-        | TRefinement(x, tA, tR) -> Some (tyR_to_expr p z3ctxt tR)
+        | TRefinement(x, tA, tR) -> 
+            begin match tR with
+            | RTEq(RTVar(x), tR') | RTGr(RTVar(x), tR') | RTGrE(RTVar(x), tR') | RTLt(RTVar(x), tR') | RTLtE(RTVar(x), tR') ->
+                Some (tyR_to_expr p z3ctxt tR')
+            | _ -> raise (Error "Invalid parameter refinement predicate")
+            end
         | _ -> None
     ) p
 
