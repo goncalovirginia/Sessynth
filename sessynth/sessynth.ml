@@ -37,7 +37,7 @@ and tyR_to_string t =
     match t with
     | RTAnd(t1, t2) -> tyR_to_string t1 ^ " && " ^ tyR_to_string t2
     | RTOr(t1, t2) -> tyR_to_string t1 ^ " || " ^ tyR_to_string t2
-    | RTEq(t1, t2) -> tyR_to_string t1 ^ " == " ^ tyR_to_string t2
+    | RTEq(t1, t2) -> tyR_to_string t1 ^ " = " ^ tyR_to_string t2
     | RTGr(t1, t2) -> tyR_to_string t1 ^ " > " ^ tyR_to_string t2
     | RTLt(t1, t2) -> tyR_to_string t1 ^ " < " ^ tyR_to_string t2
     | RTGrE(t1, t2) -> tyR_to_string t1 ^ " >= " ^ tyR_to_string t2
@@ -99,7 +99,7 @@ let rec expF_to_string e =
     | Div(e1, e2) -> expF_to_string e1 ^ " / " ^ expF_to_string e2
     | Var x -> x
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
-    | Lam(x, t, e) -> x ^ ":" ^ tyF_to_string t ^ " -> " ^ expF_to_string e 
+    | Lam(x, t, e) -> x ^ " -> " ^ expF_to_string e 
     | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
     | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
     | LetRec(x, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
@@ -464,7 +464,6 @@ and focusRightF f ctxts c goal =
     | TAtomic(TBool) -> f, ctxts, Bool(true)
     | TRefinement(x, t1, t2) ->
         let solution = Z3adapter.solve ctxts.p.s goal in
-        print_endline (expF_to_string solution);
         f, ctxts, solution
     | _ -> invertRightF f ctxts c goal
 

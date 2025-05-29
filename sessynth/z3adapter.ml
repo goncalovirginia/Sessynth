@@ -5,6 +5,7 @@ open Z3.Boolean;;
 open Z3.Solver;;
 open Z3.Arithmetic;;
 open Z3.Arithmetic.Integer;;
+open Z3.Model;;
 
 exception Unsatisfiable of string
 exception Unknown of string
@@ -49,12 +50,13 @@ let tyR_to_expr p z3ctxt tR =
 let psi_to_constraints p z3ctxt =
     List.filter_map(fun (x, t) -> 
         match t with 
-        | TRefinement(_, _, RTVar(_)) -> None
+        | TRefinement(_, _, RTBool(_)) -> None
         | TRefinement(x, tA, tR) -> Some (tyR_to_expr p z3ctxt tR)
         | _ -> None
     ) p
 
 let get_tyR_referenced_vars tR =
+    let fresh_int_id = let unique = ref (-1) in fun () -> (incr unique; string_of_int !unique) in
     let hash_table = Hashtbl.create 10 in
     let rec traverse goal =
         match goal with
@@ -62,11 +64,11 @@ let get_tyR_referenced_vars tR =
             traverse t1;
             traverse t2
         | RTVar(x) -> 
-            Hashtbl.add hash_table x None
+            Hashtbl.add hash_table x (fresh_int_id())
         | _ -> ()
     in
     traverse tR;
-    List.of_seq (Hashtbl.to_seq_keys hash_table)
+    List.of_seq (Hashtbl.to_seq hash_table)
 
 let get_vars_sorts xl p z3ctxt =
     List.map (fun x -> 
@@ -77,72 +79,82 @@ let get_vars_sorts xl p z3ctxt =
 let goal_to_constraint goal p z3ctxt =
     match goal with
     | TRefinement(x, tA, tR) -> 
-        let referenced_vars = get_tyR_referenced_vars tR in
-        let referenced_sorts = get_vars_sorts referenced_vars p z3ctxt in
-        let referenced_vars_sorts = List.combine referenced_vars referenced_sorts in
-        let goal_sort = tyA_to_sort z3ctxt tA in
-        let goal_sym = Symbol.mk_string z3ctxt x in
-        let goal_declr = FuncDecl.mk_func_decl z3ctxt goal_sym referenced_sorts goal_sort in
-        let referenced_vars_expr = List.map(fun (x, s) -> Expr.mk_const z3ctxt (Symbol.mk_string z3ctxt x) s) referenced_vars_sorts in
-        let goal_app = Expr.mk_app z3ctxt goal_declr referenced_vars_expr in
-        let goal_expr = tyR_to_expr p z3ctxt tR in
-        let goal_app_eq_expr = Boolean.mk_eq z3ctxt goal_app goal_expr in
-        let goal_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
-        x, goal_forall_expr
-    | _ -> raise (Error "Z3adapter.solve: goal is not of type TRefinement")
-
-let rec expr_to_expF expr =
-    match AST.get_ast_kind (Expr.ast_of_expr expr) with
-    | Z3enums.APP_AST ->
-        let decl = Expr.get_func_decl expr in
-        let name = FuncDecl.get_name decl |> Symbol.to_string in
-        let args = Expr.get_args expr in
-        begin match name, args with
-        | "and", [a; b] -> And (expr_to_expF a, expr_to_expF b)
-        | "or", [a; b] -> Or (expr_to_expF a, expr_to_expF b)
-        | "=", [a; b] -> Eq (expr_to_expF a, expr_to_expF b)
-        | ">", [a; b] -> Gr (expr_to_expF a, expr_to_expF b)
-        | "<", [a; b] -> Lt (expr_to_expF a, expr_to_expF b)
-        | ">=", [a; b] -> GrE (expr_to_expF a, expr_to_expF b)
-        | "<=", [a; b] -> LtE (expr_to_expF a, expr_to_expF b)
-        | "+", [a; b] -> Sum (expr_to_expF a, expr_to_expF b)
-        | "-", [a; b] -> Sub (expr_to_expF a, expr_to_expF b)
-        | "*", [a; b] -> Mult (expr_to_expF a, expr_to_expF b)
-        | "div", [a; b] -> Div (expr_to_expF a, expr_to_expF b)
-        | _ ->
-            if Arithmetic.is_int expr then Int(int_of_string (Integer.numeral_to_string expr))
-            else if Boolean.is_bool expr then Bool(expr |> Expr.to_string |> bool_of_string)
-            else if Expr.is_const expr then Var(FuncDecl.get_name decl |> Symbol.to_string)
-            else failwith ("Unsupported expr: " ^ Expr.to_string expr)
+        begin match tR with
+        | RTEq(RTVar(x), tR') | RTGr(RTVar(x), tR') | RTGrE(RTVar(x), tR') | RTLt(RTVar(x), tR') | RTLtE(RTVar(x), tR') ->
+            let referenced_vars_ints = get_tyR_referenced_vars tR' in
+            let referenced_vars = List.map fst referenced_vars_ints in
+            let referenced_sorts = get_vars_sorts referenced_vars p z3ctxt in
+            let referenced_vars_sorts = List.combine referenced_vars referenced_sorts in
+            let goal_sort = tyA_to_sort z3ctxt tA in
+            let goal_sym = Symbol.mk_string z3ctxt x in
+            let goal_declr = FuncDecl.mk_func_decl z3ctxt goal_sym referenced_sorts goal_sort in
+            let referenced_vars_expr = List.map(fun (x, s) -> Expr.mk_const z3ctxt (Symbol.mk_string z3ctxt x) s) referenced_vars_sorts in
+            let goal_app = Expr.mk_app z3ctxt goal_declr referenced_vars_expr in
+            let goal_expr = tyR_to_expr p z3ctxt tR' in
+            let goal_app_eq_expr = Boolean.mk_eq z3ctxt goal_app goal_expr in
+            let goal_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
+            referenced_vars_ints, x, goal_forall_expr
+        | _ -> raise (Error "Z3adapter: invalid goal refinement predicate")
         end
-    | Z3enums.NUMERAL_AST -> 
-        if Arithmetic.is_int expr then Int (int_of_string (Integer.numeral_to_string expr))
-        else if Boolean.is_bool expr then Bool (expr |> Expr.to_string |> bool_of_string)
-        else failwith ("Unsupported expr: " ^ Expr.to_string expr)
-    | _ -> failwith ("Unsupported expr: " ^ Expr.to_string expr)
+    | _ -> raise (Error "Z3adapter: goal is not of type TRefinement")
 
-let model_to_expF m f =
+let expr_to_expF expr referenced_vars_ints =
+    let rec expr_to_expF' expr =
+        match AST.get_ast_kind (Expr.ast_of_expr expr) with
+        | Z3enums.APP_AST ->
+            let decl = Expr.get_func_decl expr in
+            let name = FuncDecl.get_name decl |> Symbol.to_string in
+            let args = Expr.get_args expr in
+            begin match name, args with
+            | "and", [a; b] -> And (expr_to_expF' a, expr_to_expF' b)
+            | "or", [a; b] -> Or (expr_to_expF' a, expr_to_expF' b)
+            | "=", [a; b] -> Eq (expr_to_expF' a, expr_to_expF' b)
+            | ">", [a; b] -> Gr (expr_to_expF' a, expr_to_expF' b)
+            | "<", [a; b] -> Lt (expr_to_expF' a, expr_to_expF' b)
+            | ">=", [a; b] -> GrE (expr_to_expF' a, expr_to_expF' b)
+            | "<=", [a; b] -> LtE (expr_to_expF' a, expr_to_expF' b)
+            | "+", [a; b] -> Sum (expr_to_expF' a, expr_to_expF' b)
+            | "-", [a; b] -> Sub (expr_to_expF' a, expr_to_expF' b)
+            | "*", [a; b] -> Mult (expr_to_expF' a, expr_to_expF' b)
+            | "div", [a; b] -> Div (expr_to_expF' a, expr_to_expF' b)
+            | _ -> failwith ("Unsupported expr: " ^ Expr.to_string expr)
+            end
+        | Z3enums.NUMERAL_AST -> 
+            if Arithmetic.is_int expr then Int (int_of_string (Integer.numeral_to_string expr))
+            else if Boolean.is_bool expr then Bool (expr |> Expr.to_string |> bool_of_string)
+            else failwith ("Unsupported expr: " ^ Expr.to_string expr)
+        | Z3enums.VAR_AST ->
+            let var_index = string_of_int (Quantifier.get_index expr) in
+            let var_id = fst (List.find (fun (_, v) -> v = var_index) referenced_vars_ints) in
+            Var(var_id)
+        | _ -> failwith ("Unsupported expr: " ^ Expr.to_string expr)
+    in expr_to_expF' expr
+
+let model_to_expF m goal_id referenced_vars_ints =
     let func_decls = Model.get_func_decls m in
     let rec find_f func_decls =
         begin match func_decls with
         | c::consts' ->
-            let x = Symbol.to_string (FuncDecl.get_name c) in
-            print_endline x;
-            if x = f then 
-                let v_option = Model.get_func_interp m c in
-                begin match v_option with
-                | Some v -> expr_to_expF v
-                | None -> raise (Error ("No function with provided name " ^ f ^ " was found in model"))
+            let func_declr_id = Symbol.to_string (FuncDecl.get_name c) in
+            if func_declr_id = goal_id then 
+                let func_interp_option = Model.get_func_interp m c in
+                begin match func_interp_option with
+                | Some func_interp -> 
+                    let expr = FuncInterp.get_else func_interp in
+                    print_endline (Expr.to_string expr);
+                    expr_to_expF expr referenced_vars_ints
+                | None -> 
+                    raise (Error ("No function with provided name " ^ goal_id ^ " was found in model"))
                 end
             else find_f consts'
-        | [] -> raise (Error ("No function with provided name " ^ f ^ " was found in model"))
+        | [] -> raise (Error ("No function with provided name " ^ goal_id ^ " was found in model"))
         end
      in find_f func_decls
 
 let solve p goal =
     let z3ctxt = mk_context [] in
     let psi_constraints = psi_to_constraints p z3ctxt in
-    let x, goal_constraint = goal_to_constraint goal p z3ctxt in
+    let referenced_vars_ints, goal_id, goal_constraint = goal_to_constraint goal p z3ctxt in
     let constraints = goal_constraint::psi_constraints in
     List.iter (fun e -> print_endline (Expr.to_string e)) constraints;
     let s = Solver.mk_simple_solver z3ctxt in
@@ -153,5 +165,5 @@ let solve p goal =
         match get_model s with
         | Some m -> 
             print_endline (Z3.Model.to_string m);
-            model_to_expF m x
+            model_to_expF m goal_id referenced_vars_ints
         | None -> raise (Error "Expression is satisfiable but no model was returned")
