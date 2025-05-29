@@ -37,8 +37,8 @@ let tyA_to_sort z3ctxt tA =
     | TBool -> Boolean.mk_sort z3ctxt
 
 let tyR_to_expr p z3ctxt tR withCoefficients =
-    let rec tyR_to_expr' z3ctxt t =
-        match t with
+    let rec tyR_to_expr' z3ctxt tR =
+        match tR with
         | RTAnd(t1, t2) -> mk_and z3ctxt [tyR_to_expr' z3ctxt t1; tyR_to_expr' z3ctxt t2]
         | RTOr(t1, t2) -> mk_or z3ctxt [tyR_to_expr' z3ctxt t1; tyR_to_expr' z3ctxt t2]
         | RTEq(t1, t2) -> mk_eq z3ctxt (tyR_to_expr' z3ctxt t1) (tyR_to_expr' z3ctxt t2)
@@ -61,8 +61,8 @@ let psi_to_constraints p z3ctxt =
         | TRefinement(_, _, RTBool(_)) -> None
         | TRefinement(x, tA, tR) -> 
             begin match tR with
-            | RTEq(RTVar(x), tR') | RTGr(RTVar(x), tR') | RTGrE(RTVar(x), tR') | RTLt(RTVar(x), tR') | RTLtE(RTVar(x), tR') ->
-                Some (tyR_to_expr p z3ctxt tR' false)
+            | RTEq _ | RTGr _ | RTGrE _ | RTLt _ | RTLtE _ ->
+                Some (tyR_to_expr p z3ctxt tR false)
             | _ -> raise (Error "Invalid parameter refinement predicate")
             end
         | _ -> None
