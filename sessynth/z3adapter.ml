@@ -98,7 +98,7 @@ let construct_app_constraint_expr tR z3ctxt goal_app goal_expr =
     | RTLtE _ -> mk_le z3ctxt goal_app goal_expr
     | _ -> raise (Z3Error "construct_tyR: invalid function application predicate")
 
-let goal_to_constraints goal p z3ctxt =
+let goal_to_constraint goal p z3ctxt =
     match goal with
     | TRefinement(x, tA, tR) -> 
         begin match tR with
@@ -122,7 +122,7 @@ let goal_to_constraints goal p z3ctxt =
             let goal_app_eq_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
             let goal_app_constraint_expr = construct_app_constraint_expr tR z3ctxt goal_app goal_expr in
             let goal_app_constraint_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_constraint_expr None [] [] (Some goal_sym) None) in
-            referenced_vars_ints, x, [goal_app_eq_forall_expr; goal_app_constraint_forall_expr]
+            referenced_vars_ints, x, mk_and z3ctxt [goal_app_eq_forall_expr; goal_app_constraint_forall_expr]
         | _ -> raise (Z3Error "Z3adapter: invalid goal refinement predicate")
         end
     | _ -> raise (Z3Error "Z3adapter: goal is not of type TRefinement")
@@ -191,8 +191,8 @@ let model_to_expF m goal_id referenced_vars_ints =
 let solve p goal =
     let z3ctxt = mk_context [] in
     let psi_constraints = psi_to_constraints p z3ctxt in
-    let referenced_vars_ints, goal_id, goal_constraints = goal_to_constraints goal p z3ctxt in
-    let constraints = psi_constraints@goal_constraints in
+    let referenced_vars_ints, goal_id, goal_constraint = goal_to_constraint goal p z3ctxt in
+    let constraints = goal_constraint::psi_constraints in
     List.iter (fun e -> print_endline (Expr.to_string e)) constraints;
     let s = Solver.mk_simple_solver z3ctxt in
     match Solver.check s constraints with
