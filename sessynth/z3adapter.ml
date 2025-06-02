@@ -7,15 +7,15 @@ open Z3.Arithmetic;;
 open Z3.Arithmetic.Integer;;
 open Z3.Model;;
 
-exception Unsatisfiable of string
-exception Unknown of string
-exception Error of string
+exception Z3Unsatisfiable of string
+exception Z3Unknown of string
+exception Z3Error of string
 
 let get_x_tyA p x =
     match List.assoc x p with
     | TAtomic(tA) -> tA
     | TRefinement(_, tA, _) -> tA
-    | _ -> raise (Error "Z3adapter only handles TAtomic and TRefinement")
+    | _ -> raise (Z3Error "Z3adapter only handles TAtomic and TRefinement")
 
 let x_tyA_to_exp z3ctxt x tA =
     let sym = Symbol.mk_string z3ctxt x in
@@ -63,7 +63,7 @@ let psi_to_constraints p z3ctxt =
             begin match tR with
             | RTEq _ | RTGr _ | RTGrE _ | RTLt _ | RTLtE _ ->
                 Some (tyR_to_expr p z3ctxt tR false)
-            | _ -> raise (Error "Invalid parameter refinement predicate")
+            | _ -> raise (Z3Error "Invalid parameter refinement predicate")
             end
         | _ -> None
     ) p
@@ -96,7 +96,7 @@ let construct_app_constraint_expr tR z3ctxt goal_app goal_expr =
     | RTLt _ -> mk_lt z3ctxt goal_app goal_expr
     | RTGrE _ -> mk_gt z3ctxt goal_app goal_expr
     | RTLtE _ -> mk_le z3ctxt goal_app goal_expr
-    | _ -> raise (Error "construct_tyR: invalid function application predicate")
+    | _ -> raise (Z3Error "construct_tyR: invalid function application predicate")
 
 let goal_to_constraints goal p z3ctxt =
     match goal with
@@ -123,9 +123,9 @@ let goal_to_constraints goal p z3ctxt =
             let goal_app_constraint_expr = construct_app_constraint_expr tR z3ctxt goal_app goal_expr in
             let goal_app_constraint_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_constraint_expr None [] [] (Some goal_sym) None) in
             referenced_vars_ints, x, [goal_app_eq_forall_expr; goal_app_constraint_forall_expr]
-        | _ -> raise (Error "Z3adapter: invalid goal refinement predicate")
+        | _ -> raise (Z3Error "Z3adapter: invalid goal refinement predicate")
         end
-    | _ -> raise (Error "Z3adapter: goal is not of type TRefinement")
+    | _ -> raise (Z3Error "Z3adapter: goal is not of type TRefinement")
 
 let expr_to_expF expr referenced_vars_ints =
     let rec expr_to_expF' expr =
@@ -153,18 +153,18 @@ let expr_to_expF expr referenced_vars_ints =
                 | "*", e::el -> Mult(expr_to_expF' e, expr_list_to_expF name el)
                 | "div", [e1; e2] -> Div(expr_to_expF' e1, expr_to_expF' e2)
                 | "div", e::el -> Div(expr_to_expF' e, expr_list_to_expF name el)
-                | _ -> raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
+                | _ -> raise (Z3Error ("Unsupported expr: " ^ Expr.to_string expr))
                 end
             in expr_list_to_expF name args
         | Z3enums.NUMERAL_AST -> 
             if Arithmetic.is_int expr then Int(int_of_string (Integer.numeral_to_string expr))
             else if Boolean.is_bool expr then Bool(expr |> Expr.to_string |> bool_of_string)
-            else raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
+            else raise (Z3Error ("Unsupported expr: " ^ Expr.to_string expr))
         | Z3enums.VAR_AST ->
             let var_index = string_of_int (Quantifier.get_index expr) in
             let var_id = fst (List.find (fun (_, v) -> v = var_index) referenced_vars_ints) in
             Var(var_id)
-        | _ -> raise (Error ("Unsupported expr: " ^ Expr.to_string expr))
+        | _ -> raise (Z3Error ("Unsupported expr: " ^ Expr.to_string expr))
     in expr_to_expF' expr
 
 let model_to_expF m goal_id referenced_vars_ints =
@@ -181,10 +181,10 @@ let model_to_expF m goal_id referenced_vars_ints =
                     print_endline (Expr.to_string expr);
                     expr_to_expF expr referenced_vars_ints
                 | None -> 
-                    raise (Error ("No function with provided name " ^ goal_id ^ " was found in model"))
+                    raise (Z3Error ("No function with provided name " ^ goal_id ^ " was found in model"))
                 end
             else find_f consts'
-        | [] -> raise (Error ("No function with provided name " ^ goal_id ^ " was found in model"))
+        | [] -> raise (Z3Error ("No function with provided name " ^ goal_id ^ " was found in model"))
         end
      in find_f func_decls
 
@@ -196,11 +196,11 @@ let solve p goal =
     List.iter (fun e -> print_endline (Expr.to_string e)) constraints;
     let s = Solver.mk_simple_solver z3ctxt in
     match Solver.check s constraints with
-    | UNSATISFIABLE -> raise (Unsatisfiable "Expression is unsatisfiable")
-    | UNKNOWN -> raise (Unknown (get_reason_unknown s))
+    | UNSATISFIABLE -> raise (Z3Unsatisfiable "Expression is unsatisfiable")
+    | UNKNOWN -> raise (Z3Unknown (get_reason_unknown s))
     | SATISFIABLE -> 
         match get_model s with
         | Some m -> 
             print_endline (Z3.Model.to_string m);
             model_to_expF m goal_id referenced_vars_ints
-        | None -> raise (Error "Expression is satisfiable but no model was returned")
+        | None -> raise (Z3Error "Expression is satisfiable but no model was returned")
