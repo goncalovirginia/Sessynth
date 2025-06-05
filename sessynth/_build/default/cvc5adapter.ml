@@ -138,7 +138,11 @@ let tyA_to_sygus = function
 let parse_tyF x t =
 	match t with
 	| TAtomic(tA) -> Some { x = x; tA = tyA_to_sygus tA; constr = ""}
-	| TRefinement(x, tA, tR) -> Some { x = x; tA = tyA_to_sygus tA; constr = tyR_to_sygus_constraint tR }
+	| TRefinement(x, tA, tR) -> 
+		begin match tR with 
+		| RTBool _ -> Some { x = x; tA = tyA_to_sygus tA; constr = ""}
+		| _ -> Some { x = x; tA = tyA_to_sygus tA; constr = tyR_to_sygus_constraint tR }
+		end
 	| _ -> None
 
 let build_sygus_input ps goal =
@@ -165,7 +169,7 @@ let build_sygus_input ps goal =
 	let rec append_constraints ps_sygus' =
 	match ps_sygus' with
 	| [] -> ""
-	| p::ps_sygus'' -> p.constr ^ "\n" ^ append_constraints ps_sygus'' in
+	| p::ps_sygus'' -> (if p.constr = "" then "" else p.constr ^ "\n") ^ append_constraints ps_sygus'' in
 	let sygus_input = sygus_input ^ append_constraints ps_sygus ^ goal_sygus.constr ^ sygus_code4 in
 	sygus_input
 
