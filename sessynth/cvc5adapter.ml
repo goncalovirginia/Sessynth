@@ -3,29 +3,28 @@ open Sexplib.Sexp;;
 open Language;;
 
 exception CVC5Error of string 
+exception CVC5Infeasible of string 
 exception CVC5ParseError of string
 let sygus_code1 = {|
 (set-logic NIA)
 (synth-fun |}
 
 let sygus_code2 = {|
-  ((Start Int) (StartBool Bool))
-  ((Start Int (0 1 |}
+  ((StartIte Int) (StartInt Int) (StartBool Bool))
+  ((StartIte Int (StartInt
+               (ite StartBool StartInt StartInt)))
+   (StartInt Int (0 1 |}
 
 let sygus_code3 = {|
-               (+ Start Start)
-               (- Start Start)
-               (* Start Start)
-               (div Start Start)
-               (ite StartBool Start Start)))
+               (+ StartInt StartInt)
+               (- StartInt StartInt)
+               (* StartInt StartInt)))
    (StartBool Bool ((and StartBool StartBool)
                     (or StartBool StartBool)
                     (not StartBool)
-                    (< Start Start)
-                    (<= Start Start)
-                    (= Start Start)
-                    (> Start Start)
-                    (>= Start Start)))))
+                    (< StartInt StartInt)
+                    (<= StartInt StartInt)
+                    (= StartInt StartInt)))))
 |}
 
 let sygus_code4 = {|
@@ -76,7 +75,12 @@ let rec parse_sexp sexp =
   	| List [Atom "define-fun"; Atom name; List params; Atom _rtype; body] -> parse_sexp body
   	| _ -> raise (CVC5ParseError ("Unsupported expression: " ^ Sexp.to_string_hum sexp))
 
+let contains_substring s sub =
+  try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
+  with Not_found -> false
+
 let parse_cvc5_output output =
+	if contains_substring output "infeasible" then raise (CVC5Infeasible "Goal function is infeasible") else
 	let sexps = Sexp.scan_sexps (Lexing.from_string output) in
   	match sexps with
   	| [List [define_fun]] -> [parse_sexp define_fun]
@@ -97,7 +101,9 @@ let tyR_to_sygus_constraint tR =
   		| RTSub(a, b) -> Printf.sprintf "(- %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
   		| RTMult(a, b) -> Printf.sprintf "(* %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
   		| RTDiv(a, b) -> Printf.sprintf "(div %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTInt(n) -> string_of_int n
+  		| RTInt(n) -> if n < 0 
+			then let ns = string_of_int (-n) in Printf.sprintf "(- %s)" ns 
+			else string_of_int n
   		| RTBool(true) -> "true"
   		| RTBool(false) -> "false"
   		| RTVar(x) -> x

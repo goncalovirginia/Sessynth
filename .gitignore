@@ -5,7 +5,7 @@
 .idea/Thesis.iml
 .idea/uiDesigner.xml
 .idea/vcs.xml
-sessynth/_build
+sessynth/_build/*
 sessynth/_build/.db
 sessynth/_build/.digest-db
 sessynth/_build/.filesystem-clock
@@ -58,4 +58,11 @@ sessynth/_build/default/.merlin-conf/exe-main
 sessynth/_build/default/cvc5adapter.ml
 sessynth/_build/default/.main.eobjs/byte/dune__exe__Cvc5adapter.cmo
 sessynth/_build/default/.main.eobjs/byte/dune__exe__Cvc5adapter.cmt
+sessynth/_build/default/.main.eobjs/native/dune__exe__Cvc5adapter.o
+sessynth/_build/default/cvc5adapter.ml
+sessynth/_build/default/.main.eobjs/dune__exe__Cvc5adapter.impl.d
+sessynth/_build/default/.main.eobjs/byte/dune__exe__Cvc5adapter.cmi
+sessynth/_build/default/.main.eobjs/byte/dune__exe__Cvc5adapter.cmo
+sessynth/_build/default/.main.eobjs/byte/dune__exe__Cvc5adapter.cmt
+sessynth/_build/default/.main.eobjs/native/dune__exe__Cvc5adapter.cmx
 sessynth/_build/default/.main.eobjs/native/dune__exe__Cvc5adapter.o

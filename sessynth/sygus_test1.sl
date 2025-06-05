@@ -1,11 +1,10 @@
 (set-logic NIA)
-(synth-fun z ((x Int) (y Int)) Int
+(synth-fun z ((y Int) (x Int)) Int
   ((Start Int) (StartBool Bool))
-  ((Start Int (0 1 x y
+  ((Start Int (0 1 y x 
                (+ Start Start)
                (- Start Start)
                (* Start Start)
-               (div Start Start)
                (ite StartBool Start Start)))
    (StartBool Bool ((and StartBool StartBool)
                     (or StartBool StartBool)
@@ -15,7 +14,7 @@
                     (= Start Start)
                     (> Start Start)
                     (>= Start Start)))))
-(declare-var x Int)
 (declare-var y Int)
-(constraint (> (z x y) (+ x y)))
+(declare-var x Int)
+(constraint (and (> (z y x) (* x y)) (> (z y x) 0)))
 (check-synth)

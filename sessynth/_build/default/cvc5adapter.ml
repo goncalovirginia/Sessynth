@@ -3,54 +3,28 @@ open Sexplib.Sexp;;
 open Language;;
 
 exception CVC5Error of string 
+exception CVC5Infeasible of string 
 exception CVC5ParseError of string
-
-let sygus_code = {|
-(set-logic NIA)
-(synth-fun z ((x Int) (y Int)) Int
-  ((Start Int) (StartBool Bool))
-  ((Start Int (0 1 x y
-               (+ Start Start)
-               (- Start Start)
-               (* Start Start)
-               (div Start Start)
-               (ite StartBool Start Start)))
-   (StartBool Bool ((and StartBool StartBool)
-                    (or StartBool StartBool)
-                    (not StartBool)
-                    (< Start Start)
-                    (<= Start Start)
-                    (= Start Start)
-                    (> Start Start)
-                    (>= Start Start)))))
-(declare-var x Int)
-(declare-var y Int)
-(constraint (> (z x y) (+ x y)))
-(check-synth)
-|}
-
 let sygus_code1 = {|
 (set-logic NIA)
 (synth-fun |}
 
 let sygus_code2 = {|
-  ((Start Int) (StartBool Bool))
-  ((Start Int (0 1 |}
+  ((StartIte Int) (StartInt Int) (StartBool Bool))
+  ((StartIte Int (StartInt
+               (ite StartBool StartInt StartInt)))
+   (StartInt Int (0 1 |}
 
 let sygus_code3 = {|
-               (+ Start Start)
-               (- Start Start)
-               (* Start Start)
-               (div Start Start)
-               (ite StartBool Start Start)))
+               (+ StartInt StartInt)
+               (- StartInt StartInt)
+               (* StartInt StartInt)))
    (StartBool Bool ((and StartBool StartBool)
                     (or StartBool StartBool)
                     (not StartBool)
-                    (< Start Start)
-                    (<= Start Start)
-                    (= Start Start)
-                    (> Start Start)
-                    (>= Start Start)))))
+                    (< StartInt StartInt)
+                    (<= StartInt StartInt)
+                    (= StartInt StartInt)))))
 |}
 
 let sygus_code4 = {|
@@ -101,7 +75,12 @@ let rec parse_sexp sexp =
   	| List [Atom "define-fun"; Atom name; List params; Atom _rtype; body] -> parse_sexp body
   	| _ -> raise (CVC5ParseError ("Unsupported expression: " ^ Sexp.to_string_hum sexp))
 
+let contains_substring s sub =
+  try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
+  with Not_found -> false
+
 let parse_cvc5_output output =
+	if contains_substring output "infeasible" then raise (CVC5Infeasible "Goal function is infeasible") else
 	let sexps = Sexp.scan_sexps (Lexing.from_string output) in
   	match sexps with
   	| [List [define_fun]] -> [parse_sexp define_fun]
@@ -122,7 +101,9 @@ let tyR_to_sygus_constraint tR =
   		| RTSub(a, b) -> Printf.sprintf "(- %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
   		| RTMult(a, b) -> Printf.sprintf "(* %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
   		| RTDiv(a, b) -> Printf.sprintf "(div %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTInt(n) -> string_of_int n
+  		| RTInt(n) -> if n < 0 
+			then let ns = string_of_int (-n) in Printf.sprintf "(- %s)" ns 
+			else string_of_int n
   		| RTBool(true) -> "true"
   		| RTBool(false) -> "false"
   		| RTVar(x) -> x
@@ -144,6 +125,18 @@ let parse_tyF x t =
 		| _ -> Some { x = x; tA = tyA_to_sygus tA; constr = tyR_to_sygus_constraint tR }
 		end
 	| _ -> None
+
+let format_function_to_sygus ps_sygus goal_sygus =
+	let rec append_args ps_sygus' =
+		match ps_sygus' with
+		| [] -> ")"
+		| p::ps_sygus'' -> " " ^ p.x ^ append_args ps_sygus'' in
+	let formatted = "(" ^ goal_sygus.x ^ append_args ps_sygus in
+	formatted
+
+let replace_occurences s target replacement =
+	let re = Str.regexp_string target in
+	Str.global_replace re replacement s
 
 let build_sygus_input ps goal =
 	let ps_sygus = List.filter_map ( fun (x, t) -> parse_tyF x t ) ps in
@@ -170,12 +163,15 @@ let build_sygus_input ps goal =
 	match ps_sygus' with
 	| [] -> ""
 	| p::ps_sygus'' -> (if p.constr = "" then "" else p.constr ^ "\n") ^ append_constraints ps_sygus'' in
-	let sygus_input = sygus_input ^ append_constraints ps_sygus ^ goal_sygus.constr ^ sygus_code4 in
+	let sygus_input = sygus_input ^ append_constraints ps_sygus in
+	let formatted_function = format_function_to_sygus ps_sygus goal_sygus in
+	let formatted_goal_sygus_constr = replace_occurences goal_sygus.constr goal_sygus.x formatted_function in
+	let sygus_input = sygus_input ^ formatted_goal_sygus_constr ^ sygus_code4 in
 	sygus_input
 
 let solve ps goal =
 	let sygus_input = build_sygus_input ps goal in
 	print_endline sygus_input;
-  	let sygus_output = call_cvc5 sygus_code in
+  	let sygus_output = call_cvc5 sygus_input in
   	print_endline sygus_output;
 	List.hd (parse_cvc5_output sygus_output)
