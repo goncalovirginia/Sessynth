@@ -86,6 +86,7 @@ let rec expF_to_string e =
     match e with 
     | Int(v) -> string_of_int v
     | Bool(v) -> string_of_bool v
+    | Not(e1) -> "!" ^ expF_to_string e1
     | And(e1, e2) -> expF_to_string e1 ^ " && " ^ expF_to_string e2
     | Or(e1, e2) -> expF_to_string e1 ^ " || " ^ expF_to_string e2
     | Eq(e1, e2) -> expF_to_string e1 ^ " == " ^ expF_to_string e2
@@ -101,6 +102,7 @@ let rec expF_to_string e =
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
     | Lam(x, t, e) -> x ^ " -> " ^ expF_to_string e 
     | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
+    | Ite(e1, e2, e3) -> "if " ^ expF_to_string e1 ^ " then " ^ expF_to_string e2 ^ " else " ^ expF_to_string e3
     | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
     | LetRec(x, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
 
@@ -463,7 +465,7 @@ and focusRightF f ctxts c goal =
     | TAtomic(TInt) -> f, ctxts, Int(1)
     | TAtomic(TBool) -> f, ctxts, Bool(true)
     | TRefinement(x, t1, t2) ->
-        let solution = Z3adapter.solve ctxts.p.s goal in
+        let solution = Cvc5adapter.solve ctxts.p.s goal in
         f, ctxts, solution
     | _ -> invertRightF f ctxts c goal
 

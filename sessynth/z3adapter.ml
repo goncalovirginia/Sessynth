@@ -128,16 +128,9 @@ let goal_to_constraint goal p z3ctxt =
                 let referenced_vars_expr = List.map(fun (x, s) -> Expr.mk_const z3ctxt (Symbol.mk_string z3ctxt x) s) referenced_vars_sorts in
                 let goal_app = Expr.mk_app z3ctxt goal_declr referenced_vars_expr in
                 let goal_expr = tyR_to_expr p z3ctxt tR' false in
-                let goal_expr_with_coefficients = tyR_to_expr p z3ctxt tR' true in
-                let goal_expr_with_coefficients = 
-                    if Sort.get_sort_kind (Expr.get_sort goal_expr_with_coefficients) = Z3enums.INT_SORT 
-                    then mk_add z3ctxt [goal_expr_with_coefficients; Integer.mk_const z3ctxt (Symbol.mk_string z3ctxt "_c")]
-                    else goal_expr_with_coefficients in
-                let goal_app_eq_expr = construct_app_constraint_expr (RTEq(RTInt(-1), RTInt(-1))) z3ctxt goal_app goal_expr_with_coefficients in
-                let goal_app_eq_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_eq_expr None [] [] (Some goal_sym) None) in
                 let goal_app_constraint_expr = construct_app_constraint_expr tR z3ctxt goal_app goal_expr in
                 let goal_app_constraint_forall_expr = Quantifier.expr_of_quantifier (Quantifier.mk_forall_const z3ctxt referenced_vars_expr goal_app_constraint_expr None [] [] (Some goal_sym) None) in
-                referenced_vars_ints, x, mk_and z3ctxt [goal_app_eq_forall_expr; goal_app_constraint_forall_expr]
+                referenced_vars_ints, x, goal_app_constraint_forall_expr
             | _ -> raise (Z3Error "Z3adapter: invalid goal refinement predicate")
             end
         in tyR_to_goal_expr tR
@@ -208,7 +201,7 @@ let solve p goal =
     let z3ctxt = mk_context [] in
     let psi_constraints = psi_to_constraints p z3ctxt in
     let referenced_vars_ints, goal_id, goal_constraint = goal_to_constraint goal p z3ctxt in
-    let constraints = [mk_and z3ctxt (goal_constraint::psi_constraints)] in
+    let constraints = goal_constraint::psi_constraints in
     List.iter (fun e -> print_endline (Expr.to_string e)) constraints;
     let s = Solver.mk_simple_solver z3ctxt in
     match Solver.check s constraints with

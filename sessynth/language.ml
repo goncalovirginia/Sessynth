@@ -43,6 +43,7 @@ and tyS = (* channel/session types (S) *)
 type expF = (* functional terms (M) *)
     | Int of int
     | Bool of bool
+    | Not of expF (* !M1 *)
     | And of expF * expF (* M1 && M2 *)
     | Or of expF * expF (* M1 || M2 *)
     | Eq of expF * expF (* M1 == M2 *)
@@ -57,7 +58,8 @@ type expF = (* functional terms (M) *)
     | Var of id (* x *)
     | Let of id * expF * expF (* let x = M1 in M2 *)
     | Lam of id * tyF * expF (* fun x:F -> M *)
-    | App of expF  * expF (* (M1) M2 *)
+    | App of expF * expF (* (M1) M2 *)
+    | Ite of expF * expF * expF (* if M1 then M2 else M3 *)
     | Process of id * expP * tyS * (id * tyS) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
     | LetRec of id * expF (* let rec x = M1 *)
     
