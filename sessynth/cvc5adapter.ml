@@ -4,31 +4,6 @@ open Language;;
 
 exception CVC5Error of string 
 exception CVC5ParseError of string
-
-let sygus_code = {|
-(set-logic NIA)
-(synth-fun z ((x Int) (y Int)) Int
-  ((Start Int) (StartBool Bool))
-  ((Start Int (0 1 x y
-               (+ Start Start)
-               (- Start Start)
-               (* Start Start)
-               (div Start Start)
-               (ite StartBool Start Start)))
-   (StartBool Bool ((and StartBool StartBool)
-                    (or StartBool StartBool)
-                    (not StartBool)
-                    (< Start Start)
-                    (<= Start Start)
-                    (= Start Start)
-                    (> Start Start)
-                    (>= Start Start)))))
-(declare-var x Int)
-(declare-var y Int)
-(constraint (> (z x y) (+ x y)))
-(check-synth)
-|}
-
 let sygus_code1 = {|
 (set-logic NIA)
 (synth-fun |}
@@ -145,6 +120,18 @@ let parse_tyF x t =
 		end
 	| _ -> None
 
+let format_function_to_sygus ps_sygus goal_sygus =
+	let rec append_args ps_sygus' =
+		match ps_sygus' with
+		| [] -> ")"
+		| p::ps_sygus'' -> " " ^ p.x ^ append_args ps_sygus'' in
+	let formatted = "(" ^ goal_sygus.x ^ append_args ps_sygus in
+	formatted
+
+let replace_occurences s target replacement =
+	let re = Str.regexp_string target in
+	Str.global_replace re replacement s
+
 let build_sygus_input ps goal =
 	let ps_sygus = List.filter_map ( fun (x, t) -> parse_tyF x t ) ps in
 	let goal_sygus = Option.get (parse_tyF "" goal) in
@@ -170,12 +157,15 @@ let build_sygus_input ps goal =
 	match ps_sygus' with
 	| [] -> ""
 	| p::ps_sygus'' -> (if p.constr = "" then "" else p.constr ^ "\n") ^ append_constraints ps_sygus'' in
-	let sygus_input = sygus_input ^ append_constraints ps_sygus ^ goal_sygus.constr ^ sygus_code4 in
+	let sygus_input = sygus_input ^ append_constraints ps_sygus in
+	let formatted_function = format_function_to_sygus ps_sygus goal_sygus in
+	let formatted_goal_sygus_constr = replace_occurences goal_sygus.constr goal_sygus.x formatted_function in
+	let sygus_input = sygus_input ^ formatted_goal_sygus_constr ^ sygus_code4 in
 	sygus_input
 
 let solve ps goal =
 	let sygus_input = build_sygus_input ps goal in
 	print_endline sygus_input;
-  	let sygus_output = call_cvc5 sygus_code in
+  	let sygus_output = call_cvc5 sygus_input in
   	print_endline sygus_output;
 	List.hd (parse_cvc5_output sygus_output)
