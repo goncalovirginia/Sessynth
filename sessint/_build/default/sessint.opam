@@ -11,7 +11,7 @@ doc: "https://url/to/documentation"
 bug-reports: "https://github.com/btoninho/reponame/issues"
 depends: [
   "ocaml"
-  "dune" {>= "3.17"}
+  "dune" {>= "3.5"}
   "menhir"
   "thread"
   "unix"

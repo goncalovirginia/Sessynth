@@ -1,4 +1,4 @@
-# dune build
+# dune exec ./bin/main.exe
 # OCAMLPARAM: unset
 # Shared cache: enabled-except-user-rules
 # Shared cache location: /home/goncalovirginia/.cache/dune/db
@@ -13,5 +13,4 @@
 #  ; build_dir = In_build_dir "default"
 #  ; instrument_with = []
 #  }
-$ /home/goncalovirginia/.opam/default/bin/ocamlc.opt -config > /tmp/dune_31784a_output
-$ (cd _build/default/test && ../bin/main.exe A.prog) > _build/default/test/executed.out
+$ /home/goncalovirginia/.opam/default/bin/ocamlc.opt -config > /tmp/dune_3a6624_output

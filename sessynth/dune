@@ -1,4 +1,14 @@
-(executables
-(names main)
-(flags (:standard -w -26 -w -27))
-(libraries z3 unix sexplib str))
+(library
+ (name sessynth)
+ (public_name sessynth)
+ (modules Sessynth Language Cvc5adapter)
+ (libraries z3 unix sexplib str))
+
+(env
+ (dev
+  (flags (:standard -w -26 -w -27))))
+
+(executable
+ (name main)
+ (modules Main)
+ (libraries sessynth))

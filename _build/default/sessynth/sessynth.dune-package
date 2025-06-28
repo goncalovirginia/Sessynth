@@ -1,0 +1,60 @@
+(lang dune 3.19)
+(name sessynth)
+(sections (lib .) (libexec .))
+(files
+ (lib
+  (META
+   cvc5adapter.ml
+   dune-package
+   language.ml
+   opam
+   sessynth.a
+   sessynth.cma
+   sessynth.cmi
+   sessynth.cmt
+   sessynth.cmx
+   sessynth.cmxa
+   sessynth.ml
+   sessynth__.cmi
+   sessynth__.cmt
+   sessynth__.cmx
+   sessynth__.ml
+   sessynth__Cvc5adapter.cmi
+   sessynth__Cvc5adapter.cmt
+   sessynth__Cvc5adapter.cmx
+   sessynth__Language.cmi
+   sessynth__Language.cmt
+   sessynth__Language.cmx))
+ (libexec (sessynth.cmxs)))
+(library
+ (name sessynth)
+ (kind normal)
+ (archives (byte sessynth.cma) (native sessynth.cmxa))
+ (plugins (byte sessynth.cma) (native sessynth.cmxs))
+ (native_archives sessynth.a)
+ (requires z3 unix sexplib str)
+ (main_module_name Sessynth)
+ (modes byte native)
+ (modules
+  (wrapped
+   (group
+    (alias
+     (obj_name sessynth__)
+     (visibility public)
+     (kind alias)
+     (source (path Sessynth__) (impl (path sessynth__.ml-gen))))
+    (name Sessynth)
+    (modules
+     (module
+      (obj_name sessynth__Cvc5adapter)
+      (visibility public)
+      (source (path Cvc5adapter) (impl (path cvc5adapter.ml))))
+     (module
+      (obj_name sessynth__Language)
+      (visibility public)
+      (source (path Language) (impl (path language.ml))))
+     (module
+      (obj_name sessynth)
+      (visibility public)
+      (source (path Sessynth) (impl (path sessynth.ml))))))
+   (wrapped true))))

@@ -2,7 +2,6 @@
 (* The type of tokens. *)
 
 type token = 
-  | WHERE
   | WAIT
   | VAR of (string)
   | UNIT_VAL
@@ -33,7 +32,6 @@ type token =
   | OF
   | NOT
   | MULT
-  | MODULE
   | MINUS
   | L_PAR
   | L_BRACE
@@ -43,13 +41,11 @@ type token =
   | LEFT_ARROW
   | INT of (int)
   | IN
-  | IMPORT
   | IF
   | GREATER
   | FWD
   | FUN
   | EQUALS
-  | EOF
   | END_STYPE
   | ENDIF
   | END
@@ -71,4 +67,4 @@ exception Error
 
 (* The monolithic API. *)
 
-val main: (Lexing.lexbuf -> token) -> Lexing.lexbuf -> (InputSyntax.modl)
+val main: (Lexing.lexbuf -> token) -> Lexing.lexbuf -> (InputSyntax.prog)

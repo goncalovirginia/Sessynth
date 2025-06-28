@@ -1,0 +1,16 @@
+opam-version: "2.0"
+name: "sessynth"
+maintainer: "goncalovirginia"
+authors: "goncalovirginia"
+license: "MIT"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
+depends: [
+  "dune" {>= "3.5"}
+  "ocaml"
+  "z3"
+  "unix"
+  "sexplib"
+  "str"
+]

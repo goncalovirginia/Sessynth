@@ -1,1 +1,1 @@
-lib/printer.ml: List Syntax
+lib/printer.ml: Syntax

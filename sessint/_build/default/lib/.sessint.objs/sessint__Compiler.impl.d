@@ -1,1 +1,1 @@
-lib/compiler.ml: Hashtbl Interpreter List Map Printer Printexc Printf String Syntax Typechecker Unix
+lib/compiler.ml: Buffer Hashtbl Interpreter List Logs Map Printer Printf String Syntax Typechecker

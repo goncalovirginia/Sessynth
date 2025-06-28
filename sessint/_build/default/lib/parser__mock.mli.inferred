@@ -1,6 +1,5 @@
 type token =
-    WHERE
-  | WAIT
+    WAIT
   | VAR of string
   | UNIT_VAL
   | T_VAR of string
@@ -30,7 +29,6 @@ type token =
   | OF
   | NOT
   | MULT
-  | MODULE
   | MINUS
   | L_PAR
   | L_BRACE
@@ -40,13 +38,11 @@ type token =
   | LEFT_ARROW
   | INT of int
   | IN
-  | IMPORT
   | IF
   | GREATER
   | FWD
   | FUN
   | EQUALS
-  | EOF
   | END_STYPE
   | ENDIF
   | END
@@ -67,18 +63,15 @@ val xv_ty : InputSyntax.ty
 val xv_stype : InputSyntax.stype
 val xv_simple_ty : InputSyntax.ty
 val xv_simple_exp : InputSyntax.exp
-val xv_prog : InputSyntax.prog
 val xv_proc_exp : InputSyntax.exp
 val xv_proc : InputSyntax.proc
 val xv_nonempty_list_simple_exp_ : InputSyntax.exp list
 val xv_nonempty_list_fun_binder_ : (string list * InputSyntax.ty option) list
 val xv_nonempty_list_VAR_ : string list
-val xv_main : InputSyntax.modl
-val xv_list_imprt_ : InputSyntax.imprt list
+val xv_main : InputSyntax.prog
 val xv_list_declaration_ : InputSyntax.decl list
 val xv_list_VAR_ : string list
 val xv_lin_ctxt : (string * InputSyntax.stype) list
-val xv_imprt : InputSyntax.imprt
 val xv_fun_ty_list : InputSyntax.ty list
 val xv_fun_binder : string list * InputSyntax.ty option
 val xv_expression : InputSyntax.exp

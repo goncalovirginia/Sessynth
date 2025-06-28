@@ -1,10 +1,5 @@
-;; The link_deps field requires running the completeness check (see below).
-
 (executable
  (public_name sessint)
  (name main)
- (modules main)
- (libraries sessint)
- (flags -w A-4-70)
- (link_deps ../lib/errorMessages.check)
-)
+ (libraries logs logs.fmt sessint core_bench core core_unix.command_unix)
+ (modes byte exe))
