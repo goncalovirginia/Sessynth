@@ -44,6 +44,7 @@ type exp =
   | Cond of exp * exp * exp
   | ProcExp of var * proc
   | ExecExp of exp
+  | Synth of stype
 
 and proc =
   | Send of var * exp * proc

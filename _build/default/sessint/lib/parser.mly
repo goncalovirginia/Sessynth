@@ -38,7 +38,6 @@ declaration:
   | STYPE v = S_VAR st = stype SEMI_COLON             { Decl (v, Annot (Var v, TProc(st, []))) }
   | TYPE v = T_VAR t = ty SEMI_COLON                  { Decl (v, Annot (Var v, t))}
   | var = VAR COLON t = ty e = expression SEMI_COLON  { Decl (var, Annot (e, t)) } // Expression type declaration
-  | SYNTH st = stype SYNTH                            { Sessynth.synth [] st }
 
 expression:
   | simple_exp                                                        { $1 }
@@ -50,6 +49,10 @@ expression:
   | annot_exp                                                         { $1 }
   | cond_exp                                                          { $1 }
   | proc_exp                                                          { $1 }
+  | synth_exp                                                         { $1 }
+
+synth_exp:
+  | SYNTH st = stype SYNTH  { Synth (st) }
 
 exec_exp:
   | e = proc_exp   { ExecExp e }

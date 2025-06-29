@@ -180,6 +180,7 @@ and synth lin_ctxt env e used_vars =
       match ty with TProc _ -> (ExecExp e', ty, vars) | _ -> error (NotProcessType ty))
   | RecFunDef (_, _, _, _) ->
       assert false (* RecFunDef does not happen in  the typechecker fase*)
+  | Synth _ -> assert false
 
 (** This is the process synthesizing function.
    We don't have an explicit check_proc function, such tests are done by means of subtyping. 
@@ -669,6 +670,7 @@ and expand_custom_exp exp env =
   | ExecExp exp -> ExecExp (expand_custom_exp exp env)
   | RecFunDef (_, _, _, _) ->
       assert false (* RecFunDef does not happen in  the typechecker fase*)
+  | Synth _ -> assert false
 
 and expand_custom_proc proc env =
   match proc with

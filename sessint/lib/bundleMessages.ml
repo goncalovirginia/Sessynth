@@ -116,7 +116,7 @@ and get_type_exp exp =
   | Bool _ -> Some TBool
   | BOp (_, _, _) -> Some TNum
   | UOp (_, _) -> Some TBool
-  | Let (_, _, _) | FunApp (_, _) | Annot (_, _) | Cond (_, _, _) | ExecExp _ -> None
+  | Let (_, _, _) | FunApp (_, _) | Annot (_, _) | Cond (_, _, _) | ExecExp _ | Synth _ -> None
 
 (** Changes the type of an expression to replace chains of STSends and STRecv by STMultiSend and STMultiReceive
       @param decl_name name of the declaration where the expression is
@@ -164,6 +164,7 @@ let rec change_types_exp decl_name exp used_opt types_map ch_map =
           Some new_type,
           list_st )
   | ExecExp e -> ExecExp (change_types_exp decl_name e used_opt types_map ch_map)
+  | Synth _ -> assert false
 
 and change_type_proc or_ch decl_name proc used_opt types_map ch_map =
   match proc with
@@ -524,6 +525,7 @@ and bundle_send_exp exp decl_name ctxt_channels rec_fun =
   | ExecExp e ->
       let detected, new_e = bundle_send_exp e decl_name ctxt_channels rec_fun in
       (detected, ExecExp new_e)
+  | Synth _ -> assert false
 
 (*************************** Bundle Receive messages optimization***************************)
 
@@ -579,6 +581,7 @@ let rec rename_variables_exp vars exp =
   | Cond (_, _, _)
   | ProcExp (_, _, _, _)
   | ExecExp _ -> exp
+  | Synth _ -> assert false
 
 (** Changes the name of variables associates that originate in a Multireceive, to use the same name in all the branches
   @param list_variables list of variables to change, that are associated with a multireceive (and the corresponding index)
@@ -787,6 +790,7 @@ let rec bundle_receive_exp exp send_map ctxt_channels decl_name =
   | ExecExp e ->
       let was_opt, new_e = bundle_receive_exp e send_map ctxt_channels decl_name in
       (was_opt, ExecExp new_e)
+  | Synth _ -> assert false
 
 (** Iterates the processes tree to replace chains of Receives constructor with Multireceive's, if it matches a Multisend
   @param proc process to process

@@ -339,6 +339,7 @@ let rec make_state_trees_from_exp map e =
           make_state_trees_from_proc fst_map p
       | None -> assert false)
   | ExecExp exp -> make_state_trees_from_exp map exp
+  | Synth _ -> assert false
 
 and make_state_trees_from_multi map exps =
   match exps with
@@ -862,6 +863,7 @@ let rec compile_exp type_map exp env is_rec =
       | FunApp (_, _) ->
           compile_exp type_map (ExecExp (Interpreter.eval env exp)) env is_rec
       | _ -> error (NonExecutableExpression exp))
+  | Synth _ -> assert false
 
 (** This function is meant to be used in declaration compilation, which need a return before the expression value, since a declaration is a function
 This can be refactored by calling the compile_exp function; instead of just being a copy of it 
@@ -928,6 +930,7 @@ and compile_return_exp type_map exp env =
   | ExecExp _ -> assert false
 (*This case is never reached because this function is always called for the expressions of
   declarations, which are never ExecExps*)
+  | Synth _ -> assert false
 
 (** Compiles a process
     @param type_map the type-state mapping

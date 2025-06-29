@@ -1,1 +1,1 @@
-sessint/lib/parser__mock.ml.mock: InputSyntax Lexing Sessynth
+sessint/lib/parser__mock.ml.mock: InputSyntax Lexing

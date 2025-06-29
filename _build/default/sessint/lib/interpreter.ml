@@ -41,6 +41,7 @@ let rec subst x e1 e2 =
   | Cond (cond, e1', e2') -> Cond (subst x e1 cond, subst x e1 e1', subst x e1 e2')
   | ProcExp (c, proc, opt, ctxt) -> ProcExp (c, subst_proc x e1 proc, opt, ctxt)
   | ExecExp exp -> subst x e1 exp
+  | Synth _ -> assert false
 
 and subst_proc x e p =
   match p with
@@ -90,6 +91,7 @@ let rec eval env e =
           e
       | _ -> assert false (* should never happen if well typed *))
   | RecFunDef (_, _, _, _) -> e
+  | Synth _ -> assert false
 
 and exec lin_ctxt env rec_env proc cname channel =
   match proc with

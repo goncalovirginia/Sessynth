@@ -61,6 +61,7 @@ type exp =
   | Cond of exp * exp * exp
   | ProcExp of var * proc * stype option * (var * stype) list
   | ExecExp of exp
+  | Synth of stype
 
 (** A process in out language Note that several {!proc} syntactical constructions (like {!send}) and {!recv}) can be typed in one of both ways*)
 and proc =
@@ -188,6 +189,7 @@ let rec desugar_exp se =
       Cond (desugar_exp cond, desugar_exp e1, desugar_exp e2)
   | InputSyntax.ProcExp (c, proc) -> ProcExp (c, desugar_proc proc, None, [])
   | InputSyntax.ExecExp e -> ExecExp (desugar_exp e)
+  | InputSyntax.Synth st -> Synth (desugar_stype st)
 
 and desugar_fun_params l =
   match l with
