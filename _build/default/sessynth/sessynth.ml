@@ -18,13 +18,16 @@ type contexts = { g : gamma; p : psi; d : delta }
 
 (* Auxiliary functions *)
 
-let initialize_flags_and_ctxts maxDepth =
+let initialize_flags maxDepth =
     let f : flags = { isUnfolded = false ; xRecLam = ""; currDepth = 0; maxDepth = maxDepth } in
+    f
+
+let initialize_ctxts =
     let g : gamma = { a = []; s = [] } in
     let p : psi = { a = []; s = [] } in
     let d : delta = { a = []; s = [] } in
     let ctxts : contexts = { g = g; p = p; d = d } in
-    f, ctxts
+    ctxts
 
 let fresh_id = 
     let unique = ref (-1) in
@@ -524,13 +527,15 @@ and focusLeftF f ctxts xFocus tFocus c goal =
         else raise (Fail "tFocus != goal")
 
 let synth goal = 
-    let f, ctxts = initialize_flags_and_ctxts 100 in
+    let f, ctxts = initialize_flags 100, initialize_ctxts in
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
     if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
     else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
 
 let synth_ctxt p d goal = 
-    let f, ctxts = initialize_flags_and_ctxts 100 in
+    let f, ctxts = initialize_flags 100, initialize_ctxts in
+    let ctxts = append_bindings_psi ctxts p in
+    let ctxts = append_bindings_delta ctxts d in
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
     if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
     else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
