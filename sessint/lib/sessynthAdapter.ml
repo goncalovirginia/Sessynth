@@ -86,7 +86,9 @@ and expP_to_proc expP =
     | Language.ChoiceSelect (c, l, eP) -> Label(c, l, expP_to_proc eP, None)
     | Language.Spawn (c, eF, cl, eP) -> Spawn(c, expF_to_exp eF, None, expP_to_proc eP, cl)
 
-let synth ctxt ty =
-    let sessynth_ctxt = List.map(fun (x, t) -> (x, ty_to_tyF t)) ctxt in
-    let sessynth_tyF = ty_to_tyF ty in
-    Sessynth.synth_ctxt sessynth_ctxt sessynth_tyF
+let synth p d ty =
+    let p_converted = List.map(fun (x, t) -> (x, ty_to_tyF t)) p in
+    let d_converted = List.map(fun (x, st) -> (x, stype_to_tyS st)) d in
+    let goal = ty_to_tyF ty in
+    let synthed_expF = Sessynth.synth_ctxt p_converted d_converted goal in
+    expF_to_exp synthed_expF

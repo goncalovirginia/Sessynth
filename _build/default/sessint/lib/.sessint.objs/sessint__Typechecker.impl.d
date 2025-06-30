@@ -1,1 +1,1 @@
-sessint/lib/typechecker.ml: List Printer Syntax
+sessint/lib/typechecker.ml: List Printer SessynthAdapter Syntax
