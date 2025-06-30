@@ -515,12 +515,22 @@ and focusLeftF f ctxts xFocus tFocus c goal =
         if tFocus = goal then f, ctxts, Var(xFocus)
         else raise (Fail "tFocus != goal")
 
-let synth ps goal = 
-    let f : flags = { isUnfolded = false ; xRecLam = ""; currDepth = 0; maxDepth = 100 } in
+let initializeFlagsAndCtxts maxDepth =
+    let f : flags = { isUnfolded = false ; xRecLam = ""; currDepth = 0; maxDepth = maxDepth } in
     let g : gamma = { a = []; s = [] } in
-    let p : psi = { a = []; s = ps } in
+    let p : psi = { a = []; s = [] } in
     let d : delta = { a = []; s = [] } in
     let ctxts : contexts = { g = g; p = p; d = d } in
+    f, ctxts
+
+let synth goal = 
+    let f, ctxts = initializeFlagsAndCtxts 100 in
+    let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
+    if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
+    else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
+
+let synth_ctxt ctxt goal = 
+    let f, ctxts = initializeFlagsAndCtxts 100 in
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
     if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
     else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))

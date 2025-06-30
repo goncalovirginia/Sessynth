@@ -12,6 +12,6 @@ let synthType =
     (*TArrow(TRefinement("x", TInt, RTGr(RTVar("x"), RTInt(0))), TRefinement("z", TInt, RTOr(RTGr(RTVar("z"), RTVar("x")), RTGr(RTVar("z"), RTInt(0)))))*)
     TArrow(TRefinement("x", TInt, RTBool(true)), TArrow(TRefinement("y", TInt, RTBool(true)), TRefinement("z", TInt, RTAnd(RTGrE(RTVar("z"), RTMult(RTVar("x"), RTVar("y"))), RTGrE(RTVar("z"), RTInt(0))))))
 in
-let synthExp = Sessynth.synth [] synthType in
+let synthExp = Sessynth.synth synthType in
 print_endline "\nSynthesized expression:\n" ; print_endline (Sessynth.expF_to_string synthExp);
 

@@ -52,7 +52,7 @@ expression:
   | synth_exp                                                         { $1 }
 
 synth_exp:
-  | SYNTH st = stype SYNTH  { Synth (st) }
+  | SYNTH t = ty SYNTH  { Synth (t) }
 
 exec_exp:
   | e = proc_exp   { ExecExp e }

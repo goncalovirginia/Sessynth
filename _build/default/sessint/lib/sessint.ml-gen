@@ -24,6 +24,9 @@ module Preprocessor = Sessint__Preprocessor
 (** @canonical Sessint.Printer *)
 module Printer = Sessint__Printer
 
+(** @canonical Sessint.SessynthAdapter *)
+module SessynthAdapter = Sessint__SessynthAdapter
+
 (** @canonical Sessint.Syntax *)
 module Syntax = Sessint__Syntax
 
