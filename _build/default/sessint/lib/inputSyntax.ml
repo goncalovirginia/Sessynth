@@ -17,6 +17,7 @@ type ty =
   | TFun of ty list * ty
   | TProc of stype * (var * stype) list
   | TVar of var
+  | TRefinement of Sessynth.Language.id * Sessynth.Language.tyA * Sessynth.Language.tyR
 
 and stype =
   | STSend of ty * stype
@@ -44,7 +45,7 @@ type exp =
   | Cond of exp * exp * exp
   | ProcExp of var * proc
   | ExecExp of exp
-  | Synth of ty
+  | Synth of Sessynth.Language.tyF
 
 and proc =
   | Send of var * exp * proc

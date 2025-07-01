@@ -1,1 +1,1 @@
-sessint/lib/printer.ml: Syntax
+sessint/lib/printer.ml: Sessynth SessynthAdapter Syntax

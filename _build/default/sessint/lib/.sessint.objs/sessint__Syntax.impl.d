@@ -1,1 +1,1 @@
-sessint/lib/syntax.ml: InputSyntax List
+sessint/lib/syntax.ml: InputSyntax List Sessynth

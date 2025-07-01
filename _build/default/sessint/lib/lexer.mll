@@ -65,7 +65,9 @@ rule token = parse
 	| "<-"					 				{ LEFT_ARROW }
 	| "=" 					 				{ EQUALS } 
 	| '<'					 				{ LESSER }
+	| "<="									{ LESSER_EQ }
 	| '>'					 				{ GREATER }
+	| ">="									{ GREATER_EQ }
 	| ':'					 				{ COLON }
 	| ';'					 				{ SEMI_COLON }
 	| ','									{ COMMA }
@@ -75,10 +77,10 @@ rule token = parse
 	| ')'					 				{ R_PAR }
 	| '{'					 				{ L_BRACE }
 	| '}'					 				{ R_BRACE }
+	| '|'									{ V_BAR }
 	| ("int" | "num" | "nat") 				{ TNUM }
 	| "bool" 			 	 				{ TBOOL }
 	| "unit"								{ TUNIT }
-	| '?'									{ SYNTH }
 	| bool as bool_str   	 				{ BOOL (bool_of_string bool_str) } 
 	| digit+ as num          				{ INT (int_of_string num) }
 	| l_char (char|digit|'_')* as wd		{ VAR wd }
