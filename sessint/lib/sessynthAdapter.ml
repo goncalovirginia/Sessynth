@@ -1,6 +1,8 @@
 open Syntax
 open Sessynth
 
+(* sessint to sessynth type AST conversion *)
+
 let rec ty_to_tyF ty =
     match ty with
     | TUnit -> assert false
@@ -9,6 +11,7 @@ let rec ty_to_tyF ty =
     | TProc(st, l) -> Language.TProcess(List.map(fun (_, s) -> stype_to_tyS s) l, stype_to_tyS st)
     | TFun(t1, t2) -> Language.TArrow(ty_to_tyF t1, ty_to_tyF t2)
     | TVar _ -> assert false
+    | TRefinement(v, tA, tR) -> Language.TRefinement(v, tA, tR)
 
 and stype_to_tyS sty =
   match sty with
@@ -23,6 +26,8 @@ and stype_to_tyS sty =
   | STRec(v, st) -> Language.STRec(v, stype_to_tyS st)
   | STUVar v -> Language.STRecVar(v)
   | STMultiSend _ | STMultiRecv _ -> assert false 
+
+(* sessynth to sessint AST conversion *)
 
 let tyA_to_ty tyA =
     match tyA with
@@ -86,9 +91,10 @@ and expP_to_proc expP =
     | Language.ChoiceSelect (c, l, eP) -> Label(c, l, expP_to_proc eP, None)
     | Language.Spawn (c, eF, cl, eP) -> Spawn(c, expF_to_exp eF, None, expP_to_proc eP, cl)
 
-let synth p d ty =
-    let p_converted = List.map(fun (x, t) -> (x, ty_to_tyF t)) p in
-    let d_converted = List.map(fun (x, st) -> (x, stype_to_tyS st)) d in
-    let goal = ty_to_tyF ty in
-    let synthed_expF = Sessynth.synth_ctxt p_converted d_converted goal in
+(* adapter synth function *)
+
+let synth p d goal =
+    let p_sessynth = List.map(fun (x, t) -> (x, ty_to_tyF t)) p in
+    let d_sessynth = List.map(fun (x, st) -> (x, stype_to_tyS st)) d in
+    let synthed_expF = Sessynth.synth_ctxt p_sessynth d_sessynth goal in
     expF_to_exp synthed_expF

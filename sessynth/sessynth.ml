@@ -66,6 +66,7 @@ and tyR_to_string t =
 and tyF_to_string t =
     match t with 
     | TAtomic(t) -> tyA_to_string t
+    | TRefinement(x, t1, RTBool(true)) -> x ^ ":" ^ tyA_to_string t1
     | TRefinement(x, t1, t2) -> "{" ^ x ^ ":" ^ tyA_to_string t1 ^ " | " ^ tyR_to_string t2 ^ "}"
     | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
     | TProcess(tl, t) -> "{" ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ "}"

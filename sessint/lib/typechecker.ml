@@ -180,7 +180,7 @@ and synth lin_ctxt env e used_vars =
       match ty with TProc _ -> (ExecExp e', ty, vars) | _ -> error (NotProcessType ty))
   | RecFunDef (_, _, _, _) ->
       assert false (* RecFunDef does not happen in  the typechecker fase*)
-  | Synth t -> (SessynthAdapter.synth env lin_ctxt t, t, used_vars)
+  | Synth t -> (SessynthAdapter.synth env lin_ctxt t, SessynthAdapter.tyF_to_ty t, used_vars)
 
 (** This is the process synthesizing function.
    We don't have an explicit check_proc function, such tests are done by means of subtyping. 
@@ -620,6 +620,7 @@ let rec expand_custom_type ty env =
       match List.assoc_opt v env with
       | Some t' -> expand_custom_type t' env
       | None -> error (NoSuchArg v))
+  | TRefinement(_, tA, _) -> SessynthAdapter.tyA_to_ty tA
 
 and expand_custom_stype sty env =
   match sty with

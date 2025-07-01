@@ -55,6 +55,7 @@ let rec string_from_type ty =
   | Syntax.TProc (st, ctxt) ->
       "{ " ^ string_from_stype st ^ " <- " ^ string_from_lin_ctxt ctxt ^ " }"
   | Syntax.TVar v -> v
+  | Syntax.TRefinement(v, tA, tR) -> Sessynth.tyF_to_string (Sessynth.Language.TRefinement(v, tA, tR))
 
 and string_from_lin_ctxt ctxt =
   match ctxt with
@@ -145,7 +146,7 @@ let rec string_from_exp e =
       c ^ " : { " ^ string_from_proc p ^ " }" ^ string_from_stype_option o ^ " <- "
       ^ string_from_lin_ctxt ctxt
   | Syntax.ExecExp exp -> "exec ( " ^ string_from_exp exp ^ " )"
-  | Syntax.Synth t -> string_from_type t
+  | Syntax.Synth t -> string_from_type (SessynthAdapter.tyF_to_ty t)
 
 and string_from_proc p =
   match p with

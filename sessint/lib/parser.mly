@@ -10,7 +10,7 @@
 %token LET IN END
 %token RETURN
 %token AND OR EQUALS NOT 
-%token PLUS MULT DIV MINUS LESSER GREATER
+%token PLUS MULT DIV MINUS LESSER GREATER LESSER_EQ GREATER_EQ
 %token FUN RIGHT_ARROW L_PAR R_PAR UNIT_VAL
 %token TNUM TBOOL COLON TUNIT
 %token IF THEN ELSE ENDIF QUESTION
@@ -19,7 +19,7 @@
 %token CASE OF DOT
 %token END_STYPE RIGHT_ARROW_BOLD CIRCUMFLEX AMPERSAND LOLLIPOP
 %token REC TYPE STYPE
-%token SYNTH
+%token V_BAR
 
 %left EQUALS
 %left PLUS MINUS
@@ -51,8 +51,58 @@ expression:
   | proc_exp                                                          { $1 }
   | synth_exp                                                         { $1 }
 
+(* sessynth parsing *)
+
 synth_exp:
-  | SYNTH t = ty SYNTH  { Synth (t) }
+  | QUESTION t = sessynth_tyF QUESTION    { Synth (t) }
+
+sessynth_tyF:
+  | t = sessynth_tyA                                                              { Sessynth.Language.TAtomic(t) }
+  | L_BRACE var = VAR COLON tA = sessynth_tyA V_BAR tR = sessynth_tyR R_BRACE     { Sessynth.Language.TRefinement(var, tA, tR) }
+  | var = VAR COLON tA = sessynth_tyA                                             { Sessynth.Language.TRefinement(var, tA, Sessynth.Language.RTBool(true)) }
+  | t1 = sessynth_tyF RIGHT_ARROW t2 = sessynth_tyF                               { Sessynth.Language.TArrow(t1, t2) }
+  | L_BRACE tSl = sessynth_tyS_list V_BAR MINUS tS = sessynth_tyS R_BRACE             { Sessynth.Language.TProcess(tSl, tS) }
+
+sessynth_tyR:
+  | t1 = sessynth_tyR AND t2 = sessynth_tyR           { Sessynth.Language.RTAnd(t1, t2) }
+  | t1 = sessynth_tyR OR t2 = sessynth_tyR            { Sessynth.Language.RTOr(t1, t2) }
+  | t1 = sessynth_tyR EQUALS t2 = sessynth_tyR        { Sessynth.Language.RTEq(t1, t2) }
+  | t1 = sessynth_tyR GREATER t2 = sessynth_tyR       { Sessynth.Language.RTGr(t1, t2) }
+  | t1 = sessynth_tyR LESSER t2 = sessynth_tyR        { Sessynth.Language.RTLt(t1, t2) }
+  | t1 = sessynth_tyR GREATER_EQ t2 = sessynth_tyR    { Sessynth.Language.RTGrE(t1, t2) }
+  | t1 = sessynth_tyR LESSER_EQ t2 = sessynth_tyR     { Sessynth.Language.RTLtE(t1, t2) }
+  | t1 = sessynth_tyR PLUS t2 = sessynth_tyR          { Sessynth.Language.RTSum(t1, t2) }
+  | t1 = sessynth_tyR MINUS t2 = sessynth_tyR         { Sessynth.Language.RTSub(t1, t2) }
+  | t1 = sessynth_tyR MULT t2 = sessynth_tyR          { Sessynth.Language.RTMult(t1, t2) }
+  | t1 = sessynth_tyR DIV t2 = sessynth_tyR           { Sessynth.Language.RTDiv(t1, t2) }
+  | i = INT                                           { Sessynth.Language.RTInt(i) }
+  | b = BOOL                                          { Sessynth.Language.RTBool(b) }
+  | var = VAR                                         { Sessynth.Language.RTVar(var) }
+
+sessynth_tyA:
+  | TNUM    { Sessynth.Language.TInt }
+  | TBOOL   { Sessynth.Language.TBool }
+
+sessynth_tyS:
+  | t1 = sessynth_tyF CIRCUMFLEX t2 = sessynth_tyS          { Sessynth.Language.STSendF(t1, t2) }
+  | t1 = sessynth_tyF RIGHT_ARROW_BOLD t2 = sessynth_tyS    { Sessynth.Language.STRecvF(t1, t2) }
+  | t1 = sessynth_tyS MULT t2 = sessynth_tyS                { Sessynth.Language.STSendS(t1, t2) }
+  | t1 = sessynth_tyS LOLLIPOP t2 = sessynth_tyS            { Sessynth.Language.STRecvS(t1, t2) }
+  | END_STYPE                                               { Sessynth.Language.STUnit }
+  | AMPERSAND L_BRACE l = sessynth_choice_list R_BRACE      { Sessynth.Language.STExtChoice(l) }
+  | PLUS L_BRACE l = sessynth_choice_list R_BRACE           { Sessynth.Language.STIntChoice(l) }
+  | REC v = VAR DOT st = sessynth_tyS                       { Sessynth.Language.STRec(v, st) }
+  | v = S_VAR                                               { Sessynth.Language.STRecVar(v) }
+
+sessynth_tyS_list:
+  | t = sessynth_tyS                                { [t] }
+  | t = sessynth_tyS COMMA tl = sessynth_tyS_list   { t::tl }
+
+sessynth_choice_list:
+  | v = VAR COLON st = sessynth_tyS                         { [(v, st)] }
+  | v = VAR COLON st = sessynth_tyS COMMA cl = sessynth_choice_list  { (v,st)::cl }
+
+(* sessynth parsing end *)
 
 exec_exp:
   | e = proc_exp   { ExecExp e }
