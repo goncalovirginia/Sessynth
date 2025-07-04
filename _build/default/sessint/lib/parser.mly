@@ -57,7 +57,7 @@ expression:
 (* sessynth parsing *)
 
 synth_exp:
-  | L_PAR QUESTION t = sessynth_tyF QUESTION R_PAR    { Synth (t) }
+  | L_PAR QUESTION t = sessynth_tyF QUESTION R_PAR    { Synth(t) }
 
 sessynth_tyF:
   | t = sessynth_tyA                                                              { Sessynth.Language.TAtomic(t) }
@@ -65,6 +65,7 @@ sessynth_tyF:
   | var = VAR COLON tA = sessynth_tyA                                             { Sessynth.Language.TRefinement(var, tA, Sessynth.Language.RTBool(true)) }
   | t1 = sessynth_tyF RIGHT_ARROW t2 = sessynth_tyF                               { Sessynth.Language.TArrow(t1, t2) }
   | L_BRACE tSl = sessynth_tyS_list V_BAR MINUS tS = sessynth_tyS R_BRACE         { Sessynth.Language.TProcess(tSl, tS) }
+  | var = VAR                                                                     { Sessynth.Language.TDeclr(var) }
 
 sessynth_tyR:
   | sessynth_simple_tyR                                           { $1 }

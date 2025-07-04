@@ -10,8 +10,8 @@ let rec ty_to_tyF ty =
     | TBool -> Language.TAtomic(TBool)
     | TProc(st, l) -> Language.TProcess(List.map(fun (_, s) -> stype_to_tyS s) l, stype_to_tyS st)
     | TFun(t1, t2) -> Language.TArrow(ty_to_tyF t1, ty_to_tyF t2)
-    | TVar _ -> assert false
-    
+    | TVar(x) -> Language.TDeclr(x)
+
 and stype_to_tyS sty =
   match sty with
   | STEnd -> Language.STUnit
@@ -57,6 +57,7 @@ let rec tyF_to_ty tyF =
     | Language.TRefinement _ -> assert false
     | Language.TArrow(tF1, tF2) -> TFun(tyF_to_ty tF1, tyF_to_ty  tF2)
     | Language.TProcess(tSl, tS) -> TProc(tyS_to_stype tS, List.map(fun tS -> ("c", tyS_to_stype tS)) tSl)
+    | Language.TDeclr(x) -> TVar(x)
 
 and tyS_to_stype tyS =
     match tyS with

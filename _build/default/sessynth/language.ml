@@ -22,6 +22,7 @@ and tyF = (* functional types (F) *)
     | TRefinement of id * tyA * tyR (* { x:A | R } *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
     | TProcess of tyS list * tyS (* { S1, ..., Sn |- P :: c : S } *)
+    | TDeclr of id (* variable that represents a previously defined functional type declaration *)
     
 and tyS = (* channel/session types (S) *)
     | STSendF of tyF * tyS (* F ∧ S *)

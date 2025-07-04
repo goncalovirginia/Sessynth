@@ -80,6 +80,7 @@ and tyF_to_string t =
     | TRefinement(x, t1, t2) -> "{" ^ x ^ ":" ^ tyA_to_string t1 ^ " | " ^ tyR_to_string t2 ^ "}"
     | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
     | TProcess(tl, t) -> "{" ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ "}"
+    | TDeclr(x) -> x
 
 and tyS_to_string t =
     match t with 
@@ -358,6 +359,9 @@ and invertRightF f ctxts c goal =
         let ctxts1 = append_bindings_delta ctxts incsl in
         let f, ctxts', e = invertRightS f ctxts1 c outs in
         f, ctxts', Process(c, e, outs, incsl)
+    | TDeclr(x) -> 
+        let t = List.assoc x ctxts.p.s in 
+        invertRightF f ctxts c t
     | _ -> invertLeftF f ctxts c goal
 
 and invertLeftS f ctxts c goal =
@@ -523,7 +527,7 @@ and focusLeftF f ctxts xFocus tFocus c goal =
         let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
         let f, ctxts'', e1 = invertRightF f ctxts c t1 in
         f, ctxts'', subst e2 y (App(Var(xFocus), e1))
-    | TProcess _ | TAtomic _ | TRefinement _ -> 
+    | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
         if tFocus = goal then f, ctxts, Var(xFocus)
         else raise (Fail "tFocus != goal")
 
