@@ -1,28 +1,23 @@
 (* Types and terms *)
 
 type id = string
-    
-and tyA = (* atomic types (A) *)
-    | TInt (* integer *)
-    | TBool (* boolean *)
+
+type uOp = Not | Neg
+
+type bOp = And | Or | Eq | Gr | Lt | GrE | LtE | Sum | Sub | Mult | Div
+
+type tyA = (* atomic types (A) *)
+    | TInt
+    | TBool
     
 type tyR = (* refinement types (R) *)
-    | RTAnd of tyR * tyR (* R && R *)
-    | RTOr of tyR * tyR (* R || R *)
-    | RTEq of tyR * tyR (* R == R *)
-    | RTGr of tyR * tyR (* R > R *)
-    | RTLt of tyR * tyR (* R < R *)
-    | RTGrE of tyR * tyR (* R >= R *)
-    | RTLtE of tyR * tyR (* R <= R *)
-    | RTSum of tyR * tyR (* R + R *)
-    | RTSub of tyR * tyR (* R - R *)
-    | RTMult of tyR * tyR (* R * R *)
-    | RTDiv of tyR * tyR (* R / R *)
     | RTInt of int
     | RTBool of bool
     | RTVar of id (* x *)
+    | RTUOp of uOp * tyR
+    | RTBOp of bOp * tyR * tyR
     
-and tyF = (* ordinary functional types (F) *)
+and tyF = (* functional types (F) *)
     | TAtomic of tyA (* A *)
     | TRefinement of id * tyA * tyR (* { x:A | R } *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
@@ -43,18 +38,8 @@ and tyS = (* channel/session types (S) *)
 type expF = (* functional terms (M) *)
     | Int of int
     | Bool of bool
-    | Not of expF (* !M1 *)
-    | And of expF * expF (* M1 && M2 *)
-    | Or of expF * expF (* M1 || M2 *)
-    | Eq of expF * expF (* M1 == M2 *)
-    | Gr of expF * expF (* M1 > M2 *)
-    | Lt of expF * expF (* M1 < M2 *)
-    | GrE of expF * expF (* M1 >= M2 *)
-    | LtE of expF * expF (* M1 <= M2 *)
-    | Sum of expF * expF (* M1 + M2 *)
-    | Sub of expF * expF (* M1 - M2 *)
-    | Mult of expF * expF (* M1 * M2 *)
-    | Div of expF * expF (* M1 / M2 *)
+    | UOp of uOp * expF
+    | BOp of bOp * expF * expF
     | Var of id (* x *)
     | Let of id * expF * expF (* let x = M1 in M2 *)
     | Lam of id * tyF * expF (* fun x:F -> M *)

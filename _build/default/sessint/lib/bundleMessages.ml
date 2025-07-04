@@ -44,7 +44,7 @@ let rec has_optimized_ty ty =
   match ty with
   | TProc (st, _) -> has_optimized_st st
   | TFun (t1, t2) -> has_optimized_ty t1 || has_optimized_ty t2
-  | TUnit | TNum | TBool | TVar _ | TRefinement _ -> false
+  | TUnit | TNum | TBool | TVar _ -> false
 
 (**Checks if a session type has an optimization of MultiSend or MultiReceive
   @param st the session type to check  

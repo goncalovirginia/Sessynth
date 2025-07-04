@@ -65,9 +65,7 @@ rule token = parse
 	| "<-"					 				{ LEFT_ARROW }
 	| "=" 					 				{ EQUALS } 
 	| '<'					 				{ LESSER }
-	| "<="									{ LESSER_EQ }
 	| '>'					 				{ GREATER }
-	| ">="									{ GREATER_EQ }
 	| ':'					 				{ COLON }
 	| ';'					 				{ SEMI_COLON }
 	| ','									{ COMMA }
@@ -87,4 +85,4 @@ rule token = parse
 	| u_char (char|digit|'_')* as st		{ S_VAR st }
 	| '_'char(char|digit|'_')* as ty		{ T_VAR ty }
 	| _ as tk 								{ raise (UnknownToken tk) }
-	| eof 					 				{ raise End_of_file }
+	| eof 					 				{ EOF }

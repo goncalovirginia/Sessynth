@@ -55,7 +55,6 @@ let rec string_from_type ty =
   | Syntax.TProc (st, ctxt) ->
       "{ " ^ string_from_stype st ^ " <- " ^ string_from_lin_ctxt ctxt ^ " }"
   | Syntax.TVar v -> v
-  | Syntax.TRefinement(v, tA, tR) -> Sessynth.tyF_to_string (Sessynth.Language.TRefinement(v, tA, tR))
 
 and string_from_lin_ctxt ctxt =
   match ctxt with

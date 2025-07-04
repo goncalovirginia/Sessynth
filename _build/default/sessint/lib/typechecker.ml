@@ -620,8 +620,7 @@ let rec expand_custom_type ty env =
       match List.assoc_opt v env with
       | Some t' -> expand_custom_type t' env
       | None -> error (NoSuchArg v))
-  | TRefinement(_, tA, _) -> SessynthAdapter.tyA_to_ty tA
-
+      
 and expand_custom_stype sty env =
   match sty with
   | STEnd | STVar _ -> sty

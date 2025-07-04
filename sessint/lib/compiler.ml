@@ -477,7 +477,6 @@ let rec compile_type_string type_map ty =
       | None -> assert false)
   | TVar v -> v
 (* This case is never actually reached if, as expected, all TVars have previously been expanded into their primitive equivalents *)
-  | TRefinement(v, _, _) -> v
 
 and compile_lin_ctxt_to_fun_args_string ctxt type_map =
   match ctxt with
@@ -667,8 +666,7 @@ let rec compile_type type_map ty : unit =
       | None -> assert false)
   | TVar v -> Buffer.add_string !compiled v
 (* This case is never actually reached if, as expected, all TVars have previously been expanded into their primitive equivalents *)
-  | TRefinement(v, _, _) -> Buffer.add_string !compiled v
-
+  
 and compile_lin_ctxt_to_fun_args ctxt type_map =
   (* NEW correção para troca a ordem dos argumentos *)
   (* We need to reverse the list  otherwise the channels used appear on the wrong order*)

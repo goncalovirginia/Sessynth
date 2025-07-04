@@ -1,7 +1,7 @@
 open Syntax
 open Sessynth
 
-(* sessint to sessynth type AST conversion *)
+(* sessint type to sessynth type conversion *)
 
 let rec ty_to_tyF ty =
     match ty with
@@ -11,8 +11,7 @@ let rec ty_to_tyF ty =
     | TProc(st, l) -> Language.TProcess(List.map(fun (_, s) -> stype_to_tyS s) l, stype_to_tyS st)
     | TFun(t1, t2) -> Language.TArrow(ty_to_tyF t1, ty_to_tyF t2)
     | TVar _ -> assert false
-    | TRefinement(v, tA, tR) -> Language.TRefinement(v, tA, tR)
-
+    
 and stype_to_tyS sty =
   match sty with
   | STEnd -> Language.STUnit
@@ -27,7 +26,25 @@ and stype_to_tyS sty =
   | STUVar v -> Language.STRecVar(v)
   | STMultiSend _ | STMultiRecv _ -> assert false 
 
-(* sessynth to sessint AST conversion *)
+(* sessynth exp to sessint exp conversion *)
+
+let sessynth_uop_to_uop op =
+    match op with
+    | Language.Not -> Not
+    | Language.Neg -> Neg
+
+let sessynth_bop_to_bop op =
+    match op with
+    | Language.And -> And
+    | Language.Or -> Or
+    | Language.Eq -> Equals
+    | Language.Gr -> Greater
+    | Language.Lt -> Lesser
+    | Language.Sum -> Add
+    | Language.Sub -> Sub
+    | Language.Mult -> Mul
+    | Language.Div -> Div
+    | _ -> assert false
 
 let tyA_to_ty tyA =
     match tyA with
@@ -58,18 +75,10 @@ let rec expF_to_exp expF =
     match expF with
     | Language.Int v -> Num v
     | Language.Bool v -> Bool v
-    | Language.Not e -> UOp(Not , expF_to_exp e)
-    | Language.And (e1, e2) -> BOp(And, expF_to_exp e1, expF_to_exp e2)
-    | Language.Or(e1, e2) -> BOp(Or, expF_to_exp e1, expF_to_exp e2)
-    | Language.Eq(e1, e2) -> BOp(Equals, expF_to_exp e1, expF_to_exp e2)
-    | Language.Gr(e1, e2) -> BOp(Greater, expF_to_exp e1, expF_to_exp e2)
-    | Language.Lt(e1, e2) -> BOp(Lesser, expF_to_exp e1, expF_to_exp e2)
-    | Language.GrE(e1, e2) -> BOp(Or, BOp(Greater, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
-    | Language.LtE(e1, e2) -> BOp(Or, BOp(Lesser, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
-    | Language.Sum(e1, e2) -> BOp(Add, expF_to_exp e1, expF_to_exp e2)
-    | Language.Sub(e1, e2) -> BOp(Sub, expF_to_exp e1, expF_to_exp e2)
-    | Language.Mult(e1, e2) -> BOp(Mul, expF_to_exp e1, expF_to_exp e2)
-    | Language.Div(e1, e2) -> BOp(Div, expF_to_exp e1, expF_to_exp e2)
+    | Language.UOp(op, e) -> UOp(sessynth_uop_to_uop op, expF_to_exp e)
+    | Language.BOp(Language.GrE, e1, e2) -> BOp(Or, BOp(Greater, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
+    | Language.BOp(Language.LtE, e1, e2) -> BOp(Or, BOp(Lesser, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
+    | Language.BOp(op, e1, e2) -> BOp(sessynth_bop_to_bop op, expF_to_exp e1, expF_to_exp e2)
     | Language.Var x -> Var x
     | Language.Let(x, e1, e2) -> Let(x, expF_to_exp e1, expF_to_exp e2)
     | Language.Lam(x, _, e) -> FunDef(x, None, expF_to_exp e, None)

@@ -12,7 +12,6 @@ type ty =
   | TFun of ty * ty
   | TProc of stype * (var * stype) list
   | TVar of var
-  | TRefinement of Sessynth.Language.id * Sessynth.Language.tyA * Sessynth.Language.tyR
 
 (** The type of a session offered by a process  *)
 and stype =
@@ -124,7 +123,6 @@ let rec desugar_ty t =
       | [] -> desugar_ty ret)
   | InputSyntax.TProc (st, ctxt) -> TProc (desugar_stype st, desugar_lin_ctxt ctxt)
   | InputSyntax.TVar v -> TVar v
-  | InputSyntax.TRefinement(v, tA, tF) -> TRefinement(v, tA, tF)
 
 and desugar_lin_ctxt ctxt =
   match ctxt with

@@ -60,17 +60,17 @@ let rec parse_sexp sexp =
        		| "false" -> Bool(false)
        		| _ -> Var(x)
      	end
-	| List [Atom "and"; a; b] -> And(parse_sexp a, parse_sexp b)
-  	| List [Atom "or"; a; b] -> Or(parse_sexp a, parse_sexp b)
-  	| List [Atom "="; a; b] -> Eq(parse_sexp a, parse_sexp b)
-  	| List [Atom ">"; a; b] -> Gr(parse_sexp a, parse_sexp b)
-  	| List [Atom "<"; a; b] -> Lt(parse_sexp a, parse_sexp b)
-  	| List [Atom ">="; a; b] -> GrE(parse_sexp a, parse_sexp b)
-  	| List [Atom "<="; a; b] -> LtE(parse_sexp a, parse_sexp b)
-  	| List [Atom "+"; a; b] -> Sum(parse_sexp a, parse_sexp b)
-  	| List [Atom "-"; a; b] -> Sub(parse_sexp a, parse_sexp b)
-  	| List [Atom "*"; a; b] -> Mult(parse_sexp a, parse_sexp b)
-  	| List [Atom "div"; a; b] -> Div(parse_sexp a, parse_sexp b)
+	| List [Atom "and"; a; b] -> BOp(And, parse_sexp a, parse_sexp b)
+  	| List [Atom "or"; a; b] -> BOp(Or, parse_sexp a, parse_sexp b)
+  	| List [Atom "="; a; b] -> BOp(Eq, parse_sexp a, parse_sexp b)
+  	| List [Atom ">"; a; b] -> BOp(Gr, parse_sexp a, parse_sexp b)
+  	| List [Atom "<"; a; b] -> BOp(Lt, parse_sexp a, parse_sexp b)
+  	| List [Atom ">="; a; b] -> BOp(GrE, parse_sexp a, parse_sexp b)
+  	| List [Atom "<="; a; b] -> BOp(LtE, parse_sexp a, parse_sexp b)
+  	| List [Atom "+"; a; b] -> BOp(Sum, parse_sexp a, parse_sexp b)
+  	| List [Atom "-"; a; b] -> BOp(Sub, parse_sexp a, parse_sexp b)
+  	| List [Atom "*"; a; b] -> BOp(Mult, parse_sexp a, parse_sexp b)
+  	| List [Atom "div"; a; b] -> BOp(Div, parse_sexp a, parse_sexp b)
   	| List [Atom "ite"; c; t; e] -> Ite(parse_sexp c, parse_sexp t, parse_sexp e)
   	| List [Atom "define-fun"; Atom name; List params; Atom _rtype; body] -> parse_sexp body
   	| _ -> raise (CVC5ParseError ("Unsupported expression: " ^ Sexp.to_string_hum sexp))
@@ -90,19 +90,21 @@ let parse_cvc5_output output =
 let tyR_to_sygus_constraint tR =	
 	let rec tyR_to_sygus_constraint' tR =
   		match tR with
-  		| RTAnd(a, b) -> Printf.sprintf "(and %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTOr(a, b) -> Printf.sprintf "(or %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTEq(a, b) -> Printf.sprintf "(= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTGr(a, b) -> Printf.sprintf "(> %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTLt(a, b) -> Printf.sprintf "(< %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTGrE(a, b) -> Printf.sprintf "(>= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTLtE(a, b) -> Printf.sprintf "(<= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTSum(a, b) -> Printf.sprintf "(+ %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTSub(a, b) -> Printf.sprintf "(- %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTMult(a, b) -> Printf.sprintf "(* %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTDiv(a, b) -> Printf.sprintf "(div %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTInt(n) -> if n < 0 
-			then let ns = string_of_int (-n) in Printf.sprintf "(- %s)" ns 
+  		| RTBOp(And, a, b) -> Printf.sprintf "(and %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Or, a, b) -> Printf.sprintf "(or %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Eq, a, b) -> Printf.sprintf "(= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Gr, a, b) -> Printf.sprintf "(> %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Lt, a, b) -> Printf.sprintf "(< %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(GrE, a, b) -> Printf.sprintf "(>= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(LtE, a, b) -> Printf.sprintf "(<= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Sum, a, b) -> Printf.sprintf "(+ %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Sub, a, b) -> Printf.sprintf "(- %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Mult, a, b) -> Printf.sprintf "(* %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTBOp(Div, a, b) -> Printf.sprintf "(div %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
+  		| RTUOp(Not, a) -> Printf.sprintf "(not %s)" (tyR_to_sygus_constraint' a)
+		| RTUOp(Neg, a) -> Printf.sprintf "(- %s)" (tyR_to_sygus_constraint' a)
+		| RTInt(n) -> if n < 0 
+			then Printf.sprintf "(- %s)" (string_of_int (-n))
 			else string_of_int n
   		| RTBool(true) -> "true"
   		| RTBool(false) -> "false"

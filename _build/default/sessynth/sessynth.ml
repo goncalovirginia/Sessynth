@@ -41,24 +41,34 @@ let fresh_channel =
     let unique = ref (-1) in
     fun () -> (incr unique; "c" ^ (string_of_int !unique))
 
-let rec tyA_to_string t =
+let uOp_to_string t =
+    match t with
+    | Not -> "!"
+    | Neg -> "-"
+
+let bOp_to_string t =
+    match t with
+    | And -> " && "
+    | Or -> " || "
+    | Eq -> " == "
+    | Gr -> " > "
+    | Lt -> " < "
+    | GrE -> " >= "
+    | LtE -> " <= "
+    | Sum -> " + "
+    | Sub -> " - "
+    | Mult -> " * "
+    | Div -> " / "
+
+let tyA_to_string t =
     match t with
     | TInt -> "int"
     | TBool -> "bool"
 
-and tyR_to_string t =
+let rec tyR_to_string t =
     match t with
-    | RTAnd(t1, t2) -> tyR_to_string t1 ^ " && " ^ tyR_to_string t2
-    | RTOr(t1, t2) -> tyR_to_string t1 ^ " || " ^ tyR_to_string t2
-    | RTEq(t1, t2) -> tyR_to_string t1 ^ " = " ^ tyR_to_string t2
-    | RTGr(t1, t2) -> tyR_to_string t1 ^ " > " ^ tyR_to_string t2
-    | RTLt(t1, t2) -> tyR_to_string t1 ^ " < " ^ tyR_to_string t2
-    | RTGrE(t1, t2) -> tyR_to_string t1 ^ " >= " ^ tyR_to_string t2
-    | RTLtE (t1, t2) -> tyR_to_string t1 ^ " <= " ^ tyR_to_string t2
-    | RTSum (t1, t2) -> tyR_to_string t1 ^ " + " ^ tyR_to_string t2
-    | RTSub (t1, t2) -> tyR_to_string t1 ^ " - " ^ tyR_to_string t2
-    | RTMult(t1, t2) -> tyR_to_string t1 ^ " * " ^ tyR_to_string t2
-    | RTDiv (t1, t2) -> tyR_to_string t1 ^ " / " ^ tyR_to_string t2
+    | RTUOp(op, t) -> uOp_to_string op ^ tyR_to_string t
+    | RTBOp(op, t1, t2) -> tyR_to_string t1 ^ bOp_to_string op ^ tyR_to_string t2
     | RTInt(v) -> string_of_int v
     | RTBool(v) -> string_of_bool v
     | RTVar(x) -> x
@@ -100,18 +110,8 @@ let rec expF_to_string e =
     match e with 
     | Int(v) -> string_of_int v
     | Bool(v) -> string_of_bool v
-    | Not(e1) -> "!" ^ expF_to_string e1
-    | And(e1, e2) -> expF_to_string e1 ^ " && " ^ expF_to_string e2
-    | Or(e1, e2) -> expF_to_string e1 ^ " || " ^ expF_to_string e2
-    | Eq(e1, e2) -> expF_to_string e1 ^ " == " ^ expF_to_string e2
-    | Gr(e1, e2) -> expF_to_string e1 ^ " > " ^ expF_to_string e2
-    | Lt(e1, e2) -> expF_to_string e1 ^ " < " ^ expF_to_string e2
-    | GrE(e1, e2) -> expF_to_string e1 ^ " >= " ^ expF_to_string e2
-    | LtE(e1, e2) -> expF_to_string e1 ^ " <= " ^ expF_to_string e2
-    | Sum(e1, e2) -> expF_to_string e1 ^ " + " ^ expF_to_string e2
-    | Sub(e1, e2) -> expF_to_string e1 ^ " - " ^ expF_to_string e2
-    | Mult(e1, e2) -> expF_to_string e1 ^ " * " ^ expF_to_string e2
-    | Div(e1, e2) -> expF_to_string e1 ^ " / " ^ expF_to_string e2
+    | UOp(op, e) -> uOp_to_string op ^ expF_to_string e
+    | BOp(op, e1, e2) -> expF_to_string e1 ^ bOp_to_string op ^ expF_to_string e2
     | Var x -> x
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
     | Lam(x, t, e) -> x ^ " -> " ^ expF_to_string e 
@@ -538,8 +538,7 @@ let synth_ctxt p d goal =
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
-    if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
-    else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
+    e
 
 (* Examples and stuff *)
 
