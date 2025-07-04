@@ -670,7 +670,7 @@ and expand_custom_exp exp env =
   | ExecExp exp -> ExecExp (expand_custom_exp exp env)
   | RecFunDef (_, _, _, _) ->
       assert false (* RecFunDef does not happen in  the typechecker fase*)
-  | Synth _ -> assert false
+  | Synth _ -> exp
 
 and expand_custom_proc proc env =
   match proc with

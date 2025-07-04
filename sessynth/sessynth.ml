@@ -84,7 +84,7 @@ and tyF_to_string t =
 
 and tyS_to_string t =
     match t with 
-    | STDeclr(x, t1, t2) -> "stype " ^ x ^ " = " ^ tyS_to_string t1 ^ ";\n" ^ tyS_to_string t2
+    | STDeclr(x) -> x
     | STSendF(t1, t2) -> tyF_to_string t1 ^ " ∧ " ^ tyS_to_string t2
     | STRecvF(t1, t2) -> tyF_to_string t1 ^ " ⊃ " ^ tyS_to_string t2
     | STSendS(t1, t2) -> tyS_to_string t1 ^ " ⊗ " ^ tyS_to_string t2
@@ -326,9 +326,9 @@ let rec invertRightS f ctxts c goal =
             let tUnfolded = unfold t goal x in
             let f = {f with isUnfolded = true } in
             invertRightS f ctxts c tUnfolded
-    | STDeclr(x, t1, t2) ->
-        let ctxts1 = append_bindings_gamma ctxts [(x, t1)] in
-        invertRightS f ctxts1 c t2
+    | STDeclr(x) ->
+        let t = List.assoc x ctxts.d.s in 
+        invertRightS f ctxts c t
     | _ -> invertLeftS f ctxts c goal
 
 and invertRightF f ctxts c goal =

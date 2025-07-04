@@ -22,7 +22,7 @@ and tyF = (* functional types (F) *)
     | TRefinement of id * tyA * tyR (* { x:A | R } *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
     | TProcess of tyS list * tyS (* { S1, ..., Sn |- P :: c : S } *)
-    | TDeclr of id (* variable that represents a previously defined functional type declaration *)
+    | TDeclr of id (* variable binded to a previously defined functional type declaration *)
     
 and tyS = (* channel/session types (S) *)
     | STSendF of tyF * tyS (* F ∧ S *)
@@ -34,7 +34,7 @@ and tyS = (* channel/session types (S) *)
     | STIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
     | STRec of id * tyS (* mu t . S *)
     | STRecVar of id (* t *)
-    | STDeclr of id * tyS * tyS (* stype x = S1; S2 *)
+    | STDeclr of id (* variable binded to a previously defined session type declaration *)
     
 type expF = (* functional terms (M) *)
     | Int of int
