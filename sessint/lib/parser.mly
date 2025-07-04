@@ -28,6 +28,8 @@
 %left GREATER LESSER
 %left MULT DIV
 
+%right RIGHT_ARROW
+
 %start main 
 %type <InputSyntax.prog> main
 
@@ -65,15 +67,18 @@ sessynth_tyF:
   | L_BRACE tSl = sessynth_tyS_list V_BAR MINUS tS = sessynth_tyS R_BRACE         { Sessynth.Language.TProcess(tSl, tS) }
 
 sessynth_tyR:
-  | op = sessynth_tyR_uop t = sessynth_tyR                        { Sessynth.Language.RTUOp(op, t) }
+  | sessynth_simple_tyR                                           { $1 }
   | t1 = sessynth_tyR op = sessynth_tyR_bop t2 = sessynth_tyR     { Sessynth.Language.RTBOp(op, t1, t2) }
+  | op = sessynth_tyR_uop t = sessynth_simple_tyR                 { Sessynth.Language.RTUOp(op, t) }
+
+sessynth_simple_tyR:
   | i = INT                                                       { Sessynth.Language.RTInt(i) }
   | b = BOOL                                                      { Sessynth.Language.RTBool(b) }
   | var = VAR                                                     { Sessynth.Language.RTVar(var) }
 
 sessynth_tyR_uop:
-  | NOT   { Sessynth.Language.Not }
-  | MINUS { Sessynth.Language.Neg }
+  | NOT     { Sessynth.Language.Not }
+  | MINUS   { Sessynth.Language.Neg }
 
 %inline sessynth_tyR_bop:
   | AND               { Sessynth.Language.And }
@@ -93,15 +98,15 @@ sessynth_tyA:
   | TBOOL   { Sessynth.Language.TBool }
 
 sessynth_tyS:
-  | t1 = sessynth_tyF CIRCUMFLEX t2 = sessynth_tyS          { Sessynth.Language.STSendF(t1, t2) }
-  | t1 = sessynth_tyF RIGHT_ARROW_BOLD t2 = sessynth_tyS    { Sessynth.Language.STRecvF(t1, t2) }
-  | t1 = sessynth_tyS MULT t2 = sessynth_tyS                { Sessynth.Language.STSendS(t1, t2) }
-  | t1 = sessynth_tyS LOLLIPOP t2 = sessynth_tyS            { Sessynth.Language.STRecvS(t1, t2) }
-  | END_STYPE                                               { Sessynth.Language.STUnit }
-  | AMPERSAND L_BRACE l = sessynth_choice_list R_BRACE      { Sessynth.Language.STExtChoice(l) }
-  | PLUS L_BRACE l = sessynth_choice_list R_BRACE           { Sessynth.Language.STIntChoice(l) }
-  | REC v = VAR DOT st = sessynth_tyS                       { Sessynth.Language.STRec(v, st) }
-  | v = S_VAR                                               { Sessynth.Language.STRecVar(v) }
+  | t1 = sessynth_tyF CIRCUMFLEX t2 = sessynth_tyS            { Sessynth.Language.STSendF(t1, t2) }
+  | t1 = sessynth_tyF RIGHT_ARROW_BOLD t2 = sessynth_tyS      { Sessynth.Language.STRecvF(t1, t2) }
+  | L_PAR t1 = sessynth_tyS R_PAR MULT t2 = sessynth_tyS      { Sessynth.Language.STSendS(t1, t2) }
+  | L_PAR t1 = sessynth_tyS R_PAR LOLLIPOP t2 = sessynth_tyS  { Sessynth.Language.STRecvS(t1, t2) }
+  | END_STYPE                                                 { Sessynth.Language.STUnit }
+  | AMPERSAND L_BRACE l = sessynth_choice_list R_BRACE        { Sessynth.Language.STExtChoice(l) }
+  | PLUS L_BRACE l = sessynth_choice_list R_BRACE             { Sessynth.Language.STIntChoice(l) }
+  | REC v = VAR DOT st = sessynth_tyS                         { Sessynth.Language.STRec(v, st) }
+  | v = S_VAR                                                 { Sessynth.Language.STRecVar(v) }
 
 sessynth_tyS_list:
   | t = sessynth_tyS                                { [t] }
