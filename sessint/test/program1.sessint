@@ -1,16 +1,6 @@
 stype IntCStream rec x. &{next: int^x, stop: @};
 fib : int -> int -> {IntCStream}
-fun n acc -> c <- {
-    case c of
-        next: (
-            send c n;
-            d <- spawn (fib acc (n + acc));
-            fwd d c
-        )
-        stop: (
-            close c
-        )
-} end;
+(? fib ?)
 ;;
 m <- {
     f <- spawn (fib 0 1);
