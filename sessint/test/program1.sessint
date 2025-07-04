@@ -11,3 +11,20 @@ fun n acc -> c <- {
             close c
         )
 } end;
+;;
+m <- {
+    f <- spawn (fib 0 1);
+    f.next;
+    x1:int <- recv f;
+    print x1;
+    f.next;
+    x2:int <- recv f;
+    print x2;
+    f.next;
+    x3:int <- recv f;
+    print x3;
+    f.stop;
+    wait f;
+    close m
+}
+;;
