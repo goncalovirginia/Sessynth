@@ -64,7 +64,8 @@ sessynth_tyF:
   | L_BRACE var = VAR COLON tA = sessynth_tyA V_BAR tR = sessynth_tyR R_BRACE     { Sessynth.Language.TRefinement(var, tA, tR) }
   | var = VAR COLON tA = sessynth_tyA                                             { Sessynth.Language.TRefinement(var, tA, Sessynth.Language.RTBool(true)) }
   | t1 = sessynth_tyF RIGHT_ARROW t2 = sessynth_tyF                               { Sessynth.Language.TArrow(t1, t2) }
-  | L_BRACE tSl = sessynth_tyS_list V_BAR MINUS tS = sessynth_tyS R_BRACE         { Sessynth.Language.TProcess(tSl, tS) }
+  | L_BRACE tS = sessynth_tyS R_BRACE                                             { Sessynth.Language.TProcess([], tS) }     
+  | L_BRACE tS = sessynth_tyS LEFT_ARROW tSl = sessynth_tyS_list R_BRACE          { Sessynth.Language.TProcess(tSl, tS) }
   | var = VAR                                                                     { Sessynth.Language.TDeclr(var) }
 
 sessynth_tyR:
@@ -120,8 +121,9 @@ sessynth_choice_list:
 (* sessynth parsing end *)
 
 exec_exp:
-  | e = proc_exp   { ExecExp e }
-  | e = simple_exp { ExecExp e }  
+  | e = proc_exp    { ExecExp e }
+  | e = simple_exp  { ExecExp e }  
+  | e = synth_exp   { ExecExp e }
 
 proc_exp:
   | c = VAR LEFT_ARROW L_BRACE p = proc R_BRACE { ProcExp (c, p) }

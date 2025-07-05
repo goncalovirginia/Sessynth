@@ -549,6 +549,7 @@ let synth_ctxt p d goal =
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
+    print_newline ();
     print_endline (expF_to_string e);
     e
 
