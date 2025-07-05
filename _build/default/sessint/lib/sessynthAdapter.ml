@@ -86,9 +86,7 @@ let rec expF_to_exp expF =
     | Language.App(e1, e2) -> FunApp(expF_to_exp e1, expF_to_exp e2)
     | Language.Ite(e1, e2, e3) -> Cond(expF_to_exp e1, expF_to_exp e2, expF_to_exp e3)
     | Language.Process(c, eP, _, csl) -> ProcExp(c, expP_to_proc eP, None, List.map(fun (c, s) -> (c, tyS_to_stype s)) csl)
-    | Language.LetRec(_, _, e) -> match e with
-        | Language.Lam(x', t', e') -> FunDef(x', Some (tyF_to_ty t'), expF_to_exp e', None)
-        | _ -> assert false
+    | Language.LetRec(_, _, e) -> expF_to_exp e
 
 and expP_to_proc expP =
     match expP with
