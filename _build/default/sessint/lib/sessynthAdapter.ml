@@ -1,7 +1,7 @@
 open Syntax
 open Sessynth
 
-(* sessint type to sessynth type conversion *)
+(* sessint -> sessynth *)
 
 let rec ty_to_tyF ty =
     match ty with
@@ -26,7 +26,7 @@ and stype_to_tyS sty =
   | STUVar(x) -> Language.STDeclr(x)
   | STMultiSend _ | STMultiRecv _ -> assert false 
 
-(* sessynth exp to sessint exp conversion *)
+(* sessynth -> sessint *)
 
 let sessynth_uop_to_uop op =
     match op with
@@ -82,24 +82,26 @@ let rec expF_to_exp expF =
     | Language.BOp(op, e1, e2) -> BOp(sessynth_bop_to_bop op, expF_to_exp e1, expF_to_exp e2)
     | Language.Var x -> Var x
     | Language.Let(x, e1, e2) -> Let(x, expF_to_exp e1, expF_to_exp e2)
-    | Language.Lam(x, _, e) -> FunDef(x, None, expF_to_exp e, None)
+    | Language.Lam(x, t, e) -> FunDef(x, Some (tyF_to_ty t), expF_to_exp e, None)
     | Language.App(e1, e2) -> FunApp(expF_to_exp e1, expF_to_exp e2)
     | Language.Ite(e1, e2, e3) -> Cond(expF_to_exp e1, expF_to_exp e2, expF_to_exp e3)
     | Language.Process(c, eP, _, csl) -> ProcExp(c, expP_to_proc eP, None, List.map(fun (c, s) -> (c, tyS_to_stype s)) csl)
-    | Language.LetRec(x, e) -> RecFunDef(x, None, expF_to_exp e, None)
+    | Language.LetRec(_, _, e) -> match e with
+        | Language.Lam(x', t', e') -> FunDef(x', Some (tyF_to_ty t'), expF_to_exp e', None)
+        | _ -> assert false
 
 and expP_to_proc expP =
     match expP with
-    | Language.SendF (c, eF, eP) -> Send(c, expF_to_exp eF, None, expP_to_proc eP)
-    | Language.RecvF (c1, c2, eP) -> Recv(c1, c2, None, expP_to_proc eP)
-    | Language.SendS (c1, c2, _, eP2) -> SendChan(c1, c2, None, expP_to_proc eP2)
-    | Language.RecvS (c1, c2, eP) -> RecvChan(c1, c2, None, expP_to_proc eP)
+    | Language.SendF(c, eF, eP) -> Send(c, expF_to_exp eF, None, expP_to_proc eP)
+    | Language.RecvF(c1, c2, eP) -> Recv(c1, c2, None, expP_to_proc eP)
+    | Language.SendS(c1, c2, _, eP2) -> SendChan(c1, c2, None, expP_to_proc eP2)
+    | Language.RecvS(c1, c2, eP) -> RecvChan(c1, c2, None, expP_to_proc eP)
     | Language.Close c -> Close c
-    | Language.Wait (c, eP) -> Wait(c, expP_to_proc eP)
-    | Language.Fwd (c1, c2, tS) -> Fwd(Some (tyS_to_stype tS), c1, c2)
-    | Language.Choice (c, labelproclist) -> Choice(c, List.map(fun (l, p) -> (l, (expP_to_proc p, None))) labelproclist)
-    | Language.ChoiceSelect (c, l, eP) -> Label(c, l, expP_to_proc eP, None)
-    | Language.Spawn (c, eF, cl, eP) -> Spawn(c, expF_to_exp eF, None, expP_to_proc eP, cl)
+    | Language.Wait(c, eP) -> Wait(c, expP_to_proc eP)
+    | Language.Fwd(c1, c2, tS) -> Fwd(Some (tyS_to_stype tS), c2, c1)
+    | Language.Choice(c, labelproclist) -> Choice(c, List.map(fun (l, p) -> (l, (expP_to_proc p, None))) labelproclist)
+    | Language.ChoiceSelect(c, l, eP) -> Label(c, l, expP_to_proc eP, None)
+    | Language.Spawn(c, eF, cl, eP) -> Spawn(c, expF_to_exp eF, None, expP_to_proc eP, cl)
 
 (* adapter synth function *)
 

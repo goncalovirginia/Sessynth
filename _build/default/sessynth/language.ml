@@ -47,7 +47,7 @@ type expF = (* functional terms (M) *)
     | App of expF * expF (* (M1) M2 *)
     | Ite of expF * expF * expF (* if M1 then M2 else M3 *)
     | Process of id * expP * tyS * (id * tyS) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
-    | LetRec of id * expF (* let rec x = M1 *)
+    | LetRec of id * tyF * expF (* let rec x:F = M1 *)
     
 and expP = (* process terms (P) *)
     | SendF of id * expF * expP (* send c M; P : F ∧ S *)

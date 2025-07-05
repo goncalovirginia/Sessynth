@@ -119,7 +119,7 @@ let rec expF_to_string e =
     | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
     | Ite(e1, e2, e3) -> "if " ^ expF_to_string e1 ^ " then " ^ expF_to_string e2 ^ " else " ^ expF_to_string e3
     | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
-    | LetRec(x, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
+    | LetRec(x, t, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
 
 and process_input_channels_to_string xtl =
     if List.is_empty xtl then ""
@@ -344,11 +344,19 @@ and invertRightF f ctxts c goal =
             | _ -> fresh_id() in 
         let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
         begin match get_TArrow_return_type t2 with
-        | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p.a || List.mem_assoc f.xRecLam ctxts.p.s) ->
+        | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p.s) ->
+            let f, ctxts2 =
+            try
+                let (xRecFun, _) = List.find (fun (_, t) -> t = goal) ctxts.p.s in
+                let f = { f with xRecLam = xRecFun } in
+                f, ctxts1
+            with Not_found ->
                 let f = { f with xRecLam = fresh_function() } in
                 let ctxts2 = append_bindings_psi ctxts1 [(f.xRecLam, goal)] in
-                let f, ctxts', e = invertRightF f ctxts2 c t2 in
-                f, ctxts', LetRec(f.xRecLam, Lam(x, t1, e))
+                f, ctxts2
+            in
+            let f, ctxts', e = invertRightF f ctxts2 c t2 in
+            f, ctxts', LetRec(f.xRecLam, goal, Lam(x, t1, e))
         | _ -> 
             let f, ctxts', e = invertRightF f ctxts1 c t2 in
             f, ctxts', Lam(x, t1, e)
