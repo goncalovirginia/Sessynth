@@ -15,7 +15,6 @@ let rec ty_to_tyF ty =
 and stype_to_tyS sty =
   match sty with
   | STEnd -> Language.STUnit
-  | STVar(x) -> Language.STDeclr(x)
   | STExtChoice l -> Language.STExtChoice(List.map(fun (l, s) -> (l, stype_to_tyS s)) l)
   | STIntChoice l -> Language.STIntChoice(List.map(fun (l, s) -> (l, stype_to_tyS s)) l)
   | STSend(t, st) -> Language.STSendF(ty_to_tyF t, stype_to_tyS st)
@@ -23,7 +22,8 @@ and stype_to_tyS sty =
   | STSendChan(st1, st2) -> Language.STSendS(stype_to_tyS st1, stype_to_tyS st2)
   | STRecvChan(st1, st2) -> Language.STRecvS(stype_to_tyS st1, stype_to_tyS st2)
   | STRec(v, st) -> Language.STRec(v, stype_to_tyS st)
-  | STUVar v -> Language.STRecVar(v)
+  | STVar(x) -> Language.STRecVar(x)
+  | STUVar(x) -> Language.STDeclr(x)
   | STMultiSend _ | STMultiRecv _ -> assert false 
 
 (* sessynth exp to sessint exp conversion *)

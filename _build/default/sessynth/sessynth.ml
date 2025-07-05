@@ -131,18 +131,17 @@ and expP_to_string e =
     | RecvF(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
     | SendS(c1, c2, eP1, eP2) -> "send " ^ c1 ^ " (" ^ c2 ^ " <- " ^ expP_to_string eP1 ^ ");\n" ^ expP_to_string eP2
     | RecvS(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
-    | Close(c) -> "close " ^ c ^ ";\n"
+    | Close(c) -> "close " ^ c ^ "\n"
     | Wait(c, eP) -> "wait " ^ c ^ ";\n" ^ expP_to_string eP
     | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ "\n"
-    | Choice(c, labelprocesslist) -> "case " ^ c ^ " of [" ^ label_process_list_to_string labelprocesslist ^ "]" 
+    | Choice(c, labelprocesslist) -> "case " ^ c ^ " of\n" ^ label_process_list_to_string labelprocesslist 
     | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP
     | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ ";\n" ^ expP_to_string eP
 
 and label_process_list_to_string labelprocesslist = 
     match labelprocesslist with
     | [] -> ""
-    | [(l, eP)] -> l ^ ":" ^ expP_to_string eP
-    | (l, eP)::labelprocesslist' -> l ^ ":" ^ expP_to_string eP ^ "; " ^ label_process_list_to_string labelprocesslist' 
+    | (l, eP)::labelprocesslist' -> l ^ ": (\n" ^ expP_to_string eP ^ ")\n" ^ label_process_list_to_string labelprocesslist' 
 
 and c_list_to_string cl =
     match cl with
@@ -162,9 +161,9 @@ let rec psi_to_string c =
     | [(x, t)] -> x ^ ":" ^ tyF_to_string t
     | (x, t)::c' -> x ^ ":" ^ tyF_to_string t ^ "; " ^ psi_to_string c'
 
-let print_delta c = print_endline (delta_to_string c)
+let print_delta c = print_endline ("[" ^ delta_to_string c ^ "]")
 
-let print_psi c = print_endline (psi_to_string c)
+let print_psi c = print_endline ("[" ^ psi_to_string c ^ "]")
 
 let is_tyF_left_async t = 
     match t with
