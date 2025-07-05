@@ -107,7 +107,7 @@ The function has a small performance optimization: is the received session type 
 let rec make_state map env stype =
   match TypeTable.find_opt map stype with
   | Some _ -> map
-  | None -> (
+  | None -> 
       match stype with
       | STSend (t, st) -> (
           (* The function first generates a new identifier for the soon to be created state *)
@@ -291,7 +291,7 @@ let rec make_state map env stype =
               (* The association map is then altered and returned *)
               TypeTable.replace new_map stype !start_ref;
               new_map)
-      | STUVar _ -> assert false)
+      | STUVar _ -> assert false
 
 and make_state_list map env list =
   let fold_fun (curr_map, pairs) (l, sty) =

@@ -54,7 +54,7 @@ let tyA_to_ty tyA =
 let rec tyF_to_ty tyF =
     match tyF with
     | Language.TAtomic tA -> tyA_to_ty tA
-    | Language.TRefinement _ -> assert false
+    | Language.TRefinement(_, tA, _) -> tyA_to_ty tA
     | Language.TArrow(tF1, tF2) -> TFun(tyF_to_ty tF1, tyF_to_ty  tF2)
     | Language.TProcess(tSl, tS) -> TProc(tyS_to_stype tS, List.map(fun tS -> ("c", tyS_to_stype tS)) tSl)
     | Language.TDeclr(x) -> TVar(x)
@@ -69,8 +69,8 @@ and tyS_to_stype tyS =
     | Language.STExtChoice labelsesslist -> STExtChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
     | Language.STIntChoice labelsesslist -> STIntChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
     | Language.STRec(t, tS) -> STRec(t, tyS_to_stype tS)
-    | Language.STRecVar t -> STUVar(t)
-    | Language.STDeclr _ -> assert false
+    | Language.STRecVar t -> STVar(t)
+    | Language.STDeclr x -> STUVar(x)
 
 let rec expF_to_exp expF =
     match expF with
@@ -85,7 +85,7 @@ let rec expF_to_exp expF =
     | Language.Lam(x, t, e) -> FunDef(x, Some (tyF_to_ty t), expF_to_exp e, None)
     | Language.App(e1, e2) -> FunApp(expF_to_exp e1, expF_to_exp e2)
     | Language.Ite(e1, e2, e3) -> Cond(expF_to_exp e1, expF_to_exp e2, expF_to_exp e3)
-    | Language.Process(c, eP, _, csl) -> ProcExp(c, expP_to_proc eP, None, List.map(fun (c, s) -> (c, tyS_to_stype s)) csl)
+    | Language.Process(c, eP, tS, csl) -> ProcExp(c, expP_to_proc eP, Some (tyS_to_stype tS), List.map(fun (c, s) -> (c, tyS_to_stype s)) csl)
     | Language.LetRec(_, _, e) -> expF_to_exp e
 
 and expP_to_proc expP =
