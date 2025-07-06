@@ -1,21 +1,6 @@
 stype IntCStream rec x. &{next: int^x, stop: @};
 fib : int -> int -> {IntCStream}
-(? fib ?);
+? fib ?;
 ;;
-(? {  } ?)
-m <- {
-    f <- spawn (fib 0 1);
-    f.next;
-    x1:int <- recv f;
-    print x1;
-    f.next;
-    x2:int <- recv f;
-    print x2;
-    f.next;
-    x3:int <- recv f;
-    print x3;
-    f.stop;
-    wait f;
-    close m
-}
+? {  } ?
 ;;

@@ -54,72 +54,6 @@ expression:
   | proc_exp                                                          { $1 }
   | synth_exp                                                         { $1 }
 
-(* sessynth parsing *)
-
-synth_exp:
-  | L_PAR QUESTION t = sessynth_tyF QUESTION R_PAR    { Synth(t) }
-
-sessynth_tyF:
-  | t = sessynth_tyA                                                              { Sessynth.Language.TAtomic(t) }
-  | L_BRACE var = VAR COLON tA = sessynth_tyA V_BAR tR = sessynth_tyR R_BRACE     { Sessynth.Language.TRefinement(var, tA, tR) }
-  | var = VAR COLON tA = sessynth_tyA                                             { Sessynth.Language.TRefinement(var, tA, Sessynth.Language.RTBool(true)) }
-  | t1 = sessynth_tyF RIGHT_ARROW t2 = sessynth_tyF                               { Sessynth.Language.TArrow(t1, t2) }
-  | L_BRACE tS = sessynth_tyS R_BRACE                                             { Sessynth.Language.TProcess([], tS) }     
-  | L_BRACE tS = sessynth_tyS LEFT_ARROW tSl = sessynth_tyS_list R_BRACE          { Sessynth.Language.TProcess(tSl, tS) }
-  | var = VAR                                                                     { Sessynth.Language.TDeclr(var) }
-
-sessynth_tyR:
-  | sessynth_simple_tyR                                           { $1 }
-  | t1 = sessynth_tyR op = sessynth_tyR_bop t2 = sessynth_tyR     { Sessynth.Language.RTBOp(op, t1, t2) }
-  | op = sessynth_tyR_uop t = sessynth_simple_tyR                 { Sessynth.Language.RTUOp(op, t) }
-
-sessynth_simple_tyR:
-  | i = INT                                                       { Sessynth.Language.RTInt(i) }
-  | b = BOOL                                                      { Sessynth.Language.RTBool(b) }
-  | var = VAR                                                     { Sessynth.Language.RTVar(var) }
-
-sessynth_tyR_uop:
-  | NOT     { Sessynth.Language.Not }
-  | MINUS   { Sessynth.Language.Neg }
-
-%inline sessynth_tyR_bop:
-  | AND               { Sessynth.Language.And }
-  | OR                { Sessynth.Language.Or }
-  | GREATER EQUALS    { Sessynth.Language.GrE }
-  | LESSER EQUALS     { Sessynth.Language.LtE }
-  | EQUALS            { Sessynth.Language.Eq }
-  | GREATER           { Sessynth.Language.Gr }
-  | LESSER            { Sessynth.Language.Lt }
-  | PLUS              { Sessynth.Language.Sum }
-  | MINUS             { Sessynth.Language.Sub }
-  | MULT              { Sessynth.Language.Mult }
-  | DIV               { Sessynth.Language.Div }
-
-sessynth_tyA:
-  | TNUM    { Sessynth.Language.TInt }
-  | TBOOL   { Sessynth.Language.TBool }
-
-sessynth_tyS:
-  | t1 = sessynth_tyF CIRCUMFLEX t2 = sessynth_tyS            { Sessynth.Language.STSendF(t1, t2) }
-  | t1 = sessynth_tyF RIGHT_ARROW_BOLD t2 = sessynth_tyS      { Sessynth.Language.STRecvF(t1, t2) }
-  | L_PAR t1 = sessynth_tyS R_PAR MULT t2 = sessynth_tyS      { Sessynth.Language.STSendS(t1, t2) }
-  | L_PAR t1 = sessynth_tyS R_PAR LOLLIPOP t2 = sessynth_tyS  { Sessynth.Language.STRecvS(t1, t2) }
-  | END_STYPE                                                 { Sessynth.Language.STUnit }
-  | AMPERSAND L_BRACE l = sessynth_choice_list R_BRACE        { Sessynth.Language.STExtChoice(l) }
-  | PLUS L_BRACE l = sessynth_choice_list R_BRACE             { Sessynth.Language.STIntChoice(l) }
-  | REC v = VAR DOT st = sessynth_tyS                         { Sessynth.Language.STRec(v, st) }
-  | v = S_VAR                                                 { Sessynth.Language.STRecVar(v) }
-
-sessynth_tyS_list:
-  | t = sessynth_tyS                                { [t] }
-  | t = sessynth_tyS COMMA tl = sessynth_tyS_list   { t::tl }
-
-sessynth_choice_list:
-  | v = VAR COLON st = sessynth_tyS                                   { [(v, st)] }
-  | v = VAR COLON st = sessynth_tyS COMMA cl = sessynth_choice_list   { (v,st)::cl }
-
-(* sessynth parsing end *)
-
 exec_exp:
   | e = proc_exp    { ExecExp e }
   | e = simple_exp  { ExecExp e }  
@@ -222,5 +156,71 @@ uop:
   | LESSER    { Lesser }
   | GREATER   { Greater }
   | EQUALS    { Equals }
+
+(* sessynth parsing *)
+
+synth_exp:
+  | QUESTION t = sessynth_tyF QUESTION    { Synth(t) }
+
+sessynth_tyF:
+  | t = sessynth_tyA                                                              { Sessynth.Language.TAtomic(t) }
+  | L_BRACE var = VAR COLON tA = sessynth_tyA V_BAR tR = sessynth_tyR R_BRACE     { Sessynth.Language.TRefinement(var, tA, tR) }
+  | var = VAR COLON tA = sessynth_tyA                                             { Sessynth.Language.TRefinement(var, tA, Sessynth.Language.RTBool(true)) }
+  | t1 = sessynth_tyF RIGHT_ARROW t2 = sessynth_tyF                               { Sessynth.Language.TArrow(t1, t2) }
+  | L_BRACE tS = sessynth_tyS R_BRACE                                             { Sessynth.Language.TProcess([], tS) }     
+  | L_BRACE tS = sessynth_tyS LEFT_ARROW tSl = sessynth_tyS_list R_BRACE          { Sessynth.Language.TProcess(tSl, tS) }
+  | var = VAR                                                                     { Sessynth.Language.TDeclr(var) }
+
+sessynth_tyR:
+  | sessynth_simple_tyR                                           { $1 }
+  | t1 = sessynth_tyR op = sessynth_tyR_bop t2 = sessynth_tyR     { Sessynth.Language.RTBOp(op, t1, t2) }
+  | op = sessynth_tyR_uop t = sessynth_simple_tyR                 { Sessynth.Language.RTUOp(op, t) }
+
+sessynth_simple_tyR:
+  | i = INT                                                       { Sessynth.Language.RTInt(i) }
+  | b = BOOL                                                      { Sessynth.Language.RTBool(b) }
+  | var = VAR                                                     { Sessynth.Language.RTVar(var) }
+
+sessynth_tyR_uop:
+  | NOT     { Sessynth.Language.Not }
+  | MINUS   { Sessynth.Language.Neg }
+
+%inline sessynth_tyR_bop:
+  | AND               { Sessynth.Language.And }
+  | OR                { Sessynth.Language.Or }
+  | GREATER EQUALS    { Sessynth.Language.GrE }
+  | LESSER EQUALS     { Sessynth.Language.LtE }
+  | EQUALS            { Sessynth.Language.Eq }
+  | GREATER           { Sessynth.Language.Gr }
+  | LESSER            { Sessynth.Language.Lt }
+  | PLUS              { Sessynth.Language.Sum }
+  | MINUS             { Sessynth.Language.Sub }
+  | MULT              { Sessynth.Language.Mult }
+  | DIV               { Sessynth.Language.Div }
+
+sessynth_tyA:
+  | TNUM    { Sessynth.Language.TInt }
+  | TBOOL   { Sessynth.Language.TBool }
+
+sessynth_tyS:
+  | t1 = sessynth_tyF CIRCUMFLEX t2 = sessynth_tyS            { Sessynth.Language.STSendF(t1, t2) }
+  | t1 = sessynth_tyF RIGHT_ARROW_BOLD t2 = sessynth_tyS      { Sessynth.Language.STRecvF(t1, t2) }
+  | L_PAR t1 = sessynth_tyS R_PAR MULT t2 = sessynth_tyS      { Sessynth.Language.STSendS(t1, t2) }
+  | L_PAR t1 = sessynth_tyS R_PAR LOLLIPOP t2 = sessynth_tyS  { Sessynth.Language.STRecvS(t1, t2) }
+  | END_STYPE                                                 { Sessynth.Language.STUnit }
+  | AMPERSAND L_BRACE l = sessynth_choice_list R_BRACE        { Sessynth.Language.STExtChoice(l) }
+  | PLUS L_BRACE l = sessynth_choice_list R_BRACE             { Sessynth.Language.STIntChoice(l) }
+  | REC v = VAR DOT st = sessynth_tyS                         { Sessynth.Language.STRec(v, st) }
+  | v = S_VAR                                                 { Sessynth.Language.STRecVar(v) }
+
+sessynth_tyS_list:
+  | t = sessynth_tyS                                { [t] }
+  | t = sessynth_tyS COMMA tl = sessynth_tyS_list   { t::tl }
+
+sessynth_choice_list:
+  | v = VAR COLON st = sessynth_tyS                                   { [(v, st)] }
+  | v = VAR COLON st = sessynth_tyS COMMA cl = sessynth_choice_list   { (v,st)::cl }
+
+(* sessynth parsing end *)
 
 %%
