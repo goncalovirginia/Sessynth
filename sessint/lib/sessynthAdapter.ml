@@ -8,7 +8,7 @@ let rec ty_to_tyF ty =
     | TUnit -> assert false
     | TNum -> Language.TAtomic(TInt)
     | TBool -> Language.TAtomic(TBool)
-    | TProc(st, l) -> Language.TProcess(List.map(fun (_, s) -> stype_to_tyS s) l, stype_to_tyS st)
+    | TProc(st, l) -> Language.TProcess(List.map(fun (c, s) -> (c, stype_to_tyS s)) l, stype_to_tyS st)
     | TFun(t1, t2) -> Language.TArrow(ty_to_tyF t1, ty_to_tyF t2)
     | TVar(x) -> Language.TDeclr(x)
 
@@ -56,7 +56,7 @@ let rec tyF_to_ty tyF =
     | Language.TAtomic tA -> tyA_to_ty tA
     | Language.TRefinement(_, tA, _) -> tyA_to_ty tA
     | Language.TArrow(tF1, tF2) -> TFun(tyF_to_ty tF1, tyF_to_ty  tF2)
-    | Language.TProcess(tSl, tS) -> TProc(tyS_to_stype tS, List.map(fun tS -> ("c", tyS_to_stype tS)) tSl)
+    | Language.TProcess(incsl, outs) -> TProc(tyS_to_stype outs, List.map(fun (c, s) -> (c, tyS_to_stype s)) incsl)
     | Language.TDeclr(x) -> TVar(x)
 
 and tyS_to_stype tyS =
@@ -91,9 +91,9 @@ let rec expF_to_exp expF =
 and expP_to_proc expP =
     match expP with
     | Language.SendF(c, eF, eP) -> Send(c, expF_to_exp eF, None, expP_to_proc eP)
-    | Language.RecvF(c1, c2, eP) -> Recv(c1, c2, None, expP_to_proc eP)
+    | Language.RecvF(x, tF, c, eP) -> Recv(x, c, Some (tyF_to_ty tF), expP_to_proc eP)
     | Language.SendS(c1, c2, _, eP2) -> SendChan(c1, c2, None, expP_to_proc eP2)
-    | Language.RecvS(c1, c2, eP) -> RecvChan(c1, c2, None, expP_to_proc eP)
+    | Language.RecvS(c1, tS, c2, eP) -> RecvChan(c1, c2, Some (tyS_to_stype tS), expP_to_proc eP)
     | Language.Close c -> Close c
     | Language.Wait(c, eP) -> Wait(c, expP_to_proc eP)
     | Language.Fwd(c1, c2, tS) -> Fwd(Some (tyS_to_stype tS), c2, c1)

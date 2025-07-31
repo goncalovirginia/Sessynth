@@ -181,12 +181,12 @@ and synth lin_ctxt env e used_vars =
   | RecFunDef (_, _, _, _) ->
       assert false (* RecFunDef does not happen in  the typechecker fase*)
   | Synth t -> 
-	let synthed_exp = SessynthAdapter.synth env lin_ctxt t in
-	let synthed_type = match SessynthAdapter.tyF_to_ty t with
-		| TVar(x) -> List.assoc x env
-		| t -> t in
-	let synthed_exp', _, used_vars' = synth lin_ctxt env synthed_exp used_vars in
-	(synthed_exp', synthed_type, used_vars')
+	  let synthed_exp = SessynthAdapter.synth env lin_ctxt t in
+	  let synthed_type = match SessynthAdapter.tyF_to_ty t with
+		  | TVar(x) -> List.assoc x env
+		  | t -> t in
+	  let synthed_exp', _, used_vars' = synth lin_ctxt env synthed_exp used_vars in
+	  (synthed_exp', synthed_type, used_vars')
 
 (** This is the process synthesizing function.
    We don't have an explicit check_proc function, such tests are done by means of subtyping. 

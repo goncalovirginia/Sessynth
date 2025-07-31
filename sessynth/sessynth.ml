@@ -6,7 +6,7 @@ exception Fail of string
 
 (* Records *)
 
-type flags = { isUnfolded : bool; xRecLam : id; currDepth : int; maxDepth : int }
+type flags = { isUnfolded : bool; xRecLam : id; clForSpawn : id list; currDepth : int; maxDepth : int }
     
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
     
@@ -19,7 +19,7 @@ type contexts = { g : gamma; p : psi; d : delta }
 (* Auxiliary functions *)
 
 let initialize_flags maxDepth =
-    let f : flags = { isUnfolded = false ; xRecLam = ""; currDepth = 0; maxDepth = maxDepth } in
+    let f : flags = { isUnfolded = false ; xRecLam = ""; clForSpawn = []; currDepth = 0; maxDepth = maxDepth } in
     f
 
 let initialize_ctxts =
@@ -31,15 +31,15 @@ let initialize_ctxts =
 
 let fresh_id = 
     let unique = ref (-1) in
-    fun () -> (incr unique; "x" ^ (string_of_int !unique))
+    fun () -> (incr unique; "_x" ^ (string_of_int !unique))
 
 let fresh_function = 
     let unique = ref (-1) in
-    fun () -> (incr unique; "f" ^ (string_of_int !unique))
+    fun () -> (incr unique; "_f" ^ (string_of_int !unique))
 
 let fresh_channel = 
     let unique = ref (-1) in
-    fun () -> (incr unique; "c" ^ (string_of_int !unique))
+    fun () -> (incr unique; "_c" ^ (string_of_int !unique))
 
 let uOp_to_string t =
     match t with
@@ -79,7 +79,7 @@ and tyF_to_string t =
     | TRefinement(x, t1, RTBool(true)) -> x ^ ":" ^ tyA_to_string t1
     | TRefinement(x, t1, t2) -> "{" ^ x ^ ":" ^ tyA_to_string t1 ^ " | " ^ tyR_to_string t2 ^ "}"
     | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
-    | TProcess(tl, t) -> "{" ^ tyS_list_to_string tl ^ " |- " ^ tyS_to_string t ^ "}"
+    | TProcess(incsl, outs) -> "{" ^ cs_list_to_string incsl ^ " |- " ^ tyS_to_string outs ^ "}"
     | TDeclr(x) -> x
 
 and tyS_to_string t =
@@ -95,11 +95,11 @@ and tyS_to_string t =
     | STRecVar(x) -> x
     | STUnit -> "1"
 
-and tyS_list_to_string tl =
-    match tl with
+and cs_list_to_string csl =
+    match csl with
     | [] -> ""
-    | [t] -> tyS_to_string t
-    | t::tl' -> tyS_to_string t ^ ", " ^ tyS_list_to_string tl'
+    | [(c, s)] -> c ^ ":" ^ tyS_to_string s
+    | (c, s)::csl' -> c ^ ":" ^ tyS_to_string s ^ ", " ^ cs_list_to_string csl'
 
 and label_tyS_list_to_string xtl =
     match xtl with
@@ -128,20 +128,24 @@ and process_input_channels_to_string xtl =
 and expP_to_string e =
     match e with 
     | SendF(c, eF, eP) -> "send " ^ c ^ " " ^ expF_to_string eF ^ ";\n" ^ expP_to_string eP
-    | RecvF(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
+    | RecvF(x, tF, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
     | SendS(c1, c2, eP1, eP2) -> "send " ^ c1 ^ " (" ^ c2 ^ " <- " ^ expP_to_string eP1 ^ ");\n" ^ expP_to_string eP2
-    | RecvS(x, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
+    | RecvS(x, tS, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
     | Close(c) -> "close " ^ c ^ "\n"
     | Wait(c, eP) -> "wait " ^ c ^ ";\n" ^ expP_to_string eP
     | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ "\n"
     | Choice(c, labelprocesslist) -> "case " ^ c ^ " of\n" ^ label_process_list_to_string labelprocesslist 
     | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP
-    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ ";\n" ^ expP_to_string eP
+    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ spawn_c_list_to_string cl  ^ ";\n" ^ expP_to_string eP
 
 and label_process_list_to_string labelprocesslist = 
     match labelprocesslist with
     | [] -> ""
     | (l, eP)::labelprocesslist' -> l ^ ": (\n" ^ expP_to_string eP ^ ")\n" ^ label_process_list_to_string labelprocesslist' 
+
+and spawn_c_list_to_string cl =
+    if List.is_empty cl then ""
+    else " [" ^ c_list_to_string cl ^ "]" 
 
 and c_list_to_string cl =
     match cl with
@@ -288,49 +292,8 @@ let rec unfold tUnfold stRecReplacement xReplace =
 (* Inversion and Focusing *)
 
 (* flags + gamma-async; gamma-sync; psi-async; psi-async; delta-async; delta-sync |- P :: c : goal *)
-let rec invertRightS f ctxts c goal = 
-    print_endline ("invertRightS: " ^ tyS_to_string goal);
-    print_string "  da: "; print_delta ctxts.d.a;
-    print_string "  ds: "; print_delta ctxts.d.s;
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
-    match goal with 
-    | STRecvF(t1, t2) ->
-        let x = fresh_id() in
-        let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-        let f, ctxts', e = invertRightS f ctxts1 c t2 in
-        assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None);
-        f, ctxts', RecvF(x, c, e)
-    | STRecvS(t1, t2) -> 
-        let x = fresh_id() in
-        let ctxts1 = append_bindings_delta ctxts [(x, t1)] in
-        let f, ctxts', e = invertRightS f ctxts1 c t2 in
-        assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None);
-        f, ctxts', RecvS(x, c, e)
-    | STExtChoice(labelsesslist) ->
-        let inversions = List.map (fun (l, s) -> invertRightS f ctxts c s) labelsesslist in
-        let f, ctxts1, _ = List.hd inversions in
-        assert (deltas_are_equal (List.tl inversions) ctxts);
-        let labelprocesslist = build_label_expP_list labelsesslist inversions in
-        f, ctxts1, Choice(c, labelprocesslist)
-    | STRec(x, t) ->
-        if f.isUnfolded then
-            let cRec = fresh_channel() in
-            let tRecLam = List.assoc f.xRecLam ctxts.p.s in
-            let tReturn = get_TArrow_return_type tRecLam in
-            let f, ctxts, eApp = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
-            f, ctxts, Spawn(cRec, eApp, [], Fwd(cRec, c, t))
-        else 
-            let tUnfolded = unfold t goal x in
-            let f = {f with isUnfolded = true } in
-            invertRightS f ctxts c tUnfolded
-    | STDeclr(x) ->
-        let t = List.assoc x ctxts.d.s in 
-        invertRightS f ctxts c t
-    | _ -> invertLeftS f ctxts c goal
 
-and invertRightF f ctxts c goal =
+let rec invertRightF f ctxts c goal =
     print_endline ("invertRightF: " ^ tyF_to_string goal);
     print_string "  pa: "; print_psi ctxts.p.a;
     print_string "  ps: "; print_psi ctxts.p.s;
@@ -361,15 +324,73 @@ and invertRightF f ctxts c goal =
             let f, ctxts', e = invertRightF f ctxts1 c t2 in
             f, ctxts', Lam(x, t1, e)
         end
-    | TProcess(insl, outs) ->
-        let incsl = List.map (fun (s) -> (fresh_channel(), s)) insl in
+    | TProcess(incsl, outs) ->
+        let incsl = List.map (fun (c, s) -> if c = "_" then (fresh_channel(), s) else (c, s)) incsl in
         let ctxts1 = append_bindings_delta ctxts incsl in
+        let incl = List.map (fun (c, _) -> c) incsl in
+        let f = { f with clForSpawn = incl } in
         let f, ctxts', e = invertRightS f ctxts1 c outs in
         f, ctxts', Process(c, e, outs, incsl)
     | TDeclr(x) -> 
         let t = List.assoc x ctxts.p.s in 
         invertRightF f ctxts c t
     | _ -> invertLeftF f ctxts c goal
+
+and invertRightS f ctxts c goal = 
+    print_endline ("invertRightS: " ^ tyS_to_string goal);
+    print_string "  da: "; print_delta ctxts.d.a;
+    print_string "  ds: "; print_delta ctxts.d.s;
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
+    match goal with 
+    | STRecvF(t1, t2) ->
+        let x = fresh_id() in
+        let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+        let f, ctxts', e = invertRightS f ctxts1 c t2 in
+        assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None);
+        f, ctxts', RecvF(x, t1, c, e)
+    | STRecvS(t1, t2) -> 
+        let x = fresh_id() in
+        let ctxts1 = append_bindings_delta ctxts [(x, t1)] in
+        let f, ctxts', e = invertRightS f ctxts1 c t2 in
+        assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None);
+        f, ctxts', RecvS(x, t1, c, e)
+    | STExtChoice(labelsesslist) ->
+        let inversions = List.map (fun (l, s) -> invertRightS f ctxts c s) labelsesslist in
+        let f, ctxts1, _ = List.hd inversions in
+        assert (deltas_are_equal (List.tl inversions) ctxts);
+        let labelprocesslist = build_label_expP_list labelsesslist inversions in
+        f, ctxts1, Choice(c, labelprocesslist)
+    | STRec(x, t) ->
+        if f.isUnfolded then
+            let cRec = fresh_channel() in
+            let tRecLam = List.assoc f.xRecLam ctxts.p.s in
+            let tReturn = get_TArrow_return_type tRecLam in
+            let f, ctxts, eApp = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
+            f, ctxts, Spawn(cRec, eApp, f.clForSpawn, Fwd(cRec, c, t))
+        else 
+            let tUnfolded = unfold t goal x in
+            let f = {f with isUnfolded = true } in
+            invertRightS f ctxts c tUnfolded
+    | STDeclr(x) ->
+        let t = List.assoc x ctxts.d.s in 
+        invertRightS f ctxts c t
+    | _ -> invertLeftS f ctxts c goal
+
+and invertLeftF f ctxts c goal =
+    print_endline ("invertLeftF: " ^ tyF_to_string goal);
+    print_string "  pa: "; print_psi ctxts.p.a;
+    print_string "  ps: "; print_psi ctxts.p.s;
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
+    match ctxts.p.a with
+    | (x, t)::pa' ->
+        begin match t with
+        | _ -> raise (Fail("invertLeftF: pattern matching not defined for " ^ tyF_to_string t))
+        end
+    | [] -> focusDecideF f ctxts ctxts.p.s c goal 
 
 and invertLeftS f ctxts c goal =
     print_endline ("invertLeftS: " ^ tyS_to_string goal);
@@ -388,13 +409,13 @@ and invertLeftS f ctxts c goal =
             let ctxts2 = append_bindings_delta ctxts1 [(c, t2)] in
             let f, ctxts', e = invertLeftS f ctxts2 c' goal in
             assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None && List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None);
-            f, ctxts', RecvF(x, c, e)
+            f, ctxts', RecvF(x, t1, c, e)
         | STSendS(t1, t2) ->
             let x, c' = fresh_channel(), fresh_channel() in
             let ctxts1 = append_bindings_delta ctxts [(x, t1); (c, t2)] in
             let f, ctxts', e = invertLeftS f ctxts1 c' goal in
             assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None && List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None);
-            f, ctxts', RecvS(x, c, e)
+            f, ctxts', RecvS(x, t1, c, e)
         | STUnit -> 
             let c' = fresh_channel() in
             let f, ctxts', e = invertLeftS f ctxts c' goal in
@@ -415,19 +436,16 @@ and invertLeftS f ctxts c goal =
         end
     | [] -> focusDecideS f ctxts ctxts.d.s c goal
 
-and invertLeftF f ctxts c goal =
-    print_endline ("invertLeftF: " ^ tyF_to_string goal);
-    print_string "  pa: "; print_psi ctxts.p.a;
+and focusDecideF f ctxts ps' c goal = 
+    print_endline ("focusDecideF: " ^ tyF_to_string goal);
     print_string "  ps: "; print_psi ctxts.p.s;
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
-    match ctxts.p.a with
-    | (x, t)::pa' ->
-        begin match t with
-        | _ -> raise (Fail("invertLeftF: pattern matching not defined for " ^ tyF_to_string t))
-        end
-    | [] -> focusDecideF f ctxts ctxts.p.s c goal 
+    print_string "  ps': "; print_psi ps';
+    match ps' with
+    | [] -> focusRightF f ctxts c goal
+    | (xFoc, tFoc)::ps'' -> try 
+            if is_tyF_left_async goal then focusRightF f ctxts c goal
+            else focusLeftF f ctxts xFoc tFoc c goal
+        with Fail _ -> focusDecideF f ctxts ps'' c goal
 
 and focusDecideS f ctxts ds' c goal = 
     print_endline ("focusDecideS: " ^ tyS_to_string goal);
@@ -439,16 +457,18 @@ and focusDecideS f ctxts ds' c goal =
             else focusLeftS f ctxts xFoc tFoc c goal
         with Fail _ -> focusDecideS f ctxts ds'' c goal
 
-and focusDecideF f ctxts ps' c goal = 
-    print_endline ("focusDecideF: " ^ tyF_to_string goal);
-    print_string "  ps: "; print_psi ctxts.p.s;
-    print_string "  ps': "; print_psi ps';
-    match ps' with
-    | [] -> focusRightF f ctxts c goal
-    | (xFoc, tFoc)::ps'' -> try 
-            if is_tyF_left_async goal then focusRightF f ctxts c goal
-            else focusLeftF f ctxts xFoc tFoc c goal
-        with Fail _ -> focusDecideF f ctxts ps'' c goal
+and focusRightF f ctxts c goal =
+    print_endline ("focusRightF: " ^ tyF_to_string goal);
+    let f = { f with currDepth = f.currDepth + 1 } in
+    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
+    assert (f.currDepth <= f.maxDepth);
+    match goal with
+    | TAtomic(TInt) -> f, ctxts, Int(1)
+    | TAtomic(TBool) -> f, ctxts, Bool(true)
+    | TRefinement(x, t1, t2) ->
+        let solution = Cvc5adapter.solve ctxts.p.s goal in
+        f, ctxts, solution
+    | _ -> invertRightF f ctxts c goal
 
 and focusRightS f ctxts c goal =
     print_endline ("focusRightS: " ^ tyS_to_string goal);
@@ -481,18 +501,20 @@ and focusRightS f ctxts c goal =
         in iter_labels labelsesslist
     | _ -> invertRightS f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
-and focusRightF f ctxts c goal =
-    print_endline ("focusRightF: " ^ tyF_to_string goal);
+and focusLeftF f ctxts xFocus tFocus c goal =
+    print_endline ("focusLeftF: tFocus: " ^ tyF_to_string tFocus ^ "    goal: " ^ tyF_to_string goal);
     let f = { f with currDepth = f.currDepth + 1 } in
     print_endline ("  currDepth: " ^ string_of_int f.currDepth);
     assert (f.currDepth <= f.maxDepth);
-    match goal with
-    | TAtomic(TInt) -> f, ctxts, Int(1)
-    | TAtomic(TBool) -> f, ctxts, Bool(true)
-    | TRefinement(x, t1, t2) ->
-        let solution = Cvc5adapter.solve ctxts.p.s goal in
-        f, ctxts, solution
-    | _ -> invertRightF f ctxts c goal
+    match tFocus with
+    | TArrow(t1, t2) ->
+        let y = fresh_id() in
+        let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
+        let f, ctxts'', e1 = invertRightF f ctxts c t1 in
+        f, ctxts'', subst e2 y (App(Var(xFocus), e1))
+    | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
+        if tFocus = goal then f, ctxts, Var(xFocus)
+        else raise (Fail "tFocus != goal")
 
 and focusLeftS f ctxts xFocus tFocus c goal =
     print_endline ("focusLeftS: " ^ tyS_to_string tFocus);
@@ -523,21 +545,6 @@ and focusLeftS f ctxts xFocus tFocus c goal =
         in iter_labels labelsesslist
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
-and focusLeftF f ctxts xFocus tFocus c goal =
-    print_endline ("focusLeftF: tFocus: " ^ tyF_to_string tFocus ^ "    goal: " ^ tyF_to_string goal);
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
-    match tFocus with
-    | TArrow(t1, t2) ->
-        let y = fresh_id() in
-        let f, ctxts', e2 = focusLeftF f ctxts y t2 c goal in
-        let f, ctxts'', e1 = invertRightF f ctxts c t1 in
-        f, ctxts'', subst e2 y (App(Var(xFocus), e1))
-    | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
-        if tFocus = goal then f, ctxts, Var(xFocus)
-        else raise (Fail "tFocus != goal")
-
 let synth goal = 
     let f, ctxts = initialize_flags 100, initialize_ctxts in
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
@@ -551,7 +558,8 @@ let synth_ctxt p d goal =
     let f, ctxts', e = invertRightF f ctxts (fresh_channel()) goal in
     print_newline ();
     print_endline (expF_to_string e);
-    e
+    if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
+    else (print_endline ("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"); e)
 
 (* Examples and stuff *)
 

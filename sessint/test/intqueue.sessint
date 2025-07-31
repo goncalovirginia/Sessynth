@@ -1,0 +1,10 @@
+stype IntQueue rec x. &{enq: int => x, deq: +{none: @, some: int ^ x}};
+elem : int -> {IntQueue <- c:IntQueue}
+? elem ?;
+empty : {IntQueue}
+? empty ?;
+;;
+m <- {
+    close m
+}
+;;

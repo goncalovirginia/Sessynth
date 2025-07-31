@@ -167,8 +167,8 @@ sessynth_tyF:
   | L_BRACE var = VAR COLON tA = sessynth_tyA V_BAR tR = sessynth_tyR R_BRACE     { Sessynth.Language.TRefinement(var, tA, tR) }
   | var = VAR COLON tA = sessynth_tyA                                             { Sessynth.Language.TRefinement(var, tA, Sessynth.Language.RTBool(true)) }
   | t1 = sessynth_tyF RIGHT_ARROW t2 = sessynth_tyF                               { Sessynth.Language.TArrow(t1, t2) }
-  | L_BRACE tS = sessynth_tyS R_BRACE                                             { Sessynth.Language.TProcess([], tS) }     
-  | L_BRACE tS = sessynth_tyS LEFT_ARROW tSl = sessynth_tyS_list R_BRACE          { Sessynth.Language.TProcess(tSl, tS) }
+  | L_BRACE outs = sessynth_tyS R_BRACE                                           { Sessynth.Language.TProcess([], outs) }     
+  | L_BRACE outs = sessynth_tyS LEFT_ARROW incsl = sessynth_tyS_list R_BRACE      { Sessynth.Language.TProcess(incsl, outs) }
   | var = VAR                                                                     { Sessynth.Language.TDeclr(var) }
 
 sessynth_tyR:
@@ -214,8 +214,8 @@ sessynth_tyS:
   | v = S_VAR                                                 { Sessynth.Language.STRecVar(v) }
 
 sessynth_tyS_list:
-  | t = sessynth_tyS                                { [t] }
-  | t = sessynth_tyS COMMA tl = sessynth_tyS_list   { t::tl }
+  | t = sessynth_tyS                                { [("_", t)] }
+  | t = sessynth_tyS COMMA tl = sessynth_tyS_list   { ("_", t)::tl }
 
 sessynth_choice_list:
   | v = VAR COLON st = sessynth_tyS                                   { [(v, st)] }

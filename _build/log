@@ -1,4 +1,4 @@
-# dune exec ./sessint/bin/main.exe sessint/test/program2.sessint true false
+# dune exec ./sessint/bin/main.exe sessint/test/intqueue.sessint true false
 # OCAMLPARAM: unset
 # Shared cache: enabled-except-user-rules
 # Shared cache location: /home/goncalovirginia/.cache/dune/db
@@ -13,4 +13,4 @@
 #  ; build_dir = In_build_dir "default"
 #  ; instrument_with = []
 #  }
-$ /home/goncalovirginia/.opam/default/bin/ocamlc.opt -config > /tmp/dune_d4b4c2_output
+$ /home/goncalovirginia/.opam/default/bin/ocamlc.opt -config > /tmp/dune_6c7f01_output
