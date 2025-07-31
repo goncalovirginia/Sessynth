@@ -223,17 +223,25 @@ let get_and_remove k kvl =
     let kvl' = List.remove_assoc k kvl in
     kvl', v
 
-let consume_channel d c =
-    let da, ds = d in
+let consume_channel ctxts c =
     try begin
-        let da', s = get_and_remove c da in
-        (da', ds), s
+        let da', s = get_and_remove c ctxts.d.a in
+        { ctxts with d = { ctxts.d with a = da'} }, s
     end 
     with Not_found -> try begin
-        let ds', s = get_and_remove c ds in
-        (da, ds'), s
+        let ds', s = get_and_remove c ctxts.d.s in
+        { ctxts with d = { ctxts.d with s = ds'} }, s
     end
     with Not_found -> raise (Fail("consume_channel: channel " ^ c ^ " not found"))
+
+let consume_channels ctxts cl =
+    let rec consume_channels' ctxts' cl' sl =
+        match cl' with
+        | [] -> ctxts', sl
+        | c'::cl'' -> 
+            let ctxts'', s = consume_channel ctxts c' in
+            consume_channels' ctxts'' cl'' ((s)::sl)
+    in consume_channels' ctxts cl []
 
 let rec consume_channels_with_sessions d insl consumed_csl =
     let da, ds = d in
@@ -368,7 +376,8 @@ and invertRightS f ctxts c goal =
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
             let tReturn = get_TArrow_return_type tRecLam in
             let f, ctxts, eApp = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
-            f, ctxts, Spawn(cRec, eApp, f.clForSpawn, Fwd(cRec, c, t))
+            let ctxts', _ = consume_channels ctxts f.clForSpawn in
+            f, ctxts', Spawn(cRec, eApp, f.clForSpawn, Fwd(cRec, c, t))
         else 
             let tUnfolded = unfold t goal x in
             let f = {f with isUnfolded = true } in
