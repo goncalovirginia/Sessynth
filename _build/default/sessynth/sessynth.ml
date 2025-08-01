@@ -198,10 +198,13 @@ let append_bindings_delta ctxts bindings =
     let da', ds' = append_bindings (ctxts.d.a, ctxts.d.s) bindings is_tyS_left_async in
     { ctxts with d = { a = da'; s = ds' } }
 
-let rec deltas_are_equal inversions prevCtxts = 
-    match inversions with
-    | (_, ctxts', _)::inversions' -> List.equal (=) prevCtxts.d.a ctxts'.d.a && List.equal (=) prevCtxts.d.s ctxts'.d.s && deltas_are_equal inversions' ctxts'
-    | [] -> true
+let deltas_are_equal inversions = 
+    let ctxtsl = List.map(fun (_, ctxts, _) -> ctxts) inversions in
+    let hdCtxts = List.hd ctxtsl in
+    List.iter (fun currCtxts -> 
+        if List.equal (=) hdCtxts.d.a currCtxts.d.a && List.equal (=) hdCtxts.d.s currCtxts.d.s then ()
+        else raise (Fail ("All choices must return equal remaining linear ctxts"))) (List.tl ctxtsl);
+    hdCtxts
 
 let rec build_label_expP_list labelsesslist inversions =
     match labelsesslist, inversions with
@@ -366,16 +369,15 @@ and invertRightS f ctxts c goal =
         f, ctxts', RecvS(x, t1, c, e)
     | STExtChoice(labelsesslist) ->
         let inversions = List.map (fun (l, s) -> invertRightS f ctxts c s) labelsesslist in
-        let f, ctxts1, _ = List.hd inversions in
-        assert (deltas_are_equal (List.tl inversions) ctxts);
+        let ctxts' = deltas_are_equal inversions in
         let labelprocesslist = build_label_expP_list labelsesslist inversions in
-        f, ctxts1, Choice(c, labelprocesslist)
+        f, ctxts', Choice(c, labelprocesslist)
     | STRec(x, t) ->
         if f.isUnfolded then
             let cRec = fresh_channel() in
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
             let tReturn = get_TArrow_return_type tRecLam in
-            let f, ctxts, eApp = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
+            let _, ctxts, eApp = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
             let ctxts', _ = consume_channels ctxts f.clForSpawn in
             f, ctxts', Spawn(cRec, eApp, f.clForSpawn, Fwd(cRec, c, t))
         else 
@@ -437,10 +439,9 @@ and invertLeftS f ctxts c goal =
                 assert (List.assoc_opt xn ctxts'.d.a = None && List.assoc_opt xn ctxts'.d.s = None);
                 f, ctxts', e
             ) labelsesslist in
-            let f, ctxts1, _ = List.hd inversions in
-            assert (deltas_are_equal (List.tl inversions) ctxts1);
+            let ctxts' = deltas_are_equal inversions in
             let labelprocesslist = build_label_expP_list labelsesslist inversions in
-            f, ctxts1, Choice(x, labelprocesslist)
+            f, ctxts', Choice(x, labelprocesslist)
         | _ -> raise (Fail("invertLeft: somehow a sync type wound up in async context"))
         end
     | [] -> focusDecideS f ctxts ctxts.d.s c goal
