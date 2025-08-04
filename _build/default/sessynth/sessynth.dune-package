@@ -4,6 +4,7 @@
 (files
  (lib
   (META
+   choiceUtils.ml
    cvc5adapter.ml
    dune-package
    language.ml
@@ -19,6 +20,9 @@
    sessynth__.cmt
    sessynth__.cmx
    sessynth__.ml
+   sessynth__ChoiceUtils.cmi
+   sessynth__ChoiceUtils.cmt
+   sessynth__ChoiceUtils.cmx
    sessynth__Cvc5adapter.cmi
    sessynth__Cvc5adapter.cmt
    sessynth__Cvc5adapter.cmx
@@ -32,7 +36,7 @@
  (archives (byte sessynth.cma) (native sessynth.cmxa))
  (plugins (byte sessynth.cma) (native sessynth.cmxs))
  (native_archives sessynth.a)
- (requires z3 unix sexplib str)
+ (requires z3 unix sexplib str choice)
  (main_module_name Sessynth)
  (modes byte native)
  (modules
@@ -45,6 +49,10 @@
      (source (path Sessynth__) (impl (path sessynth__.ml-gen))))
     (name Sessynth)
     (modules
+     (module
+      (obj_name sessynth__ChoiceUtils)
+      (visibility public)
+      (source (path ChoiceUtils) (impl (path choiceUtils.ml))))
      (module
       (obj_name sessynth__Cvc5adapter)
       (visibility public)

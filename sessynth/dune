@@ -1,8 +1,8 @@
 (library
  (name sessynth)
  (public_name sessynth)
- (modules Sessynth Language Cvc5adapter)
- (libraries z3 unix sexplib str))
+ (modules Sessynth Language Cvc5adapter ChoiceUtils)
+ (libraries z3 unix sexplib str choice))
 
 (env
  (dev

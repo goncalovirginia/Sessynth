@@ -1,5 +1,6 @@
 lib: [
   "_build/install/default/lib/sessynth/META"
+  "_build/install/default/lib/sessynth/choiceUtils.ml"
   "_build/install/default/lib/sessynth/cvc5adapter.ml"
   "_build/install/default/lib/sessynth/dune-package"
   "_build/install/default/lib/sessynth/language.ml"
@@ -15,6 +16,9 @@ lib: [
   "_build/install/default/lib/sessynth/sessynth__.cmt"
   "_build/install/default/lib/sessynth/sessynth__.cmx"
   "_build/install/default/lib/sessynth/sessynth__.ml"
+  "_build/install/default/lib/sessynth/sessynth__ChoiceUtils.cmi"
+  "_build/install/default/lib/sessynth/sessynth__ChoiceUtils.cmt"
+  "_build/install/default/lib/sessynth/sessynth__ChoiceUtils.cmx"
   "_build/install/default/lib/sessynth/sessynth__Cvc5adapter.cmi"
   "_build/install/default/lib/sessynth/sessynth__Cvc5adapter.cmt"
   "_build/install/default/lib/sessynth/sessynth__Cvc5adapter.cmx"
