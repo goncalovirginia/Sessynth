@@ -271,34 +271,18 @@ let consume_channels ctxts cl =
             consume_channels' ctxts'' cl'' ((s)::sl)
     in consume_channels' ctxts cl []
 
-let rec consume_channels_with_sessions d insl consumed_csl =
-    let da, ds = d in
-    match insl with
-    | s::insl' -> 
-        begin
-            try begin
-                let c = get_first_channel_with_session da s in
-                let da' = List.remove_assoc c da in
-                consume_channels_with_sessions (da', ds) insl' ((c, s)::consumed_csl)
-            end 
-            with Fail _ -> try begin
-                let c = get_first_channel_with_session ds s in
-                let ds' = List.remove_assoc c ds in
-                consume_channels_with_sessions (da, ds') insl' ((c, s)::consumed_csl)
-            end
-            with Fail m -> raise (Fail m)
-        end
-    | [] -> d, consumed_csl
-
-and get_first_channel_with_session d sFind =
-    match d with
-    | (c, s)::d' -> if sFind = s then c else get_first_channel_with_session d' sFind
-    | [] -> raise (Fail("No existing binding for a channel with session type " ^ tyS_to_string sFind))
-
 let rec get_TArrow_return_type t =
     match t with
     | TArrow(t1, t2) -> get_TArrow_return_type t2
     | _ -> t
+
+let find_binding_for_ty bl bt =
+    let (x, _) = List.find (fun (_, t) -> t = bt) bl in x
+
+let find_binding_for_tyF ctxts tF =
+    try find_binding_for_ty ctxts.p.a tF
+    with Not_found -> try find_binding_for_ty ctxts.p.s tF
+    with Not_found -> raise (Fail ("find_binding_for_tyF: no binding found for type " ^ tyF_to_string tF))
 
 (* S[μt.S / t] *)
 let rec unfold tUnfold stRecReplacement xReplace =
@@ -357,7 +341,7 @@ let rec invertRightF f ctxts c goal =
             Choice.return (f, ctxts', Lam(x, t1, e))
         end
     | TProcess(incsl, outs) ->
-        let f = if f.xRecLam = "" then let (xRecFun, _) = List.find (fun (_, t) -> t = goal) ctxts.p.s in { f with xRecLam = xRecFun } else f in
+        let f = if f.xRecLam = "" then { f with xRecLam = find_binding_for_tyF ctxts goal } else f in
         let incsl = List.map (fun (c, s) -> if c = "" then (fresh_channel(), s) else (c, s)) incsl in
         let ctxts1 = append_bindings_delta ctxts incsl in
         let incl = List.map (fun (c, _) -> c) incsl in
