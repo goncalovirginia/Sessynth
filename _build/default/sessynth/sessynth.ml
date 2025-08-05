@@ -19,7 +19,7 @@ type contexts = { g : gamma; p : psi; d : delta }
 (* Auxiliary functions *)
 
 let initialize_flags maxDepth printDebug =
-    let f : flags = { isUnfolded = false ; xRecLam = ""; clForSpawn = []; currDepth = 0; maxDepth = maxDepth; printDebug = printDebug } in
+    let f : flags = { isUnfolded = false ; xRecLam = ""; clForSpawn = []; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
     f
 
 let initialize_ctxts =
@@ -193,12 +193,11 @@ let debugS f ctxts goal tFocus curr_fun =
         match curr_fun with
         | "invertRightS" | "invertLeftS" | "focusDecideS" ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
-            print_string (indent ^ "pa: "); print_delta ctxts.d.a;
-            print_string (indent ^ "ps: "); print_delta ctxts.d.s
+            print_string (indent ^ "da: "); print_delta ctxts.d.a;
+            print_string (indent ^ "ds: "); print_delta ctxts.d.s
         | _ ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
             print_endline (indent ^ "tFocus: " ^ tyS_to_string tFocus)
-
 
 let is_tyF_left_async t = 
     match t with
@@ -393,8 +392,8 @@ and invertRightS f ctxts c goal =
         let* branches = ChoiceUtils.choice_map_list synth_label labelsesslist in
         let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
         let ctxts' = List.hd ctxtsl in
-        let ctxts_equal = List.for_all (fun d -> d = ctxts') ctxtsl in
-        print_endline (string_of_bool ctxts_equal);
+        let ctxts_equal = List.for_all (fun ctxtsn -> ctxtsn.d = ctxts'.d) (List.tl ctxtsl) in
+        print_endline ((String.make (f.currDepth * 2) ' ') ^ "ExtChoice " ^ string_of_bool ctxts_equal);
         let* () = Choice.guard ctxts_equal in
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
         Choice.return (f, ctxts', Choice(c, labelproclist))
@@ -455,7 +454,7 @@ and invertLeftS f ctxts c goal =
                 let ctxtsn = append_bindings_delta ctxts [(cn, s)] in
                 let* (f', ctxts', eP) = invertLeftS f ctxtsn c goal in
                 let was_consumed = List.assoc_opt cn ctxts'.d.a = None && List.assoc_opt cn ctxts'.d.s = None in
-                print_endline (string_of_bool was_consumed);
+                print_endline ((String.make (f.currDepth * 2) ' ') ^ "IntChoice " ^ string_of_bool was_consumed);
                 let* () = Choice.guard was_consumed in
                 Choice.return (l, (f', ctxts', eP))
             in
