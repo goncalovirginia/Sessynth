@@ -373,17 +373,17 @@ and invertRightS f ctxts c goal =
     debugS f ctxts goal goal "invertRightS";
     match goal with 
     | STRecvF(t1, t2) ->
-        let x = fresh_id() in
-        let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+        let x1 = fresh_id() in
+        let ctxts1 = append_bindings_psi ctxts [(x1, t1)] in
         let* (f, ctxts', e) = invertRightS f ctxts1 c t2 in
-        assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None);
-        Choice.return (f, ctxts', RecvF(x, t1, c, e))
+        Choice.return (f, ctxts', RecvF(x1, t1, c, e))
     | STRecvS(t1, t2) -> 
-        let x = fresh_id() in
-        let ctxts1 = append_bindings_delta ctxts [(x, t1)] in
+        let c1 = fresh_channel() in
+        let ctxts1 = append_bindings_delta ctxts [(c1, t1)] in
         let* (f, ctxts', e) = invertRightS f ctxts1 c t2 in
-        assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None);
-        Choice.return (f, ctxts', RecvS(x, t1, c, e))
+        let c1_consumed = List.assoc_opt c1 ctxts'.d.a = None && List.assoc_opt c1 ctxts'.d.s = None in
+        let* () = Choice.guard c1_consumed in
+        Choice.return (f, ctxts', RecvS(c1, t1, c, e))
     | STExtChoice(labelsesslist) ->
         let synth_label (l, s) =
             let* (f', ctxts', eP) = invertRightS f ctxts c s in
@@ -393,7 +393,6 @@ and invertRightS f ctxts c goal =
         let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
         let ctxts' = List.hd ctxtsl in
         let ctxts_equal = List.for_all (fun ctxtsn -> ctxtsn.d = ctxts'.d) (List.tl ctxtsl) in
-        print_endline ((String.make (f.currDepth * 2) ' ') ^ "ExtChoice " ^ string_of_bool ctxts_equal);
         let* () = Choice.guard ctxts_equal in
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
         Choice.return (f, ctxts', Choice(c, labelproclist))
@@ -436,13 +435,15 @@ and invertLeftS f ctxts c goal =
             let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
             let ctxts2 = append_bindings_delta ctxts1 [(c, t2)] in
             let* (f, ctxts', e) = invertLeftS f ctxts2 c' goal in
-            assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None && List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None);
+            let c_consumed = List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None in
+            let* () = Choice.guard c_consumed in
             Choice.return (f, ctxts', RecvF(x, t1, c, e))
         | STSendS(t1, t2) ->
             let x, c' = fresh_channel(), fresh_channel() in
             let ctxts1 = append_bindings_delta ctxts [(x, t1); (c, t2)] in
             let* (f, ctxts', e) = invertLeftS f ctxts1 c' goal in
-            assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None && List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None);
+            let c_consumed = List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None in
+            let* () = Choice.guard c_consumed in
             Choice.return (f, ctxts', RecvS(x, t1, c, e))
         | STUnit -> 
             let c' = fresh_channel() in
@@ -453,14 +454,13 @@ and invertLeftS f ctxts c goal =
                 let cn = fresh_channel() in
                 let ctxtsn = append_bindings_delta ctxts [(cn, s)] in
                 let* (f', ctxts', eP) = invertLeftS f ctxtsn c goal in
-                let was_consumed = List.assoc_opt cn ctxts'.d.a = None && List.assoc_opt cn ctxts'.d.s = None in
-                print_endline ((String.make (f.currDepth * 2) ' ') ^ "IntChoice " ^ string_of_bool was_consumed);
-                let* () = Choice.guard was_consumed in
+                let cn_consumed = List.assoc_opt cn ctxts'.d.a = None && List.assoc_opt cn ctxts'.d.s = None in
+                let* () = Choice.guard cn_consumed in
                 Choice.return (l, (f', ctxts', eP))
             in
             let* branches = ChoiceUtils.choice_map_list synth_branch labelsesslist in
             let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
-            let* () = Choice.guard ((deltas_are_equal ctxtsl) != None) in
+            let* () = Choice.guard (Option.is_some (deltas_are_equal ctxtsl)) in
             let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
             Choice.return (f, List.hd ctxtsl, Choice(x, labelproclist))
         | _ -> raise (Fail("invertLeft: somehow a sync type wound up in async context"))
