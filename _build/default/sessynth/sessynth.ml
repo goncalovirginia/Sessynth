@@ -6,7 +6,7 @@ exception Fail of string
 
 (* Records *)
 
-type flags = { isUnfolded : bool; xRecLam : id; clForSpawn : id list; currDepth : int; maxDepth : int }
+type flags = { isUnfolded : bool; xRecLam : id; clForSpawn : id list; currDepth : int; maxDepth : int; printDebug : bool }
     
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
     
@@ -18,8 +18,8 @@ type contexts = { g : gamma; p : psi; d : delta }
 
 (* Auxiliary functions *)
 
-let initialize_flags maxDepth =
-    let f : flags = { isUnfolded = false ; xRecLam = ""; clForSpawn = []; currDepth = 0; maxDepth = maxDepth } in
+let initialize_flags maxDepth printDebug =
+    let f : flags = { isUnfolded = false ; xRecLam = ""; clForSpawn = []; currDepth = 0; maxDepth = maxDepth; printDebug = printDebug } in
     f
 
 let initialize_ctxts =
@@ -169,6 +169,37 @@ let print_delta c = print_endline ("[" ^ delta_to_string c ^ "]")
 
 let print_psi c = print_endline ("[" ^ psi_to_string c ^ "]")
 
+let increment_depth f = 
+    assert (f.currDepth <= f.maxDepth); 
+    { f with currDepth = f.currDepth + 1 }
+
+let debugF f ctxts goal tFocus curr_fun =
+    if not f.printDebug then ()
+    else let indent = String.make (f.currDepth * 2) ' ' in
+        print_endline (indent ^ "currDepth: " ^ string_of_int f.currDepth); 
+        match curr_fun with
+        | "invertRightF" | "invertLeftF" | "focusDecideF" ->
+            print_endline (indent ^ curr_fun ^ ": " ^ tyF_to_string goal);
+            print_string (indent ^ "pa: "); print_psi ctxts.p.a;
+            print_string (indent ^ "ps: "); print_psi ctxts.p.s
+        | _ ->
+            print_endline (indent ^ curr_fun ^ ": " ^ tyF_to_string goal);
+            print_endline (indent ^ "tFocus: " ^ tyF_to_string tFocus)
+
+let debugS f ctxts goal tFocus curr_fun =
+    if not f.printDebug then ()
+    else let indent = String.make (f.currDepth * 2) ' ' in
+        print_endline (indent ^ "currDepth: " ^ string_of_int f.currDepth); 
+        match curr_fun with
+        | "invertRightS" | "invertLeftS" | "focusDecideS" ->
+            print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
+            print_string (indent ^ "pa: "); print_delta ctxts.d.a;
+            print_string (indent ^ "ps: "); print_delta ctxts.d.s
+        | _ ->
+            print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
+            print_endline (indent ^ "tFocus: " ^ tyS_to_string tFocus)
+
+
 let is_tyF_left_async t = 
     match t with
     | _ -> false
@@ -300,12 +331,8 @@ let rec unfold tUnfold stRecReplacement xReplace =
 (* flags + gamma-async; gamma-sync; psi-async; psi-async; delta-async; delta-sync |- P :: c : goal *)
 
 let rec invertRightF f ctxts c goal =
-    print_endline ("invertRightF: " ^ tyF_to_string goal);
-    print_string "  pa: "; print_psi ctxts.p.a;
-    print_string "  ps: "; print_psi ctxts.p.s;
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugF f ctxts goal goal "invertRightF";
     match goal with
     | TArrow(t1, t2) ->
         let x = match t1 with
@@ -343,12 +370,8 @@ let rec invertRightF f ctxts c goal =
     | _ -> invertLeftF f ctxts c goal
 
 and invertRightS f ctxts c goal = 
-    print_endline ("invertRightS: " ^ tyS_to_string goal);
-    print_string "  da: "; print_delta ctxts.d.a;
-    print_string "  ds: "; print_delta ctxts.d.s;
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugS f ctxts goal goal "invertRightS";
     match goal with 
     | STRecvF(t1, t2) ->
         let x = fresh_id() in
@@ -363,19 +386,16 @@ and invertRightS f ctxts c goal =
         assert (List.assoc_opt x ctxts'.d.a = None && List.assoc_opt x ctxts'.d.s = None);
         Choice.return (f, ctxts', RecvS(x, t1, c, e))
     | STExtChoice(labelsesslist) ->
-        (* function to synthesize choice for one label *)
         let synth_label (l, s) =
             let* (f', ctxts', eP) = invertRightS f ctxts c s in
             Choice.return (l, (f', ctxts', eP))
         in
-        (* synthesize choices for all labels *)
         let* branches = ChoiceUtils.choice_map_list synth_label labelsesslist in
-        (* verify that all linear contexts are equal *)
         let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
         let ctxts' = List.hd ctxtsl in
         let ctxts_equal = List.for_all (fun d -> d = ctxts') ctxtsl in
+        print_endline (string_of_bool ctxts_equal);
         let* () = Choice.guard ctxts_equal in
-        (* build choice result *)
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
         Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
@@ -396,12 +416,8 @@ and invertRightS f ctxts c goal =
     | _ -> invertLeftS f ctxts c goal
 
 and invertLeftF f ctxts c goal =
-    print_endline ("invertLeftF: " ^ tyF_to_string goal);
-    print_string "  pa: "; print_psi ctxts.p.a;
-    print_string "  ps: "; print_psi ctxts.p.s;
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugF f ctxts goal goal "invertLeftF";
     match ctxts.p.a with
     | (x, t)::pa' ->
         begin match t with
@@ -410,12 +426,8 @@ and invertLeftF f ctxts c goal =
     | [] -> focusDecideF f ctxts ctxts.p.s c goal 
 
 and invertLeftS f ctxts c goal =
-    print_endline ("invertLeftS: " ^ tyS_to_string goal);
-    print_string "  da: "; print_delta ctxts.d.a;
-    print_string "  ds: "; print_delta ctxts.d.s;
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugS f ctxts goal goal "invertLeftS";
     match ctxts.d.a with
     | (x, t)::da' ->
         let ctxts = { ctxts with d = { a = da'; s = ctxts.d.s } } in
@@ -438,23 +450,12 @@ and invertLeftS f ctxts c goal =
             let* (f, ctxts', e) = invertLeftS f ctxts c' goal in
             Choice.return (f, ctxts', Wait(c, e))
         | STIntChoice(labelsesslist) ->
-            (*
-            let labelinversionlist = List.map (fun (l, s) -> 
-                let xn = fresh_id() in
-                let ctxts1 = append_bindings_delta ctxts [(xn, s)] in
-                let* (f, ctxts', e) = invertLeftS f ctxts1 c goal in
-                assert (List.assoc_opt xn ctxts'.d.a = None && List.assoc_opt xn ctxts'.d.s = None);
-                (l, Choice.return (f, ctxts', e))
-            ) labelsesslist in
-            let ctxts' = deltas_are_equal labelinversionlist in
-            let labelprocesslist = List.map (fun (l, (_, _, eP)) -> (l, eP)) labelinversionlist in
-            Choice.return (f, ctxts', Choice(x, labelprocesslist))
-            *)
             let synth_branch (l, s) =
                 let cn = fresh_channel() in
                 let ctxtsn = append_bindings_delta ctxts [(cn, s)] in
                 let* (f', ctxts', eP) = invertLeftS f ctxtsn c goal in
                 let was_consumed = List.assoc_opt cn ctxts'.d.a = None && List.assoc_opt cn ctxts'.d.s = None in
+                print_endline (string_of_bool was_consumed);
                 let* () = Choice.guard was_consumed in
                 Choice.return (l, (f', ctxts', eP))
             in
@@ -468,9 +469,7 @@ and invertLeftS f ctxts c goal =
     | [] -> focusDecideS f ctxts ctxts.d.s c goal
 
 and focusDecideF f ctxts ps' c goal = 
-    print_endline ("focusDecideF: " ^ tyF_to_string goal);
-    print_string "  ps: "; print_psi ctxts.p.s;
-    print_string "  ps': "; print_psi ps';
+    debugF f ctxts goal goal "focusDecideF";
     match ps' with
     | [] -> focusRightF f ctxts c goal
     | (xFoc, tFoc)::ps'' -> try 
@@ -479,8 +478,7 @@ and focusDecideF f ctxts ps' c goal =
         with Fail _ -> focusDecideF f ctxts ps'' c goal
 
 and focusDecideS f ctxts ds' c goal = 
-    print_endline ("focusDecideS: " ^ tyS_to_string goal);
-    print_string "  ds: "; print_delta ds';
+    debugS f ctxts goal goal "focusDecideS";
     match ds' with
     | [] -> focusRightS f ctxts c goal
     | (xFoc, tFoc)::ds'' -> try 
@@ -489,10 +487,8 @@ and focusDecideS f ctxts ds' c goal =
         with Fail _ -> focusDecideS f ctxts ds'' c goal
 
 and focusRightF f ctxts c goal =
-    print_endline ("focusRightF: " ^ tyF_to_string goal);
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugF f ctxts goal goal "focusRightF";
     match goal with
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
     | TAtomic(TBool) -> Choice.return (f, ctxts, Bool(true))
@@ -502,10 +498,8 @@ and focusRightF f ctxts c goal =
     | _ -> invertRightF f ctxts c goal
 
 and focusRightS f ctxts c goal =
-    print_endline ("focusRightS: " ^ tyS_to_string goal);
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugS f ctxts goal goal "focusRightS";
     match goal with 
     | STSendF(t1, t2) ->
         let* (f, ctxts', e1) = focusDecideF f ctxts ctxts.p.s c t1 in
@@ -528,10 +522,8 @@ and focusRightS f ctxts c goal =
     | _ -> invertRightS f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
 and focusLeftF f ctxts xFocus tFocus c goal =
-    print_endline ("focusLeftF: tFocus: " ^ tyF_to_string tFocus ^ "    goal: " ^ tyF_to_string goal);
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugF f ctxts goal tFocus "focusLeftF";
     match tFocus with
     | TArrow(t1, t2) ->
         let y = fresh_id() in
@@ -540,13 +532,11 @@ and focusLeftF f ctxts xFocus tFocus c goal =
         Choice.return (f, ctxts'', subst e2 y (App(Var(xFocus), e1)))
     | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
         if tFocus = goal then Choice.return (f, ctxts, Var(xFocus))
-        else raise (Fail "tFocus != goal")
+        else Choice.fail
 
 and focusLeftS f ctxts xFocus tFocus c goal =
-    print_endline ("focusLeftS: " ^ tyS_to_string tFocus);
-    let f = { f with currDepth = f.currDepth + 1 } in
-    print_endline ("  currDepth: " ^ string_of_int f.currDepth);
-    assert (f.currDepth <= f.maxDepth);
+    let f = increment_depth f in
+    debugS f ctxts goal tFocus "focusLeftS";
     match tFocus with
     | STRecvF(t1, t2) ->
         let* (f, ctxts', e2) = focusLeftS f ctxts xFocus t2 c goal in
@@ -567,7 +557,7 @@ and focusLeftS f ctxts xFocus tFocus c goal =
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
 let synth goal = 
-    let f, ctxts = initialize_flags 100, initialize_ctxts in
+    let f, ctxts = initialize_flags 100 true, initialize_ctxts in
     let (f, ctxts', e) = 
         match invertRightF f ctxts (fresh_channel()) goal |> Choice.run_one with
         | Some result -> result
@@ -577,7 +567,7 @@ let synth goal =
     else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
 
 let synth_ctxt p d goal = 
-    let f, ctxts = initialize_flags 100, initialize_ctxts in
+    let f, ctxts = initialize_flags 100 true, initialize_ctxts in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
     let (f, ctxts', e) = 
