@@ -357,7 +357,8 @@ let rec invertRightF f ctxts c goal =
             Choice.return (f, ctxts', Lam(x, t1, e))
         end
     | TProcess(incsl, outs) ->
-        let incsl = List.map (fun (c, s) -> if c = "_" then (fresh_channel(), s) else (c, s)) incsl in
+        let f = if f.xRecLam = "" then let (xRecFun, _) = List.find (fun (_, t) -> t = goal) ctxts.p.s in { f with xRecLam = xRecFun } else f in
+        let incsl = List.map (fun (c, s) -> if c = "" then (fresh_channel(), s) else (c, s)) incsl in
         let ctxts1 = append_bindings_delta ctxts incsl in
         let incl = List.map (fun (c, _) -> c) incsl in
         let f = { f with clForSpawn = incl } in
