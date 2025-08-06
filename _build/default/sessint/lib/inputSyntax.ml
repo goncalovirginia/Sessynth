@@ -44,7 +44,7 @@ type exp =
   | Cond of exp * exp * exp
   | ProcExp of var * proc
   | ExecExp of exp
-  | Synth of Sessynth.Language.tyF
+  | Synth of Sessynth.Language.tyF * int
 
 and proc =
   | Send of var * exp * proc

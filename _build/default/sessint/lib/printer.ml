@@ -145,7 +145,7 @@ let rec string_from_exp e =
       c ^ " : { " ^ string_from_proc p ^ " }" ^ string_from_stype_option o ^ " <- "
       ^ string_from_lin_ctxt ctxt
   | Syntax.ExecExp exp -> "exec ( " ^ string_from_exp exp ^ " )"
-  | Syntax.Synth t -> string_from_type (SessynthAdapter.tyF_to_ty t)
+  | Syntax.Synth(t, _) -> string_from_type (SessynthAdapter.tyF_to_ty t)
 
 and string_from_proc p =
   match p with

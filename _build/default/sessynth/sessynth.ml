@@ -540,29 +540,27 @@ and focusLeftS f ctxts xFocus tFocus c goal =
         List.fold_right Choice.mplus choices Choice.fail
     | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
 
-let synth goal = 
-    let f, ctxts = initialize_flags 100 true, initialize_ctxts in
-    let (f, ctxts', e) = 
-        match invertRightF f ctxts (fresh_channel()) goal |> Choice.run_one with
-        | Some result -> result
-        | None -> raise (Fail "No valid expression was able to be synthesized for the provided type")
-    in
-    if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
-    else raise (Fail("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"))
-
-let synth_ctxt p d goal = 
+let synth n_sol p d goal = 
     let f, ctxts = initialize_flags 100 true, initialize_ctxts in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
-    let (f, ctxts', e) = 
-        match invertRightF f ctxts (fresh_channel()) goal |> Choice.run_one with
-        | Some result -> result
-        | None -> raise (Fail "No valid expression was able to be synthesized for the provided type")
+    let expl = List.map (fun (_, _, e) -> e)
+        (match invertRightF f ctxts (fresh_channel()) goal |> Choice.run_n n_sol with
+        | [] -> raise (Fail "No valid expression was able to be synthesized for the provided type")
+        | solutions -> solutions)
     in
+    let i = ref 0 in
     print_newline ();
-    print_endline (expF_to_string e);
-    if List.is_empty ctxts'.d.a && List.is_empty ctxts'.d.s then e
-    else (print_endline ("Synthesized expression did not use all linear resources:\n  da: " ^ delta_to_string ctxts'.d.a ^ "\n  ds: " ^ delta_to_string ctxts'.d.s ^ "\n"); e)
+    List.iter (fun e -> print_endline (string_of_int !i ^ ":"); print_endline (expF_to_string e ^ "\n"); incr i) expl;
+    if List.length expl = 1 then List.hd expl
+    else (
+        let rec choose_exp() =
+            print_string "\nSelect solution: "; 
+            let chosen_exp = read_int() in
+            if chosen_exp < 0 || chosen_exp >= List.length expl then choose_exp()
+            else List.nth expl chosen_exp
+        in choose_exp()
+    )
 
 (* Examples and stuff *)
 

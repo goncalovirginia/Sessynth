@@ -103,8 +103,8 @@ and expP_to_proc expP =
 
 (* adapter synth function *)
 
-let synth p d goal =
+let synth nSolutions p d goal =
     let p_sessynth = List.map(fun (x, t) -> (x, ty_to_tyF t)) p in
     let d_sessynth = List.map(fun (x, st) -> (x, stype_to_tyS st)) d in
-    let synthed_expF = Sessynth.synth_ctxt p_sessynth d_sessynth goal in
+    let synthed_expF = Sessynth.synth nSolutions p_sessynth d_sessynth goal in
     expF_to_exp synthed_expF

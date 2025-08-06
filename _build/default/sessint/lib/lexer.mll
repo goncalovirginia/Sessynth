@@ -76,6 +76,7 @@ rule token = parse
 	| '{'					 				{ L_BRACE }
 	| '}'					 				{ R_BRACE }
 	| '|'									{ V_BAR }
+	| '#'									{ HASH }
 	| ("int" | "num" | "nat") 				{ TNUM }
 	| "bool" 			 	 				{ TBOOL }
 	| "unit"								{ TUNIT }

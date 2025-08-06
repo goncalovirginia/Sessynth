@@ -19,7 +19,7 @@
 %token CASE OF DOT
 %token END_STYPE RIGHT_ARROW_BOLD CIRCUMFLEX AMPERSAND LOLLIPOP
 %token REC TYPE STYPE
-%token V_BAR
+%token V_BAR HASH
 %token EOF
 
 %left EQUALS
@@ -160,7 +160,8 @@ uop:
 (* sessynth parsing *)
 
 synth_exp:
-  | QUESTION t = sessynth_tyF QUESTION    { Synth(t) }
+  | QUESTION t = sessynth_tyF QUESTION                { Synth(t, 1) }
+  | QUESTION t = sessynth_tyF HASH i = INT QUESTION   { Synth(t, i) }
 
 sessynth_tyF:
   | t = sessynth_tyA                                                              { Sessynth.Language.TAtomic(t) }
