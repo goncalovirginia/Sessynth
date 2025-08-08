@@ -458,13 +458,13 @@ and focusDecideF f ctxts c goal =
     debugF f ctxts goal goal "focusDecideF";
     let left_focuses = List.map (fun (xFoc, tFoc) -> focusLeftF f ctxts xFoc tFoc c goal) ctxts.p.s in
     let right_focus = focusRightF f ctxts c goal in
-    ChoiceUtils.mplus_list (right_focus :: left_focuses)
+    ChoiceUtils.mplus_list (left_focuses @ [right_focus])
 
 and focusDecideS f ctxts c goal = 
     debugS f ctxts goal goal "focusDecideS";
     let left_focuses = List.map (fun (xFoc, tFoc) -> focusLeftS f ctxts xFoc tFoc c goal) ctxts.d.s in
     let right_focus = focusRightS f ctxts c goal in
-    ChoiceUtils.mplus_list (right_focus :: left_focuses)
+    ChoiceUtils.mplus_list (left_focuses @ [right_focus])
 
 and focusRightF f ctxts c goal =
     let f = increment_depth f in
@@ -541,7 +541,7 @@ let synth n_sol p d goal =
     let expl = List.map (fun (_, _, e) -> e)
         (match invertRightF f ctxts (fresh_channel()) goal |> Choice.run_n n_sol with
         | [] -> raise (Fail "No valid expression was able to be synthesized for the provided type")
-        | solutions -> solutions)
+        | solutions -> solutions) |> List.rev
     in
     let i = ref 0 in
     print_newline ();
