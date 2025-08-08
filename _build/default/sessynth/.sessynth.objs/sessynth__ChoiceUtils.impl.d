@@ -1,1 +1,1 @@
-sessynth/choiceUtils.ml: Choice
+sessynth/choiceUtils.ml: Choice List

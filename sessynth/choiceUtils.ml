@@ -17,11 +17,18 @@ end
 
 module Let_syntax = Syntax
 
-let rec choice_map_list f xs =
-    let open Let_syntax in
+open Let_syntax
+
+let rec map_list f xs =
     match xs with
     | [] -> Choice.return []
     | x :: xs' ->
         let* y = f x in
-        let* ys = choice_map_list f xs' in
+        let* ys = map_list f xs' in
         Choice.return (y :: ys)
+
+let mplus_list xs =
+  List.fold_right Choice.mplus xs Choice.fail
+
+let map_mplus_list f xs =
+	mplus_list (List.map f xs)

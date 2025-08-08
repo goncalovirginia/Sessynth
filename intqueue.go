@@ -61,17 +61,17 @@ case "deq" :
 _c00 := _c0.ls["deq"].(*_state_2)
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
-_c02 := _c01.Send(_x0)
+_c02 := _c01.Send(1)
 //Update arguments
-_x0 = _x0
+_x0 = 1
 //Update channels
 _c0 = _c02
 c = c
  case "enq" :
 _c00 := _c0.ls["enq"].(*_state_1)
-_x1, _c01 := _c00.Recv()
+_, _c01 := _c00.Recv()
 //Update arguments
-_x0 = _x1
+_x0 = 1
 //Update channels
 _c0 = _c01
 c = c

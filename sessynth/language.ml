@@ -1,4 +1,4 @@
-(* Types and terms *)
+(* types *)
 
 type id = string
 
@@ -36,6 +36,8 @@ and tyS = (* channel/session types (S) *)
     | STRecVar of id (* t *)
     | STDeclr of id (* variable bound to a previously defined session type declaration *)
     
+(* expressions *)
+
 type expF = (* functional terms (M) *)
     | Int of int
     | Bool of bool

@@ -252,15 +252,11 @@ let get_and_remove k kvl =
     kvl', v
 
 let consume_channel ctxts c =
-    try begin
-        let da', s = get_and_remove c ctxts.d.a in
+    try let da', s = get_and_remove c ctxts.d.a in
         { ctxts with d = { ctxts.d with a = da'} }, s
-    end 
-    with Not_found -> try begin
+    with Not_found ->
         let ds', s = get_and_remove c ctxts.d.s in
         { ctxts with d = { ctxts.d with s = ds'} }, s
-    end
-    with Not_found -> raise (Fail("consume_channel: channel " ^ c ^ " not found"))
 
 let consume_channels ctxts cl =
     let rec consume_channels' ctxts' cl' sl =
@@ -281,8 +277,7 @@ let find_binding_for_ty bl bt =
 
 let find_binding_for_tyF ctxts tF =
     try find_binding_for_ty ctxts.p.a tF
-    with Not_found -> try find_binding_for_ty ctxts.p.s tF
-    with Not_found -> raise (Fail ("find_binding_for_tyF: no binding found for type " ^ tyF_to_string tF))
+    with Not_found -> find_binding_for_ty ctxts.p.s tF
 
 (* S[μt.S / t] *)
 let rec unfold tUnfold stRecReplacement xReplace =
@@ -341,6 +336,7 @@ let rec invertRightF f ctxts c goal =
             Choice.return (f, ctxts', Lam(x, t1, e))
         end
     | TProcess(incsl, outs) ->
+        begin try 
         let f = if f.xRecLam = "" then { f with xRecLam = find_binding_for_tyF ctxts goal } else f in
         let incsl = List.map (fun (c, s) -> if c = "" then (fresh_channel(), s) else (c, s)) incsl in
         let ctxts1 = append_bindings_delta ctxts incsl in
@@ -348,9 +344,14 @@ let rec invertRightF f ctxts c goal =
         let f = { f with clForSpawn = incl } in
         let* (f, ctxts', e) = invertRightS f ctxts1 c outs in
         Choice.return (f, ctxts', Process(c, e, outs, incsl))
+        with Not_found -> Choice.fail
+        end
     | TDeclr(x) -> 
-        let t = List.assoc x ctxts.p.s in 
-        invertRightF f ctxts c t
+        begin try
+            let t = List.assoc x ctxts.p.s in 
+            invertRightF f ctxts c t
+        with Not_found -> Choice.fail
+        end
     | _ -> invertLeftF f ctxts c goal
 
 and invertRightS f ctxts c goal = 
@@ -370,11 +371,11 @@ and invertRightS f ctxts c goal =
         let* () = Choice.guard c1_consumed in
         Choice.return (f, ctxts', RecvS(c1, t1, c, e))
     | STExtChoice(labelsesslist) ->
-        let synth_label (l, s) =
+        let synth_branch (l, s) =
             let* (f', ctxts', eP) = invertRightS f ctxts c s in
             Choice.return (l, (f', ctxts', eP))
         in
-        let* branches = ChoiceUtils.choice_map_list synth_label labelsesslist in
+        let* branches = ChoiceUtils.map_list synth_branch labelsesslist in
         let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
         let ctxts' = List.hd ctxtsl in
         let ctxts_equal = List.for_all (fun ctxtsn -> ctxtsn.d = ctxts'.d) (List.tl ctxtsl) in
@@ -387,26 +388,27 @@ and invertRightS f ctxts c goal =
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
             let tReturn = get_TArrow_return_type tRecLam in
             let* (_, ctxts, eApp) = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
-            let ctxts', _ = consume_channels ctxts f.clForSpawn in
-            Choice.return (f, ctxts', Spawn(cRec, eApp, f.clForSpawn, Fwd(cRec, c, t)))
+            try let ctxts', _ = consume_channels ctxts f.clForSpawn in
+                Choice.return (f, ctxts', Spawn(cRec, eApp, f.clForSpawn, Fwd(cRec, c, t)))
+            with Not_found -> Choice.fail
         else 
             let tUnfolded = unfold t goal x in
             let f = {f with isUnfolded = true } in
             invertRightS f ctxts c tUnfolded
     | STDeclr(x) ->
-        let t = List.assoc x ctxts.d.s in 
-        invertRightS f ctxts c t
+        begin try
+            let t = List.assoc x ctxts.d.s in 
+            invertRightS f ctxts c t
+        with Not_found -> Choice.fail
+        end
     | _ -> invertLeftS f ctxts c goal
 
 and invertLeftF f ctxts c goal =
     let f = increment_depth f in
     debugF f ctxts goal goal "invertLeftF";
     match ctxts.p.a with
-    | (x, t)::pa' ->
-        begin match t with
-        | _ -> raise (Fail("invertLeftF: pattern matching not defined for " ^ tyF_to_string t))
-        end
-    | [] -> focusDecideF f ctxts ctxts.p.s c goal 
+    | (x, t)::pa' -> Choice.fail
+    | [] -> focusDecideF f ctxts c goal 
 
 and invertLeftS f ctxts c goal =
     let f = increment_depth f in
@@ -443,32 +445,26 @@ and invertLeftS f ctxts c goal =
                 let* () = Choice.guard cn_consumed in
                 Choice.return (l, (f', ctxts', eP))
             in
-            let* branches = ChoiceUtils.choice_map_list synth_branch labelsesslist in
+            let* branches = ChoiceUtils.map_list synth_branch labelsesslist in
             let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
             let* () = Choice.guard (Option.is_some (deltas_are_equal ctxtsl)) in
             let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
             Choice.return (f, List.hd ctxtsl, Choice(x, labelproclist))
-        | _ -> raise (Fail("invertLeft: somehow a sync type wound up in async context"))
+        | _ -> Choice.fail
         end
-    | [] -> focusDecideS f ctxts ctxts.d.s c goal
+    | [] -> focusDecideS f ctxts c goal
 
-and focusDecideF f ctxts ps' c goal = 
+and focusDecideF f ctxts c goal = 
     debugF f ctxts goal goal "focusDecideF";
-    match ps' with
-    | [] -> focusRightF f ctxts c goal
-    | (xFoc, tFoc)::ps'' -> try 
-            if is_tyF_left_async goal then focusRightF f ctxts c goal
-            else focusLeftF f ctxts xFoc tFoc c goal
-        with Fail _ -> focusDecideF f ctxts ps'' c goal
+    let left_focuses = List.map (fun (xFoc, tFoc) -> focusLeftF f ctxts xFoc tFoc c goal) ctxts.p.s in
+    let right_focus = focusRightF f ctxts c goal in
+    ChoiceUtils.mplus_list (right_focus :: left_focuses)
 
-and focusDecideS f ctxts ds' c goal = 
+and focusDecideS f ctxts c goal = 
     debugS f ctxts goal goal "focusDecideS";
-    match ds' with
-    | [] -> focusRightS f ctxts c goal
-    | (xFoc, tFoc)::ds'' -> try 
-            if is_tyS_left_async goal then focusRightS f ctxts c goal
-            else focusLeftS f ctxts xFoc tFoc c goal
-        with Fail _ -> focusDecideS f ctxts ds'' c goal
+    let left_focuses = List.map (fun (xFoc, tFoc) -> focusLeftS f ctxts xFoc tFoc c goal) ctxts.d.s in
+    let right_focus = focusRightS f ctxts c goal in
+    ChoiceUtils.mplus_list (right_focus :: left_focuses)
 
 and focusRightF f ctxts c goal =
     let f = increment_depth f in
@@ -486,23 +482,22 @@ and focusRightS f ctxts c goal =
     debugS f ctxts goal goal "focusRightS";
     match goal with 
     | STSendF(t1, t2) ->
-        let* (f, ctxts', e1) = focusDecideF f ctxts ctxts.p.s c t1 in
+        let* (f, ctxts', e1) = focusDecideF f ctxts c t1 in
         let* (f, ctxts'', e2) = focusRightS f ctxts' c t2 in
         Choice.return (f, ctxts'', SendF(c, e1 , e2))
     | STSendS(t1, t2) -> 
         let y = fresh_channel() in
-        let* (f, ctxts', e1) = focusRightS f ctxts y t1 in
+        let* (f, ctxts', e1) = focusDecideS f ctxts y t1 in
         let* (f, ctxts'', e2) = focusRightS f ctxts' c t2 in
         Choice.return (f, ctxts'', SendS(c, y, e1 , e2))
     | STUnit ->
         Choice.return (f, ctxts, Close(c))
     | STIntChoice(labelsesslist) -> 
-        let choices = List.map (fun (l, s) ->
+        let synth_choice_select (l, s) =
             let* (f', ctxts', e1) = focusRightS f ctxts c s in
             Choice.return (f', ctxts', ChoiceSelect(c, l, e1))
-        ) labelsesslist in
-        (* try each choice in sequence in case of backtracking *)
-        List.fold_right Choice.mplus choices Choice.fail
+        in
+        ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
     | _ -> invertRightS f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
 and focusLeftF f ctxts xFocus tFocus c goal =
@@ -532,13 +527,12 @@ and focusLeftS f ctxts xFocus tFocus c goal =
         let* (f, ctxts'', e1) = invertRightS f ctxts' y t1 in
         Choice.return (f, ctxts'', SendS(xFocus, y, e1, e2))
     | STExtChoice(labelsesslist) -> 
-        let choices = List.map (fun (l, s) ->
+        let synth_choice_select (l, s) =
             let* (f', ctxts', e1) = focusRightS f ctxts c s in
             Choice.return (f', ctxts', ChoiceSelect(c, l, e1))
-        ) labelsesslist in
-        (* try each choice in sequence in case of backtracking *)
-        List.fold_right Choice.mplus choices Choice.fail
-    | _ -> raise (Fail("focusLeftS: somehow foc type is left async: " ^ tyS_to_string tFocus))
+        in
+        ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
+    | _ -> Choice.fail
 
 let synth n_sol p d goal = 
     let f, ctxts = initialize_flags 100 true, initialize_ctxts in
