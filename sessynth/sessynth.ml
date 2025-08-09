@@ -418,12 +418,12 @@ and invertRightS f ctxts c goal =
         Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
         if f.isUnfolded then try
-            let* (f, ctxts, eWander) = wanderSpawn f ctxts c in
+            let* (f, ctxts, eWander) = wander f ctxts c in
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
-            let tReturn = get_return_type tRecLam in
-            let spawnable_proc_list = List.filter(fun (_, t') -> 
-                let t'Return = get_return_type t' in 
-                (is_TProcess t'Return) && (get_TProcess_outs t'Return = get_TProcess_outs tReturn)
+            let tProcess = get_return_type tRecLam in
+            let spawnable_proc_list = List.filter(fun (_, t) -> 
+                let tReturn = get_return_type t in 
+                is_TProcess tReturn && get_TProcess_outs tReturn = get_TProcess_outs tProcess
             ) ctxts.p.s in
             let* (f, ctxts', eSpawn) = synthSpawn f ctxts c spawnable_proc_list in
             let f, ctxts'', eFwd = synthFwd f ctxts' (get_Spawn_c eSpawn) c t in
@@ -576,7 +576,7 @@ and focusLeftS f ctxts xFocus tFocus c goal =
 
 (* wandering *)
 
-and wanderSpawn f ctxts c =
+and wander f ctxts c =
     let skipChoice = Choice.return(f, ctxts, Close("")) in
     let spawnChoice = 
         let spawnable_proc_list = List.filter(fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
