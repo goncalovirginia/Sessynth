@@ -61,7 +61,7 @@ case "deq" :
 _c00 := _c0.ls["deq"].(*_state_2)
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
-_c02 := _c01.Send(_x0)
+_c02 := _c01.Send(1)
 //Update arguments
 _x0 = _x0
 //Update channels

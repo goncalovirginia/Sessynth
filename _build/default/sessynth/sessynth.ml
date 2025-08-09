@@ -4,9 +4,9 @@ open ChoiceUtils.Let_syntax
 
 exception Fail of string
 
-(* Records *)
+(* records *)
 
-type flags = { isUnfolded : bool; xRecLam : id; slForSpawn : tyS list; currDepth : int; maxDepth : int; printDebug : bool }
+type flags = { isUnfolded : bool; xRecLam : id; currDepth : int; maxDepth : int; printDebug : bool }
     
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
     
@@ -16,10 +16,10 @@ type delta = { a : (id * tyS) list; s :  (id * tyS) list }
     
 type contexts = { g : gamma; p : psi; d : delta }
 
-(* Auxiliary functions *)
+(* auxiliary functions *)
 
 let initialize_flags maxDepth printDebug =
-    let f : flags = { isUnfolded = false ; xRecLam = ""; slForSpawn = []; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
+    let f : flags = { isUnfolded = false ; xRecLam = ""; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
     f
 
 let initialize_ctxts =
@@ -278,10 +278,25 @@ let rec consume_channels_by_tyS ctxts tSl =
         let* (ctxts'', cl) = consume_channels_by_tyS ctxts' tSl' in
         Choice.return (ctxts'', c::cl)
 
-let rec get_TArrow_return_type t =
+let rec get_return_type t =
     match t with
-    | TArrow(t1, t2) -> get_TArrow_return_type t2
+    | TArrow(t1, t2) -> get_return_type t2
     | _ -> t
+
+let get_TProcess_insl t =
+    match t with
+    | TProcess(csl, _) -> List.map (fun (c, s) -> s) csl
+    | _ -> raise (Fail("get_TProcess_insl: t not of type TProcess"))
+
+let get_TProcess_outs t =
+    match t with
+    | TProcess(_, outs) -> outs
+    | _ -> raise (Fail("get_TProcess_insl: t not of type TProcess"))
+
+let is_TProcess t =
+    match t with
+    | TProcess _ -> true
+    | _ -> false
 
 let find_binding_for_ty bl bt =
     let (x, _) = List.find (fun (_, t) -> t = bt) bl in x
@@ -289,6 +304,11 @@ let find_binding_for_ty bl bt =
 let find_binding_for_tyF ctxts tF =
     try find_binding_for_ty ctxts.p.a tF
     with Not_found -> find_binding_for_ty ctxts.p.s tF
+
+let append_continuation_exp wander_exp cont_exp =
+  match wander_exp with
+  | Spawn(cSpawn, eApp, cl, _) -> Spawn(cSpawn, eApp, cl, cont_exp)
+  | _ -> cont_exp
 
 (* S[μt.S / t] *)
 let rec unfold tUnfold stRecReplacement xReplace =
@@ -315,7 +335,7 @@ let rec unfold tUnfold stRecReplacement xReplace =
         else STRecVar(x)
     | _ -> raise (Fail "Unexpected STDeclr while unfolding recursive session-type")
 
-(* Inversion and Focusing *)
+(* inversion and focusing *)
 
 (* flags + gamma-async; gamma-sync; psi-async; psi-async; delta-async; delta-sync |- P :: c : goal *)
 
@@ -328,7 +348,7 @@ let rec invertRightF f ctxts c goal =
             | TRefinement(x, _, _) -> x
             | _ -> fresh_id() in 
         let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-        begin match get_TArrow_return_type t2 with
+        begin match get_return_type t2 with
         | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p.s) ->
             let f, ctxts2 =
             try
@@ -351,8 +371,6 @@ let rec invertRightF f ctxts c goal =
         let f = if f.xRecLam = "" then { f with xRecLam = find_binding_for_tyF ctxts goal } else f in
         let incsl = List.map (fun (c, s) -> if c = "" then (fresh_channel(), s) else (c, s)) incsl in
         let ctxts1 = append_bindings_delta ctxts incsl in
-        let insl = List.map (fun (_, s) -> s) incsl in
-        let f = { f with slForSpawn = insl } in
         let* (f, ctxts', e) = invertRightS f ctxts1 c outs in
         Choice.return (f, ctxts', Process(c, e, outs, incsl))
         with Not_found -> Choice.fail
@@ -395,12 +413,16 @@ and invertRightS f ctxts c goal =
         Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
         if f.isUnfolded then try
+            let* (f, ctxts, eWander) = wanderSpawn f ctxts c in
             let cSpawn = fresh_channel() in
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
-            let tReturn = get_TArrow_return_type tRecLam in
+            let tReturn = get_return_type tRecLam in
             let* (_, ctxts', eApp) = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
-            let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' f.slForSpawn in
-            Choice.return (f, ctxts'', Spawn(cSpawn, eApp, clForSpawn, Fwd(cSpawn, c, t)))
+            let slForSpawn = get_TProcess_insl tReturn in
+            let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' slForSpawn in
+            let eSpawn = Spawn(cSpawn, eApp, clForSpawn, Fwd(cSpawn, c, t)) in
+            let eAppended = append_continuation_exp eWander eSpawn in
+            Choice.return (f, ctxts'', eAppended)
             with Not_found -> Choice.fail
         else 
             let tUnfolded = unfold t goal x in
@@ -545,22 +567,28 @@ and focusLeftS f ctxts xFocus tFocus c goal =
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
     | _ -> Choice.fail
 
-(*
-let explore f ctxts =
-  (* pick a random process type from ctxts.p.s *)
-  let processes = ctxts.p.s in
-  match processes with
-  | [] -> Choice.fail "no processes in functional context for padding"
-  | _ ->
-      let* (proc_name, proc_ty) = Choice.pick processes in
-      (* generate fresh channel names for the process arguments *)
-      let arg_chs = List.map (fun (_, arg_ty) -> fresh_id ()) (fst proc_ty) in
-      let spawn_chan = fresh_id () in
-      (* For now, continuation is just the original type s *)
-      let cont = Close c in
-      Choice.return (f, ctxts,
-        Spawn (spawn_chan, Var proc_name, arg_chs, cont))
-*)
+(* wandering *)
+
+and wanderSpawn f ctxts c =
+    match ctxts.p.s with
+    | [] -> Choice.return (f, ctxts, Close(""))
+    | _ -> 
+        let skipChoice = Choice.return(f, ctxts, Close("")) in
+        let spawnChoice =
+            let spawnable_proc_list = List.filter(fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
+            let* (xRecLam, tRecLam) = Choice.of_list spawnable_proc_list in
+            let cSpawn = fresh_channel() in
+            let tReturn = get_return_type tRecLam in
+            let* (_, ctxts', eApp) = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
+            let slForSpawn = get_TProcess_insl tReturn in
+            let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' slForSpawn in
+            let spawned_outs = get_TProcess_outs tReturn in
+            let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, spawned_outs)] in
+            Choice.return (f, ctxts''', Spawn(cSpawn, eApp, clForSpawn, Close("")))
+        in
+        Choice.mplus skipChoice spawnChoice
+
+(* entry point *)
 
 let synth n_sol p d goal = 
     let f, ctxts = initialize_flags 100 true, initialize_ctxts in
