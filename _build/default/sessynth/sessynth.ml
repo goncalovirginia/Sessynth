@@ -6,7 +6,7 @@ exception Fail of string
 
 (* Records *)
 
-type flags = { isUnfolded : bool; xRecLam : id; clForSpawn : id list; currDepth : int; maxDepth : int; printDebug : bool }
+type flags = { isUnfolded : bool; xRecLam : id; slForSpawn : tyS list; currDepth : int; maxDepth : int; printDebug : bool }
     
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
     
@@ -19,7 +19,7 @@ type contexts = { g : gamma; p : psi; d : delta }
 (* Auxiliary functions *)
 
 let initialize_flags maxDepth printDebug =
-    let f : flags = { isUnfolded = false ; xRecLam = ""; clForSpawn = []; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
+    let f : flags = { isUnfolded = false ; xRecLam = ""; slForSpawn = []; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
     f
 
 let initialize_ctxts =
@@ -264,8 +264,19 @@ let consume_channels ctxts cl =
         | [] -> ctxts', sl
         | c'::cl'' -> 
             let ctxts'', s = consume_channel ctxts c' in
-            consume_channels' ctxts'' cl'' ((s)::sl)
+            consume_channels' ctxts'' cl'' (sl@[s])
     in consume_channels' ctxts cl []
+
+let rec consume_channels_by_tyS ctxts tSl =
+    match tSl with
+    | [] -> Choice.return (ctxts, [])
+    | tS::tSl' ->
+        let csl = List.filter (fun (_, s) -> s = tS) ctxts.d.a @
+            List.filter (fun (_, s) -> s = tS) ctxts.d.s in
+        let* (c, _) = Choice.of_list csl in
+        let ctxts', _ = consume_channel ctxts c in
+        let* (ctxts'', cl) = consume_channels_by_tyS ctxts' tSl' in
+        Choice.return (ctxts'', c::cl)
 
 let rec get_TArrow_return_type t =
     match t with
@@ -340,8 +351,8 @@ let rec invertRightF f ctxts c goal =
         let f = if f.xRecLam = "" then { f with xRecLam = find_binding_for_tyF ctxts goal } else f in
         let incsl = List.map (fun (c, s) -> if c = "" then (fresh_channel(), s) else (c, s)) incsl in
         let ctxts1 = append_bindings_delta ctxts incsl in
-        let incl = List.map (fun (c, _) -> c) incsl in
-        let f = { f with clForSpawn = incl } in
+        let insl = List.map (fun (_, s) -> s) incsl in
+        let f = { f with slForSpawn = insl } in
         let* (f, ctxts', e) = invertRightS f ctxts1 c outs in
         Choice.return (f, ctxts', Process(c, e, outs, incsl))
         with Not_found -> Choice.fail
@@ -383,13 +394,13 @@ and invertRightS f ctxts c goal =
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
         Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
-        if f.isUnfolded then
-            let cRec = fresh_channel() in
+        if f.isUnfolded then try
+            let cSpawn = fresh_channel() in
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
             let tReturn = get_TArrow_return_type tRecLam in
-            let* (_, ctxts, eApp) = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
-            try let ctxts', _ = consume_channels ctxts f.clForSpawn in
-                Choice.return (f, ctxts', Spawn(cRec, eApp, f.clForSpawn, Fwd(cRec, c, t)))
+            let* (_, ctxts', eApp) = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
+            let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' f.slForSpawn in
+            Choice.return (f, ctxts'', Spawn(cSpawn, eApp, clForSpawn, Fwd(cSpawn, c, t)))
             with Not_found -> Choice.fail
         else 
             let tUnfolded = unfold t goal x in
@@ -533,6 +544,23 @@ and focusLeftS f ctxts xFocus tFocus c goal =
         in
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
     | _ -> Choice.fail
+
+(*
+let explore f ctxts =
+  (* pick a random process type from ctxts.p.s *)
+  let processes = ctxts.p.s in
+  match processes with
+  | [] -> Choice.fail "no processes in functional context for padding"
+  | _ ->
+      let* (proc_name, proc_ty) = Choice.pick processes in
+      (* generate fresh channel names for the process arguments *)
+      let arg_chs = List.map (fun (_, arg_ty) -> fresh_id ()) (fst proc_ty) in
+      let spawn_chan = fresh_id () in
+      (* For now, continuation is just the original type s *)
+      let cont = Close c in
+      Choice.return (f, ctxts,
+        Spawn (spawn_chan, Var proc_name, arg_chs, cont))
+*)
 
 let synth n_sol p d goal = 
     let f, ctxts = initialize_flags 100 true, initialize_ctxts in
