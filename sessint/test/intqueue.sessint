@@ -2,7 +2,7 @@ stype IntQueue rec x. &{enq: int => x, deq: +{none: @, some: int ^ x}};
 elem : int -> {IntQueue <- c:IntQueue}
 ? elem #3 ?;
 empty : {IntQueue}
-? empty #3 ?;
+? empty #5 ?;
 ;;
 m <- {
     close m

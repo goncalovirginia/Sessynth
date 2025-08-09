@@ -291,7 +291,7 @@ let get_TProcess_insl t =
 let get_TProcess_outs t =
     match t with
     | TProcess(_, outs) -> outs
-    | _ -> raise (Fail("get_TProcess_insl: t not of type TProcess"))
+    | _ -> raise (Fail("get_TProcess_outs: t not of type TProcess"))
 
 let is_TProcess t =
     match t with
@@ -414,10 +414,16 @@ and invertRightS f ctxts c goal =
     | STRec(x, t) ->
         if f.isUnfolded then try
             let* (f, ctxts, eWander) = wanderSpawn f ctxts c in
-            let cSpawn = fresh_channel() in
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
             let tReturn = get_return_type tRecLam in
-            let* (_, ctxts', eApp) = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
+            let spawnable_proc_list = List.filter(fun (_, t') -> 
+                let t'Return = get_return_type t' in 
+                (is_TProcess t'Return) && (get_TProcess_outs t'Return = get_TProcess_outs tReturn)
+            ) ctxts.p.s in
+            let cSpawn = fresh_channel() in
+            let* (xRecLam, tRecLam) = Choice.of_list spawnable_proc_list in
+            let tReturn = get_return_type tRecLam in
+            let* (_, ctxts', eApp) = focusLeftF f ctxts xRecLam tRecLam c tReturn in
             let slForSpawn = get_TProcess_insl tReturn in
             let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' slForSpawn in
             let eSpawn = Spawn(cSpawn, eApp, clForSpawn, Fwd(cSpawn, c, t)) in
@@ -576,10 +582,10 @@ and wanderSpawn f ctxts c =
         let skipChoice = Choice.return(f, ctxts, Close("")) in
         let spawnChoice =
             let spawnable_proc_list = List.filter(fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
-            let* (xRecLam, tRecLam) = Choice.of_list spawnable_proc_list in
             let cSpawn = fresh_channel() in
+            let* (xRecLam, tRecLam) = Choice.of_list spawnable_proc_list in
             let tReturn = get_return_type tRecLam in
-            let* (_, ctxts', eApp) = focusLeftF f ctxts f.xRecLam tRecLam c tReturn in
+            let* (_, ctxts', eApp) = focusLeftF f ctxts xRecLam tRecLam c tReturn in
             let slForSpawn = get_TProcess_insl tReturn in
             let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' slForSpawn in
             let spawned_outs = get_TProcess_outs tReturn in
