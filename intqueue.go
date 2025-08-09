@@ -61,12 +61,14 @@ case "deq" :
 _c00 := _c0.ls["deq"].(*_state_2)
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
-_c02 := _c01.Send(1)
+_c02 := _c01.Send(_x0)
+_c3 := init_state_0(make(chan interface{}))
+go elem(_x0)(_c3, c)
 //Update arguments
 _x0 = _x0
 //Update channels
 _c0 = _c02
-c = c
+c = _c3
  case "enq" :
 _c00 := _c0.ls["enq"].(*_state_1)
 _x1, _c01 := _c00.Recv()

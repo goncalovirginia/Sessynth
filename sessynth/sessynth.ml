@@ -310,6 +310,11 @@ let append_continuation_exp wander_exp cont_exp =
   | Spawn(cSpawn, eApp, cl, _) -> Spawn(cSpawn, eApp, cl, cont_exp)
   | _ -> cont_exp
 
+let get_Spawn_c e =
+    match e with
+    | Spawn(c, _, _, _) -> c
+    | _ -> raise (Fail("get_Spawn_c: e not Spawn expression"))
+
 (* S[μt.S / t] *)
 let rec unfold tUnfold stRecReplacement xReplace =
     match tUnfold with
@@ -420,15 +425,11 @@ and invertRightS f ctxts c goal =
                 let t'Return = get_return_type t' in 
                 (is_TProcess t'Return) && (get_TProcess_outs t'Return = get_TProcess_outs tReturn)
             ) ctxts.p.s in
-            let cSpawn = fresh_channel() in
-            let* (xRecLam, tRecLam) = Choice.of_list spawnable_proc_list in
-            let tReturn = get_return_type tRecLam in
-            let* (_, ctxts', eApp) = focusLeftF f ctxts xRecLam tRecLam c tReturn in
-            let slForSpawn = get_TProcess_insl tReturn in
-            let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' slForSpawn in
-            let eSpawn = Spawn(cSpawn, eApp, clForSpawn, Fwd(cSpawn, c, t)) in
-            let eAppended = append_continuation_exp eWander eSpawn in
-            Choice.return (f, ctxts'', eAppended)
+            let* (f, ctxts', eSpawn) = synthSpawn f ctxts c spawnable_proc_list in
+            let f, ctxts'', eFwd = synthFwd f ctxts' (get_Spawn_c eSpawn) c t in
+            let eSpawnAndFwd = append_continuation_exp eSpawn eFwd in
+            let eWanderAndSpawn = append_continuation_exp eWander eSpawnAndFwd in
+            Choice.return (f, ctxts'', eWanderAndSpawn)
             with Not_found -> Choice.fail
         else 
             let tUnfolded = unfold t goal x in
@@ -576,23 +577,33 @@ and focusLeftS f ctxts xFocus tFocus c goal =
 (* wandering *)
 
 and wanderSpawn f ctxts c =
-    match ctxts.p.s with
-    | [] -> Choice.return (f, ctxts, Close(""))
-    | _ -> 
-        let skipChoice = Choice.return(f, ctxts, Close("")) in
-        let spawnChoice =
-            let spawnable_proc_list = List.filter(fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
-            let cSpawn = fresh_channel() in
-            let* (xRecLam, tRecLam) = Choice.of_list spawnable_proc_list in
-            let tReturn = get_return_type tRecLam in
-            let* (_, ctxts', eApp) = focusLeftF f ctxts xRecLam tRecLam c tReturn in
-            let slForSpawn = get_TProcess_insl tReturn in
-            let* (ctxts'', clForSpawn) = consume_channels_by_tyS ctxts' slForSpawn in
-            let spawned_outs = get_TProcess_outs tReturn in
-            let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, spawned_outs)] in
-            Choice.return (f, ctxts''', Spawn(cSpawn, eApp, clForSpawn, Close("")))
-        in
-        Choice.mplus skipChoice spawnChoice
+    let skipChoice = Choice.return(f, ctxts, Close("")) in
+    let spawnChoice = 
+        let spawnable_proc_list = List.filter(fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
+        synthSpawn f ctxts c spawnable_proc_list
+    in
+    Choice.mplus skipChoice spawnChoice
+
+(* reusable expression synthesis *)
+
+(** 
+synthesizes possible spawn expressions which output a desired session-type, containing a placeholder continuation expression
+@param spawnable_proc_list : list of TProcess(insl, outs)'s with equivalent outs session-types, which will be provided by the spawned channel
+*)
+and synthSpawn f ctxts c spawnable_proc_list =
+    let cSpawn = fresh_channel() in
+    let* (x, t) = Choice.of_list spawnable_proc_list in
+    let tProcess = get_return_type t in
+    let insl = get_TProcess_insl tProcess in
+    let outs = get_TProcess_outs tProcess in
+    let* (_, ctxts', eApp) = focusLeftF f ctxts x t c tProcess in
+    let* (ctxts'', incl) = consume_channels_by_tyS ctxts' insl in
+    let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, outs)] in
+    Choice.return (f, ctxts''', Spawn(cSpawn, eApp, incl, Close("")))
+
+and synthFwd f ctxts cToFwd c t =
+    let ctxts', _ = consume_channel ctxts cToFwd in
+    f, ctxts', Fwd(cToFwd, c, t)
 
 (* entry point *)
 
