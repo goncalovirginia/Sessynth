@@ -429,18 +429,30 @@ and invertRightS f ctxts c goal =
         Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
         if f.isUnfoldedRight then try
-            let* (f, ctxts, eWander) = wander f ctxts c goal in
-            let tRecLam = List.assoc f.xRecLam ctxts.p.s in
-            let tProcess = get_return_type tRecLam in
-            let spawnable_proc_list = List.filter(fun (_, t) -> 
-                let tReturn = get_return_type t in 
-                is_TProcess tReturn && get_TProcess_outs tReturn = get_TProcess_outs tProcess
-            ) ctxts.p.s in
-            let* (f, ctxts', eSpawn) = synthSpawn f ctxts c spawnable_proc_list in
-            let f, ctxts'', eFwd = synthFwd f ctxts' (get_Spawn_c eSpawn) c t in
-            let eSpawnAndFwd = subst_continuation_exp eSpawn eFwd in
-            let eWanderAndSpawn = subst_continuation_exp eWander eSpawnAndFwd in
-            Choice.return (f, ctxts'', eWanderAndSpawn)
+            Choice.mplus
+                (
+                (* wander + fwd *)
+                let* (f, ctxts, eWander) = wander f ctxts c goal in
+                let synthFwdCombination (c', t') = synthFwd f ctxts c' c t' in
+                let* (f, ctxts', eFwd) = Choice.of_list (List.map synthFwdCombination ctxts.d.s) in
+                let eWanderAndFwd = subst_continuation_exp eWander eFwd in
+                Choice.return (f, ctxts', eWanderAndFwd)
+                )
+                (
+                (* wander + spawn + forward *)
+                let* (f, ctxts, eWander) = wander f ctxts c goal in
+                let tRecLam = List.assoc f.xRecLam ctxts.p.s in
+                let tProcess = get_return_type tRecLam in
+                let spawnable_proc_list = List.filter(fun (_, t) -> 
+                    let tReturn = get_return_type t in 
+                    is_TProcess tReturn && get_TProcess_outs tReturn = get_TProcess_outs tProcess
+                ) ctxts.p.s in
+                let* (f, ctxts', eSpawn) = synthSpawn f ctxts c spawnable_proc_list in
+                let f, ctxts'', eFwd = synthFwd f ctxts' (get_Spawn_c eSpawn) c t in
+                let eSpawnAndFwd = subst_continuation_exp eSpawn eFwd in
+                let eWanderAndSpawn = subst_continuation_exp eWander eSpawnAndFwd in
+                Choice.return (f, ctxts'', eWanderAndSpawn)
+                )
             with Not_found -> Choice.fail
         else 
             let tUnfolded = unfold t goal x in
