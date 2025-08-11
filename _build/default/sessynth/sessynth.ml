@@ -6,7 +6,7 @@ exception Fail of string
 
 (* records *)
 
-type flags = { isUnfolded : bool; xRecLam : id; currDepth : int; maxDepth : int; printDebug : bool }
+type flags = { isUnfoldedRight : bool; isUnfoldedLeft : bool; xRecLam : id; currDepth : int; maxDepth : int; printDebug : bool }
     
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
     
@@ -19,7 +19,7 @@ type contexts = { g : gamma; p : psi; d : delta }
 (* auxiliary functions *)
 
 let initialize_flags maxDepth printDebug =
-    let f : flags = { isUnfolded = false ; xRecLam = ""; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
+    let f : flags = { isUnfoldedRight = false; isUnfoldedLeft = false; xRecLam = ""; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
     f
 
 let initialize_ctxts =
@@ -298,6 +298,11 @@ let is_TProcess t =
     | TProcess _ -> true
     | _ -> false
 
+let is_STRec t =
+    match t with
+    | STRec _ -> true
+    | _ -> false
+
 let find_binding_for_ty bl bt =
     let (x, _) = List.find (fun (_, t) -> t = bt) bl in x
 
@@ -305,10 +310,16 @@ let find_binding_for_tyF ctxts tF =
     try find_binding_for_ty ctxts.p.a tF
     with Not_found -> find_binding_for_ty ctxts.p.s tF
 
-let append_continuation_exp wander_exp cont_exp =
-  match wander_exp with
-  | Spawn(cSpawn, eApp, cl, _) -> Spawn(cSpawn, eApp, cl, cont_exp)
-  | _ -> cont_exp
+let rec subst_continuation_exp exp cont_exp =
+    match exp with
+    | SendF(c, e1, e2) -> SendF(c, e1, subst_continuation_exp e2 cont_exp)
+    | RecvF(c, t, e1, e2) -> RecvF(c, t, e1, subst_continuation_exp e2 cont_exp)
+    | SendS(c1, c2, e1, e2) -> SendS(c1, c2, e1, subst_continuation_exp e2 cont_exp)
+    | RecvS(c, t, e1, e2) -> RecvS(c, t, e1, subst_continuation_exp e2 cont_exp)
+    | Wait(c, e) -> Wait(c, subst_continuation_exp e cont_exp)
+    | ChoiceSelect(c, l, e) -> ChoiceSelect(c, l, subst_continuation_exp e cont_exp)
+    | Spawn(cSpawn, eApp, cl, e) -> Spawn(cSpawn, eApp, cl, subst_continuation_exp e cont_exp )
+    | _ -> cont_exp
 
 let get_Spawn_c e =
     match e with
@@ -417,8 +428,8 @@ and invertRightS f ctxts c goal =
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
         Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
-        if f.isUnfolded then try
-            let* (f, ctxts, eWander) = wander f ctxts c in
+        if f.isUnfoldedRight then try
+            let* (f, ctxts, eWander) = wander f ctxts c goal in
             let tRecLam = List.assoc f.xRecLam ctxts.p.s in
             let tProcess = get_return_type tRecLam in
             let spawnable_proc_list = List.filter(fun (_, t) -> 
@@ -427,13 +438,13 @@ and invertRightS f ctxts c goal =
             ) ctxts.p.s in
             let* (f, ctxts', eSpawn) = synthSpawn f ctxts c spawnable_proc_list in
             let f, ctxts'', eFwd = synthFwd f ctxts' (get_Spawn_c eSpawn) c t in
-            let eSpawnAndFwd = append_continuation_exp eSpawn eFwd in
-            let eWanderAndSpawn = append_continuation_exp eWander eSpawnAndFwd in
+            let eSpawnAndFwd = subst_continuation_exp eSpawn eFwd in
+            let eWanderAndSpawn = subst_continuation_exp eWander eSpawnAndFwd in
             Choice.return (f, ctxts'', eWanderAndSpawn)
             with Not_found -> Choice.fail
         else 
             let tUnfolded = unfold t goal x in
-            let f = {f with isUnfolded = true } in
+            let f = {f with isUnfoldedRight = true } in
             invertRightS f ctxts c tUnfolded
     | STDeclr(x) ->
         begin try
@@ -455,7 +466,7 @@ and invertLeftS f ctxts c goal =
     debugS f ctxts goal goal "invertLeftS";
     match ctxts.d.a with
     | (x, t)::da' ->
-        let ctxts = { ctxts with d = { a = da'; s = ctxts.d.s } } in
+        let ctxts = { ctxts with d = { ctxts.d with a = da' } } in
         begin match t with 
         | STSendF(t1, t2) ->
             let x, c' = fresh_id(), fresh_channel() in
@@ -558,37 +569,52 @@ and focusLeftS f ctxts xFocus tFocus c goal =
     debugS f ctxts goal tFocus "focusLeftS";
     match tFocus with
     | STRecvF(t1, t2) ->
-        let* (f, ctxts', e2) = focusLeftS f ctxts xFocus t2 c goal in
-        let* (f, ctxts'', e1) = invertRightF f ctxts' c t1 in
+        let* (f, ctxts', e1) = invertRightF f ctxts c t1 in
+        let* (f, ctxts'', e2) = focusLeftS f ctxts' xFocus t2 c goal in
         Choice.return (f, ctxts'', SendF(xFocus, e1, e2))
     | STRecvS(t1, t2) -> 
         let y = fresh_id() in
-        let* (f, ctxts', e2) = focusLeftS f ctxts xFocus t2 c goal in
-        let* (f, ctxts'', e1) = invertRightS f ctxts' y t1 in
+        let* (f, ctxts', e1) = invertRightS f ctxts y t1 in
+        let* (f, ctxts'', e2) = focusLeftS f ctxts' xFocus t2 c goal in
         Choice.return (f, ctxts'', SendS(xFocus, y, e1, e2))
     | STExtChoice(labelsesslist) -> 
         let synth_choice_select (l, s) =
-            let* (f', ctxts', e1) = focusRightS f ctxts c s in
-            Choice.return (f', ctxts', ChoiceSelect(c, l, e1))
+            let* (f', ctxts', e1) = focusLeftS f ctxts xFocus s c goal in
+            Choice.return (f', ctxts', ChoiceSelect(xFocus, l, e1))
         in
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
+    | STRec(x, t) ->
+        if f.isUnfoldedLeft then
+            Choice.return (f, ctxts, Close(""))
+        else
+            let tUnfolded = unfold t goal x in
+            let f = {f with isUnfoldedLeft = true } in
+            focusLeftS f ctxts xFocus tUnfolded c goal
     | _ -> Choice.fail
 
 (* wandering *)
 
-and wander f ctxts c =
-    let skipChoice = Choice.return(f, ctxts, Close("")) in
-    let spawnChoice = 
-        let spawnable_proc_list = List.filter(fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
-        synthSpawn f ctxts c spawnable_proc_list
-    in
-    Choice.mplus skipChoice spawnChoice
+and wander f ctxts c goal =
+    debugS f ctxts goal goal "wander";
+    let skipChoice = Choice.return (f, ctxts, Close("")) in
+    let spawnChoice = wanderSpawn f ctxts c goal in
+    let unfoldChoice = wanderUnfold f ctxts c goal in
+    ChoiceUtils.mplus_list [skipChoice; spawnChoice; unfoldChoice]
+
+and wanderSpawn f ctxts c goal =
+    let spawnable_proc_list = List.filter (fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
+    synthSpawn f ctxts c spawnable_proc_list
+
+and wanderUnfold f ctxts c goal =
+    let recsessl = List.filter (fun (_, t) -> is_STRec t) ctxts.d.s in
+    let synth_unfolds (c', t') = focusLeftS f ctxts c' t' c goal in
+    ChoiceUtils.map_mplus_list synth_unfolds recsessl
 
 (* reusable expression synthesis *)
 
 (** 
 synthesizes possible spawn expressions which output a desired session-type, containing a placeholder continuation expression
-@param spawnable_proc_list : list of TProcess(insl, outs)'s with equivalent outs session-types, which will be provided by the spawned channel
+@param spawnable_proc_list: list of TProcess(insl, outs)'s with equivalent outs session-types, which will be provided by the spawned channel
 *)
 and synthSpawn f ctxts c spawnable_proc_list =
     let cSpawn = fresh_channel() in

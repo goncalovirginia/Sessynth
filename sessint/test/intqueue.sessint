@@ -1,6 +1,6 @@
 stype IntQueue rec x. &{enq: int => x, deq: +{none: @, some: int ^ x}};
-elem : int -> {IntQueue <- c:IntQueue}
-? elem #3 ?;
+elem : int -> {IntQueue <- t:IntQueue}
+? elem #100 ?;
 empty : {IntQueue}
 ? empty #5 ?;
 ;;

@@ -52,8 +52,8 @@ func (x *_state_0) Send(v string) { x.c <- v }
 func (x *_state_0) Recv() string  { return (<-x.c).(string) }
 
   //Declaration list compilation
-func elem(_x0 int) func (_x *_state_0, c *_state_0) {
- return func (_c0 *_state_0, c *_state_0){
+func elem(_x0 int) func (_x *_state_0, t *_state_0) {
+ return func (_c0 *_state_0, t *_state_0){
 for {
  label := _c0.Recv()
 switch label {
@@ -62,13 +62,11 @@ _c00 := _c0.ls["deq"].(*_state_2)
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
 _c02 := _c01.Send(_x0)
-_c3 := init_state_0(make(chan interface{}))
-go elem(_x0)(_c3, c)
 //Update arguments
 _x0 = _x0
 //Update channels
 _c0 = _c02
-c = _c3
+t = t
  case "enq" :
 _c00 := _c0.ls["enq"].(*_state_1)
 _x1, _c01 := _c00.Recv()
@@ -76,7 +74,7 @@ _x1, _c01 := _c00.Recv()
 _x0 = _x1
 //Update channels
 _c0 = _c01
-c = c
+t = t
  }
 }
 }
