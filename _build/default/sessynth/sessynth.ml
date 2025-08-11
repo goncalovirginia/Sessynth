@@ -429,18 +429,17 @@ and invertRightS f ctxts c goal =
         Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
         if f.isUnfoldedRight then try
+            let* (f, ctxts, eWander) = wander f ctxts c goal in
             Choice.mplus
                 (
                 (* wander + fwd *)
-                let* (f, ctxts, eWander) = wander f ctxts c goal in
                 let synthFwdCombination (c', t') = synthFwd f ctxts c' c t' in
                 let* (f, ctxts', eFwd) = Choice.of_list (List.map synthFwdCombination ctxts.d.s) in
                 let eWanderAndFwd = subst_continuation_exp eWander eFwd in
                 Choice.return (f, ctxts', eWanderAndFwd)
                 )
                 (
-                (* wander + spawn + forward *)
-                let* (f, ctxts, eWander) = wander f ctxts c goal in
+                (* wander + spawn + fwd *)
                 let tRecLam = List.assoc f.xRecLam ctxts.p.s in
                 let tProcess = get_return_type tRecLam in
                 let spawnable_proc_list = List.filter(fun (_, t) -> 
