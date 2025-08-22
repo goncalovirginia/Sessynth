@@ -61,7 +61,7 @@ case "deq" :
 _c00 := _c0.ls["deq"].(*_state_2)
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
-_c02 := _c01.Send(_x0)
+_c02 := _c01.Send(1)
 //Update arguments
 _x0 = _x0
 //Update channels
@@ -70,12 +70,43 @@ t = t
  case "enq" :
 _c00 := _c0.ls["enq"].(*_state_1)
 _x1, _c01 := _c00.Recv()
-//Update arguments
-_x0 = _x1
-//Update channels
-_c0 = _c01
-t = t
- }
+t.Send("enq")
+t0 := t.ls["enq"].(*_state_1)
+t1 := t0.Send(_x1)
+// FWD _c0 t Start
+for {
+t1_c01 := _c01.Recv()
+t1.Send(t1_c01)
+switch t1_c01 {
+case "enq":
+t2 := t1.ls["enq"].(*_state_1)
+_c02 := _c01.ls["enq"].(*_state_1)
+t2_c02, _c02_t2 := _c02.Recv()
+_c01 = _c02_t2
+t1 = t2.Send(t2_c02)
+case "deq":
+t2 := t1.ls["deq"].(*_state_2)
+_c02 := _c01.ls["deq"].(*_state_2)
+_c02t2 := t2.Recv()
+_c02.Send(_c02t2)
+switch _c02t2 {
+case "none":
+t3 := t2.ls["none"].(*_state_3)
+_c03 := _c02.ls["none"].(*_state_3)
+t3.Recv()
+_c03.Send(nil)
+return
+case "some":
+t3 := t2.ls["some"].(*_state_4)
+_c03 := _c02.ls["some"].(*_state_4)
+_c03t3, _c03_t3 := t3.Recv()
+t1 = _c03_t3
+_c01 = _c03.Send(_c03t3)
+}
+}
+}
+// FWD _c0 t End
+}
 }
 }
 }
