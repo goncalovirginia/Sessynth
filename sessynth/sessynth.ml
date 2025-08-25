@@ -332,6 +332,16 @@ let get_Spawn_c e =
     | Spawn(c, _, _, _) -> c
     | _ -> raise (Fail("get_Spawn_c: e not Spawn expression"))
 
+let filter_duplicates expl =
+    let rec filter_duplicates' seen rest =
+        match rest with
+        | [] -> List.rev seen
+        | e::rest' -> 
+            if List.exists (fun e' -> e = e') seen then filter_duplicates' seen rest'
+            else filter_duplicates' (e :: seen) rest'
+    in 
+    filter_duplicates' [] expl
+
 (* S[μt.S / t] *)
 let rec unfold tUnfold stRecReplacement xReplace =
     match tUnfold with
