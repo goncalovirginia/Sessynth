@@ -6,8 +6,10 @@ exception Fail of string
 
 (* records *)
 
-type flags = { isUnfoldedRight : bool; isUnfoldedLeft : bool; xRecLam : id; currDepth : int; maxDepth : int; printDebug : bool }
-    
+type fresh_indices = { id : int; func : int; chan : int }
+
+type flags = { isUnfoldedRight : bool; isUnfoldedLeft : bool; xRecLam : id; freshIndices : fresh_indices; currDepth : int; maxDepth : int; printDebug : bool }
+
 type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
     
 type psi = { a : (id * tyF) list; s :  (id * tyF) list }
@@ -19,7 +21,7 @@ type contexts = { g : gamma; p : psi; d : delta }
 (* auxiliary functions *)
 
 let initialize_flags maxDepth printDebug =
-    let f : flags = { isUnfoldedRight = false; isUnfoldedLeft = false; xRecLam = ""; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
+    let f : flags = { isUnfoldedRight = false; isUnfoldedLeft = false; xRecLam = ""; freshIndices = { id = 0; func = 0; chan = 0 }; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
     f
 
 let initialize_ctxts =
@@ -29,17 +31,21 @@ let initialize_ctxts =
     let ctxts : contexts = { g = g; p = p; d = d } in
     ctxts
 
-let fresh_id = 
-    let unique = ref (-1) in
-    fun () -> (incr unique; "_x" ^ (string_of_int !unique))
+let fresh_id f =
+    let curr_id = f.freshIndices.id in
+    let f' = { f with freshIndices = { f.freshIndices with id = curr_id + 1 } } in
+    f', ("_x" ^ string_of_int curr_id)
 
-let fresh_function = 
-    let unique = ref (-1) in
-    fun () -> (incr unique; "_f" ^ (string_of_int !unique))
+let fresh_fun f =
+    let curr_fun = f.freshIndices.func in
+    let f' = { f with freshIndices = { f.freshIndices with func = curr_fun + 1 } } in
+    f', ("_f" ^ string_of_int curr_fun)
 
-let fresh_channel = 
-    let unique = ref (-1) in
-    fun () -> (incr unique; "_c" ^ (string_of_int !unique))
+let fresh_chan f =
+    let curr_chan = f.freshIndices.chan in
+    let f' = { f with freshIndices = { f.freshIndices with chan = curr_chan + 1 } } in
+    f', ("_c" ^ string_of_int curr_chan)
+
 
 let uOp_to_string t =
     match t with
@@ -360,9 +366,9 @@ let rec invertRightF f ctxts c goal =
     debugF f ctxts goal goal "invertRightF";
     match goal with
     | TArrow(t1, t2) ->
-        let x = match t1 with
-            | TRefinement(x, _, _) -> x
-            | _ -> fresh_id() in 
+        let f, x = match t1 with
+            | TRefinement(x, _, _) -> f, x
+            | _ -> fresh_id f in 
         let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
         begin match get_return_type t2 with
         | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p.s) ->
@@ -372,7 +378,8 @@ let rec invertRightF f ctxts c goal =
                 let f = { f with xRecLam = xRecFun } in
                 f, ctxts1
             with Not_found ->
-                let f = { f with xRecLam = fresh_function() } in
+                let f, fresh_f = fresh_fun f in
+                let f = { f with xRecLam = fresh_f } in
                 let ctxts2 = append_bindings_psi ctxts1 [(f.xRecLam, goal)] in
                 f, ctxts2
             in
@@ -385,7 +392,6 @@ let rec invertRightF f ctxts c goal =
     | TProcess(incsl, outs) ->
         begin try 
         let f = if f.xRecLam = "" then { f with xRecLam = find_binding_for_tyF ctxts goal } else f in
-        let incsl = List.map (fun (c, s) -> if c = "" then (fresh_channel(), s) else (c, s)) incsl in
         let ctxts1 = append_bindings_delta ctxts incsl in
         let* (f, ctxts', e) = invertRightS f ctxts1 c outs in
         Choice.return (f, ctxts', Process(c, e, outs, incsl))
@@ -404,12 +410,12 @@ and invertRightS f ctxts c goal =
     debugS f ctxts goal goal "invertRightS";
     match goal with 
     | STRecvF(t1, t2) ->
-        let x1 = fresh_id() in
+        let f, x1 = fresh_id f in
         let ctxts1 = append_bindings_psi ctxts [(x1, t1)] in
         let* (f, ctxts', e) = invertRightS f ctxts1 c t2 in
         Choice.return (f, ctxts', RecvF(x1, t1, c, e))
     | STRecvS(t1, t2) -> 
-        let c1 = fresh_channel() in
+        let f, c1 = fresh_chan f in
         let ctxts1 = append_bindings_delta ctxts [(c1, t1)] in
         let* (f, ctxts', e) = invertRightS f ctxts1 c t2 in
         let c1_consumed = List.assoc_opt c1 ctxts'.d.a = None && List.assoc_opt c1 ctxts'.d.s = None in
@@ -433,7 +439,7 @@ and invertRightS f ctxts c goal =
             Choice.mplus
                 (
                 (* wander + fwd *)
-                let synthFwdCombination (c', t') = synthFwd f ctxts c' c t' in
+                let synthFwdCombination = fun (c', t') -> synthFwd f ctxts c' c t' in
                 let* (f, ctxts', eFwd) = Choice.of_list (List.map synthFwdCombination ctxts.d.s) in
                 let eWanderAndFwd = subst_continuation_exp eWander eFwd in
                 Choice.return (f, ctxts', eWanderAndFwd)
@@ -480,7 +486,8 @@ and invertLeftS f ctxts c goal =
         let ctxts = { ctxts with d = { ctxts.d with a = da' } } in
         begin match t with 
         | STSendF(t1, t2) ->
-            let x, c' = fresh_id(), fresh_channel() in
+            let f, x = fresh_id f in
+            let f, c' = fresh_chan f in
             let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
             let ctxts2 = append_bindings_delta ctxts1 [(c, t2)] in
             let* (f, ctxts', e) = invertLeftS f ctxts2 c' goal in
@@ -488,26 +495,27 @@ and invertLeftS f ctxts c goal =
             let* () = Choice.guard c_consumed in
             Choice.return (f, ctxts', RecvF(x, t1, c, e))
         | STSendS(t1, t2) ->
-            let x, c' = fresh_channel(), fresh_channel() in
-            let ctxts1 = append_bindings_delta ctxts [(x, t1); (c, t2)] in
-            let* (f, ctxts', e) = invertLeftS f ctxts1 c' goal in
+            let f, c1 = fresh_chan f in
+            let f, c2 = fresh_chan f in
+            let ctxts1 = append_bindings_delta ctxts [(c1, t1); (c, t2)] in
+            let* (f, ctxts', e) = invertLeftS f ctxts1 c2 goal in
             let c_consumed = List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None in
             let* () = Choice.guard c_consumed in
-            Choice.return (f, ctxts', RecvS(x, t1, c, e))
+            Choice.return (f, ctxts', RecvS(c1, t1, c, e))
         | STUnit -> 
-            let c' = fresh_channel() in
+            let f, c' = fresh_chan f in
             let* (f, ctxts', e) = invertLeftS f ctxts c' goal in
             Choice.return (f, ctxts', Wait(c, e))
         | STIntChoice(labelsesslist) ->
-            let synth_branch (l, s) =
-                let cn = fresh_channel() in
+            let synth_branch f (l, s) =
+                let f, cn = fresh_chan f in
                 let ctxtsn = append_bindings_delta ctxts [(cn, s)] in
                 let* (f', ctxts', eP) = invertLeftS f ctxtsn c goal in
                 let cn_consumed = List.assoc_opt cn ctxts'.d.a = None && List.assoc_opt cn ctxts'.d.s = None in
                 let* () = Choice.guard cn_consumed in
-                Choice.return (l, (f', ctxts', eP))
+                Choice.return (f', (l, (f', ctxts', eP)))
             in
-            let* branches = ChoiceUtils.map_list synth_branch labelsesslist in
+            let* (_, branches) = ChoiceUtils.map_list_state f synth_branch labelsesslist in
             let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
             let* () = Choice.guard (Option.is_some (deltas_are_equal ctxtsl)) in
             let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
@@ -548,10 +556,10 @@ and focusRightS f ctxts c goal =
         let* (f, ctxts'', e2) = focusRightS f ctxts' c t2 in
         Choice.return (f, ctxts'', SendF(c, e1 , e2))
     | STSendS(t1, t2) -> 
-        let y = fresh_channel() in
-        let* (f, ctxts', e1) = focusDecideS f ctxts y t1 in
+        let f, c' = fresh_chan f in
+        let* (f, ctxts', e1) = focusDecideS f ctxts c' t1 in
         let* (f, ctxts'', e2) = focusRightS f ctxts' c t2 in
-        Choice.return (f, ctxts'', SendS(c, y, e1 , e2))
+        Choice.return (f, ctxts'', SendS(c, c', e1 , e2))
     | STUnit ->
         Choice.return (f, ctxts, Close(c))
     | STIntChoice(labelsesslist) -> 
@@ -567,10 +575,10 @@ and focusLeftF f ctxts xFocus tFocus c goal =
     debugF f ctxts goal tFocus "focusLeftF";
     match tFocus with
     | TArrow(t1, t2) ->
-        let y = fresh_id() in
-        let* (f, ctxts', e2) = focusLeftF f ctxts y t2 c goal in
+        let f, c' = fresh_chan f in
+        let* (f, ctxts', e2) = focusLeftF f ctxts c' t2 c goal in
         let* (f, ctxts'', e1) = invertRightF f ctxts c t1 in
-        Choice.return (f, ctxts'', subst e2 y (App(Var(xFocus), e1)))
+        Choice.return (f, ctxts'', subst e2 c' (App(Var(xFocus), e1)))
     | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
         if tFocus = goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
@@ -584,10 +592,10 @@ and focusLeftS f ctxts xFocus tFocus c goal =
         let* (f, ctxts'', e2) = focusLeftS f ctxts' xFocus t2 c goal in
         Choice.return (f, ctxts'', SendF(xFocus, e1, e2))
     | STRecvS(t1, t2) -> 
-        let y = fresh_id() in
-        let* (f, ctxts', e1) = invertRightS f ctxts y t1 in
+        let f, c' = fresh_chan f in
+        let* (f, ctxts', e1) = invertRightS f ctxts c' t1 in
         let* (f, ctxts'', e2) = focusLeftS f ctxts' xFocus t2 c goal in
-        Choice.return (f, ctxts'', SendS(xFocus, y, e1, e2))
+        Choice.return (f, ctxts'', SendS(xFocus, c', e1, e2))
     | STExtChoice(labelsesslist) -> 
         let synth_choice_select (l, s) =
             let* (f', ctxts', e1) = focusLeftS f ctxts xFocus s c goal in
@@ -599,7 +607,7 @@ and focusLeftS f ctxts xFocus tFocus c goal =
             Choice.return (f, ctxts, Close(""))
         else
             let tUnfolded = unfold t goal x in
-            let f = {f with isUnfoldedLeft = true } in
+            let f = { f with isUnfoldedLeft = true } in
             focusLeftS f ctxts xFocus tUnfolded c goal
     | _ -> Choice.fail
 
@@ -628,7 +636,7 @@ synthesizes possible spawn expressions which output a desired session-type, cont
 @param spawnable_proc_list: list of TProcess(insl, outs)'s with equivalent outs session-types, which will be provided by the spawned channel
 *)
 and synthSpawn f ctxts c spawnable_proc_list =
-    let cSpawn = fresh_channel() in
+    let f, cSpawn = fresh_chan f in
     let* (x, t) = Choice.of_list spawnable_proc_list in
     let tProcess = get_return_type t in
     let insl = get_TProcess_insl tProcess in
@@ -648,11 +656,10 @@ let synth n_sol p d goal =
     let f, ctxts = initialize_flags 100 true, initialize_ctxts in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
-    let expl = List.map (fun (_, _, e) -> e)
-        (match invertRightF f ctxts (fresh_channel()) goal |> Choice.run_n n_sol with
-        | [] -> raise (Fail "No valid expression was able to be synthesized for the provided type")
-        | solutions -> solutions) |> List.rev
-    in
+    let f, c = fresh_chan f in
+    let solutions = invertRightF f ctxts c goal |> Choice.run_n n_sol |> List.rev in
+    if List.is_empty solutions then raise (Fail "No valid expression was able to be synthesized for the provided type") else
+    let expl = List.map (fun (_, _, e) -> e) solutions in
     let i = ref 0 in
     print_newline ();
     List.iter (fun e -> print_endline (string_of_int !i ^ ":"); print_endline (expF_to_string e ^ "\n"); incr i) expl;

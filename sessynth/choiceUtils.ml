@@ -1,17 +1,17 @@
 
 module Syntax = struct
 
-  (* monadic bind (dependent sequencing) *)
-  let ( let* ) m f = Choice.bind f m
+  	(* monadic bind (dependent sequencing) *)
+  	let ( let* ) m f = Choice.bind f m
 
-  (* applicative map (mapping over results) *)
-  let ( let+ ) m f = Choice.map f m
+  	(* applicative map (mapping over results) *)
+  	let ( let+ ) m f = Choice.map f m
 
   (* applicative pairing (independent parallel operations) *)
-  let ( and+ ) a b =
-    Choice.bind (fun x ->
-      Choice.map (fun y ->
-        (x, y)) b) a
+  	let ( and+ ) a b =
+    	Choice.bind (fun x ->
+      	Choice.map (fun y ->
+        	(x, y)) b) a
 
 end
 
@@ -27,8 +27,16 @@ let rec map_list f xs =
         let* ys = map_list f xs' in
         Choice.return (y :: ys)
 
+let rec map_list_state f g xs =
+  match xs with
+  | [] -> Choice.return (f, [])
+  | x :: xs' ->
+      let* (f', y) = g f x in
+      let* (f'', ys) = map_list_state f' g xs' in
+      Choice.return (f'', y :: ys)
+
 let mplus_list xs =
-  List.fold_right Choice.mplus xs Choice.fail
+  	List.fold_right Choice.mplus xs Choice.fail
 
 let map_mplus_list f xs =
 	mplus_list (List.map f xs)
