@@ -59,27 +59,53 @@ for {
 switch label {
 case "deq" :
 _c00 := _c0.ls["deq"].(*_state_2)
-t.Send("enq")
-t0 := t.ls["enq"].(*_state_1)
-t1 := t0.Send(_x0)
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
-_c02 := _c01.Send(1)
-_c1 := init_state_0(make(chan interface{}))
-go elem(1)(_c1, t1)
+_c02 := _c01.Send(_x0)
+// FWD _c0 t Start
+for {
+t_c02 := _c02.Recv()
+t.Send(t_c02)
+switch t_c02 {
+case "enq":
+t0 := t.ls["enq"].(*_state_1)
+_c03 := _c02.ls["enq"].(*_state_1)
+t0_c03, _c03_t0 := _c03.Recv()
+_c02 = _c03_t0
+t = t0.Send(t0_c03)
+case "deq":
+t0 := t.ls["deq"].(*_state_2)
+_c03 := _c02.ls["deq"].(*_state_2)
+_c03t0 := t0.Recv()
+_c03.Send(_c03t0)
+switch _c03t0 {
+case "none":
+t1 := t0.ls["none"].(*_state_3)
+_c04 := _c03.ls["none"].(*_state_3)
+t1.Recv()
+_c04.Send(nil)
+return
+case "some":
+t1 := t0.ls["some"].(*_state_4)
+_c04 := _c03.ls["some"].(*_state_4)
+_c04t1, _c04_t1 := t1.Recv()
+t = _c04_t1
+_c02 = _c04.Send(_c04t1)
+}
+}
+}
+// FWD _c0 t End
+case "enq" :
+_c00 := _c0.ls["enq"].(*_state_1)
+_x1, _c01 := _c00.Recv()
+t.Send("enq")
+t0 := t.ls["enq"].(*_state_1)
+t1 := t0.Send(_x1)
 //Update arguments
 _x0 = _x0
 //Update channels
-_c0 = _c02
-t = _c1
- case "enq" :
-_c00 := _c0.ls["enq"].(*_state_1)
-_x1, _c01 := _c00.Recv()
-//Update arguments
-_x0 = _x1
-//Update channels
 _c0 = _c01
-t = t
+t = t1
  }
 }
 }

@@ -234,7 +234,7 @@ let append_bindings_delta ctxts bindings =
     let da', ds' = append_bindings (ctxts.d.a, ctxts.d.s) bindings is_tyS_left_async in
     { ctxts with d = { a = da'; s = ds' } }
 
-let are_deltas_equal ctxtsl = 
+let deltas_are_equal ctxtsl = 
     let hdCtxts = List.hd ctxtsl in
     let are_equal = List.for_all (fun currCtxts -> 
         List.equal (=) hdCtxts.d.a currCtxts.d.a && 
@@ -242,7 +242,7 @@ let are_deltas_equal ctxtsl =
     ) (List.tl ctxtsl) in
     if are_equal then Some hdCtxts else None
 
-let is_delta_empty ctxts =
+let delta_is_empty ctxts =
     List.is_empty ctxts.d.a && List.is_empty ctxts.d.s
 
 let rec subst e1 x e2 =
@@ -435,7 +435,7 @@ and invertRightS f ctxts c goal =
         let* () = Choice.guard c1_consumed in
         Choice.return (f, ctxts', RecvS(c1, t1, c, e))
     | STExtChoice(labelsesslist) ->
-        let synth_branch = fun (l, s) ->
+        (*let synth_branch = fun (l, s) ->
             let* (f', ctxts', eP) = invertRightS f ctxts c s in
             Choice.return (l, (f', ctxts', eP))
         in
@@ -445,7 +445,11 @@ and invertRightS f ctxts c goal =
         let ctxts_equal = List.for_all (fun ctxtsn -> ctxtsn.d = ctxts'.d) (List.tl ctxtsl) in
         let* () = Choice.guard ctxts_equal in
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
-        Choice.return (f, ctxts', Choice(c, labelproclist))
+        Choice.return (f, ctxts', Choice(c, labelproclist))*)
+        let branches = interactive_ext_choice f ctxts c goal labelsesslist in
+        let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
+        let (_, (f', ctxts', _)) = List.hd branches in
+        Choice.return (f', ctxts', Choice(c, labelproclist))
     | STRec(x, t) ->
         if f.isUnfoldedRight then try
             let* (f, ctxts, eWander) = wander f ctxts c goal in
@@ -530,7 +534,7 @@ and invertLeftS f ctxts c goal =
             in
             let* (_, branches) = ChoiceUtils.map_list_state f synth_branch labelsesslist in
             let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
-            let* () = Choice.guard (Option.is_some (are_deltas_equal ctxtsl)) in
+            let* () = Choice.guard (Option.is_some (deltas_are_equal ctxtsl)) in
             let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
             Choice.return (f, List.hd ctxtsl, Choice(x, labelproclist))
         | _ -> Choice.fail
@@ -642,7 +646,7 @@ and wanderUnfold f ctxts c goal =
     let synth_unfolds (c', t') = focusLeftS f ctxts c' t' c goal in
     ChoiceUtils.map_mplus_list synth_unfolds recsessl
 
-(* reusable expression synthesis *)
+(* reusable synthesis functions *)
 
 (** 
 synthesizes possible spawn expressions which output a desired session-type, containing a placeholder continuation expression
@@ -663,6 +667,44 @@ and synthFwd f ctxts cToFwd c t =
     let ctxts', _ = consume_channel ctxts cToFwd in
     f, ctxts', Fwd(cToFwd, c, t)
 
+and interactive_ext_choice f ctxts c goal labelsesslist =
+    let synth_branch = fun (l, s) ->
+        let* (f', ctxts', eP) = invertRightS f ctxts c s in
+        Choice.return (l, (f', ctxts', eP))
+    in
+    (* loop over each (label, session) branch in order *)
+    let rec iter_labels resulting_ctxts_opt acc = function
+    | [] -> List.rev acc  (* all branches handled *)
+    | (label, s)::rest ->
+        (* synthesize all expressions for the current label *)
+        let solutions = synth_branch (label, s) |> Choice.run_all
+        in
+        (* if we already picked a previous branch, enforce context equality *)
+        let compatible_solutions = match resulting_ctxts_opt with
+            | None -> solutions
+            | Some resulting_ctxts -> List.filter (fun (_, (_, ctxts', _)) -> Option.is_some (deltas_are_equal [resulting_ctxts; ctxts'])) solutions
+        in
+        if List.is_empty compatible_solutions then (
+            print_endline ("No compatible solutions for branch: " ^ label);
+            iter_labels resulting_ctxts_opt acc rest
+        ) else (
+            (* print solutions for this branch *)
+            print_endline ("\nLabel: " ^ label ^ "\n");
+            List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e)) compatible_solutions;
+            (* let user pick a solution *)
+            let rec pick () =
+                print_string "Select solution: ";
+                match read_int_opt () with
+                | Some i when i >= 0 && i < List.length compatible_solutions -> List.nth compatible_solutions i
+                | _ -> print_endline "Invalid choice.\n"; pick ()
+            in
+            let (l, (f', ctxts', e)) = pick () in
+            (* continue to next branch with the current context as reference *)
+            iter_labels (Some ctxts') ((l, (f', ctxts', e))::acc) rest
+        )
+  in
+  iter_labels None [] labelsesslist
+
 (* entry point *)
 
 let synth n_sol p d goal = 
@@ -672,11 +714,11 @@ let synth n_sol p d goal =
     let f, c = fresh_chan f in
     let solutions_choice =
         let* (f', ctxts', expF') = invertRightF f ctxts c goal in
-        let* () = Choice.guard (is_delta_empty ctxts') in
+        let* () = Choice.guard (delta_is_empty ctxts') in
         Choice.return (f', ctxts', expF')
     in
     let solutions = Choice.run_n n_sol solutions_choice |> List.rev in
-    if List.is_empty solutions then raise (Fail "No valid expression was able to be synthesized for the provided type") else
+    if List.is_empty solutions then raise (Fail "No valid expression for the provided type") else
     let expl = List.map (fun (_, _, e) -> e) solutions in
     let i = ref 0 in
     print_newline ();
