@@ -673,38 +673,37 @@ and synth_interactive_ext_choice f ctxts c goal labelsesslist =
         Choice.return (l, (f', ctxts', eP))
     in
     (* loop over each (label, session) branch in order *)
-    let rec iter_labels resulting_ctxts_opt acc = function
-    | [] -> List.rev acc  (* all branches handled *)
-    | (label, s)::rest ->
-        (* synthesize all expressions for the current label *)
-        let solutions = synth_branch (label, s) |> Choice.run_all
-        in
-        (* if we already picked a previous branch, enforce context equality *)
-        let compatible_solutions = 
-            match resulting_ctxts_opt with
-            | None -> solutions
-            | Some resulting_ctxts -> List.filter (fun (_, (_, ctxts', _)) -> Option.is_some (deltas_are_equal [resulting_ctxts; ctxts'])) solutions
-        in
-        if List.is_empty compatible_solutions then (
-            print_endline ("No compatible solutions for branch: " ^ label);
-            iter_labels resulting_ctxts_opt acc rest
-        ) else (
-            (* print solutions for this branch *)
-            print_endline ("\nLabel: " ^ label ^ "\n");
-            List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e)) compatible_solutions;
-            (* let user pick a solution *)
-            let rec pick () =
-                print_string "Select solution: ";
-                match read_int_opt () with
-                | Some i when i >= 0 && i < List.length compatible_solutions -> List.nth compatible_solutions i
-                | _ -> print_endline "Invalid choice.\n"; pick ()
+    let rec iter_labels prev_ctxts_opt picked_solutions labelsesslist =
+        match labelsesslist with
+        | [] -> List.rev picked_solutions (* all branches handled *)
+        | (label, s)::rest ->
+            (* synthesize all expressions for the current label *)
+            let solutions = synth_branch (label, s) |> Choice.run_all
             in
-            let (l, (f', ctxts', e)) = pick () in
-            (* continue to next branch with the current context as reference *)
-            iter_labels (Some ctxts') ((l, (f', ctxts', e))::acc) rest
-        )
-  in
-  iter_labels None [] labelsesslist
+            (* if we already picked a previous branch, enforce context equality *)
+            let compatible_solutions = 
+                match prev_ctxts_opt with
+                | None -> solutions
+                | Some resulting_ctxts ->
+                    List.filter (fun (_, (_, ctxts', _)) -> Option.is_some (deltas_are_equal [resulting_ctxts; ctxts'])) solutions
+            in
+            if List.is_empty compatible_solutions then raise (Fail ("No compatible solutions for label: " ^ label))
+            else
+                (* print solutions for this branch *)
+                print_endline ("\nLabel: " ^ label ^ "\n");
+                List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e)) compatible_solutions;
+                (* let user pick a solution *)
+                let rec pick () =
+                    print_string "Select solution: ";
+                    match read_int_opt () with
+                    | Some i when i >= 0 && i < List.length compatible_solutions -> List.nth compatible_solutions i
+                    | _ -> print_endline "Invalid choice.\n"; pick ()
+                in
+                let (l, (f', ctxts', e)) = pick () in
+                (* continue to next branch with the current context as reference *)
+                iter_labels (Some ctxts') ((l, (f', ctxts', e))::picked_solutions) rest
+        in
+        iter_labels None [] labelsesslist
 
 (* entry point *)
 
@@ -725,14 +724,12 @@ let synth n_sol p d goal =
     print_newline ();
     List.iter (fun e -> print_endline (string_of_int !i ^ ":"); print_endline (expF_to_string e); incr i) expl;
     if List.length expl = 1 then List.hd expl
-    else (
-        let rec choose_exp() =
+    else let rec choose_exp() =
             print_string "Select solution: "; 
             let chosen_exp = read_int() in
             if chosen_exp < 0 || chosen_exp >= List.length expl then choose_exp()
             else List.nth expl chosen_exp
         in choose_exp()
-    )
 
 (* Examples and stuff *)
 
