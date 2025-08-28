@@ -176,8 +176,8 @@ let print_delta c = print_endline ("[" ^ delta_to_string c ^ "]")
 let print_psi c = print_endline ("[" ^ psi_to_string c ^ "]")
 
 let increment_depth f = 
-    assert (f.currDepth <= f.maxDepth); 
-    { f with currDepth = f.currDepth + 1 }
+    if f.currDepth < f.maxDepth then Choice.return { f with currDepth = f.currDepth + 1 }
+    else Choice.fail 
 
 let debugF f ctxts goal tFocus curr_fun =
     if not f.printDebug then ()
@@ -375,7 +375,7 @@ let rec unfold tUnfold stRecReplacement xReplace =
 (* flags + gamma-async; gamma-sync; psi-async; psi-async; delta-async; delta-sync |- P :: c : goal *)
 
 let rec invert_right_F f ctxts c goal =
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugF f ctxts goal goal "invertRightF";
     match goal with
     | TArrow(t1, t2) ->
@@ -419,7 +419,7 @@ let rec invert_right_F f ctxts c goal =
     | _ -> invert_left_F f ctxts c goal
 
 and invert_right_S f ctxts c goal = 
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugS f ctxts goal goal "invertRightS";
     match goal with 
     | STRecvF(t1, t2) ->
@@ -489,14 +489,14 @@ and invert_right_S f ctxts c goal =
     | _ -> invert_left_S f ctxts c goal
 
 and invert_left_F f ctxts c goal =
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugF f ctxts goal goal "invertLeftF";
     match ctxts.p.a with
     | (x, t)::pa' -> Choice.fail
     | [] -> focus_decide_F f ctxts c goal 
 
 and invert_left_S f ctxts c goal =
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugS f ctxts goal goal "invertLeftS";
     match ctxts.d.a with
     | (x, t)::da' ->
@@ -554,7 +554,7 @@ and focus_decide_S f ctxts c goal =
     ChoiceUtils.mplus_list (left_focuses @ [right_focus])
 
 and focus_right_F f ctxts c goal =
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugF f ctxts goal goal "focusRightF";
     match goal with
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
@@ -565,7 +565,7 @@ and focus_right_F f ctxts c goal =
     | _ -> invert_right_F f ctxts c goal
 
 and focus_right_S f ctxts c goal =
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugS f ctxts goal goal "focusRightS";
     match goal with 
     | STSendF(t1, t2) ->
@@ -588,7 +588,7 @@ and focus_right_S f ctxts c goal =
     | _ -> invert_right_S f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
 and focus_left_F f ctxts xFocus tFocus c goal =
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugF f ctxts goal tFocus "focusLeftF";
     match tFocus with
     | TArrow(t1, t2) ->
@@ -601,7 +601,7 @@ and focus_left_F f ctxts xFocus tFocus c goal =
         else Choice.fail
 
 and focus_left_S f ctxts cFocus tFocus c goal =
-    let f = increment_depth f in
+    let* f = increment_depth f in
     debugS f ctxts goal tFocus "focusLeftS";
     match tFocus with
     | STRecvF(t1, t2) ->
