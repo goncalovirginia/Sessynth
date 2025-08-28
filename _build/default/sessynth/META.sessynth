@@ -1,6 +1,0 @@
-description = ""
-requires = "choice sexplib str unix z3"
-archive(byte) = "sessynth.cma"
-archive(native) = "sessynth.cmxa"
-plugin(byte) = "sessynth.cma"
-plugin(native) = "sessynth.cmxs"
