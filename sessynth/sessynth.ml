@@ -230,6 +230,30 @@ let filter_duplicates expl =
     in 
     filter_duplicates' [] expl
 
+let contains_substring s1 s2 =
+    let re = Str.regexp_string s2 in
+    try ignore (Str.search_forward re s1 0); true
+    with Not_found -> false
+
+let filter_ext_choice_solutions_by_substr substr solutions =
+  List.filter (fun (_, (_, _, e)) -> contains_substring (expP_to_string e 0) substr) solutions
+
+let rec interactive_ext_choice_filter_solutions solutions =
+    print_string "Enter a filter string (or nothing to keep all): ";
+    let filter = read_line () in
+    if filter = "" then solutions
+    else
+        let filtered_solutions = filter_ext_choice_solutions_by_substr filter solutions in
+        if filtered_solutions = [] then begin
+            print_endline "No solutions matched that filter.";
+            interactive_ext_choice_filter_solutions solutions 
+        end
+        else begin
+            print_endline ("Filtered down to " ^ string_of_int (List.length filtered_solutions) ^ " solutions:");
+            List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e 0)) filtered_solutions;
+            interactive_ext_choice_filter_solutions filtered_solutions
+        end
+
 (* S[μt.S / t] *)
 let rec unfold tUnfold stRecReplacement xReplace =
     match tUnfold with
@@ -577,11 +601,13 @@ and synth_interactive_ext_choice f ctxts c goal labelsesslist =
                 (* print solutions for this branch *)
                 print_endline ("\nLabel: " ^ label ^ "\n");
                 List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e 0)) compatible_solutions;
+                (* filter solutions *)
+                let filtered_solutions = interactive_ext_choice_filter_solutions compatible_solutions in
                 (* let user pick a solution *)
                 let rec pick () =
                     print_string "Select solution: ";
                     match read_int_opt () with
-                    | Some i when i >= 0 && i < List.length compatible_solutions -> List.nth compatible_solutions i
+                    | Some i when i >= 0 && i < List.length filtered_solutions -> List.nth filtered_solutions i
                     | _ -> print_endline "Invalid choice.\n"; pick ()
                 in
                 let (l, (f', ctxts', e)) = pick () in
