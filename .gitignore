@@ -384,3 +384,15 @@ _build/install/default/lib/sessynth/sessynth.cmx
 _build/install/default/lib/sessynth/sessynth.cmxa
 _build/install/default/lib/sessynth/sessynth.cmxs
 _build/install/default/lib/sessynth/sessynth.ml
+_build/default/sessynth/printer.ml
+_build/default/sessynth/.sessynth.objs/sessynth__Printer.impl.all-deps
+_build/default/sessynth/.sessynth.objs/sessynth__Printer.impl.d
+_build/default/sessynth/.sessynth.objs/byte/sessynth__Printer.cmi
+_build/default/sessynth/.sessynth.objs/byte/sessynth__Printer.cmo
+_build/default/sessynth/.sessynth.objs/byte/sessynth__Printer.cmt
+_build/default/sessynth/.sessynth.objs/native/sessynth__Printer.cmx
+_build/default/sessynth/.sessynth.objs/native/sessynth__Printer.o
+_build/install/default/lib/sessynth/printer.ml
+_build/install/default/lib/sessynth/sessynth__Printer.cmi
+_build/install/default/lib/sessynth/sessynth__Printer.cmt
+_build/install/default/lib/sessynth/sessynth__Printer.cmx

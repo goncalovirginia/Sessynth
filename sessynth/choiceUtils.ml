@@ -28,12 +28,12 @@ let rec map_list f xs =
         Choice.return (y :: ys)
 
 let rec map_list_state f g xs =
-  match xs with
-  | [] -> Choice.return (f, [])
-  | x :: xs' ->
-      let* (f', y) = g f x in
-      let* (f'', ys) = map_list_state f' g xs' in
-      Choice.return (f'', y :: ys)
+    match xs with
+    | [] -> Choice.return (f, [])
+    | x :: xs' ->
+        let* (f', y) = g f x in
+        let* (f'', ys) = map_list_state f' g xs' in
+        Choice.return (f'', y :: ys)
 
 let mplus_list xs =
   	List.fold_right Choice.mplus xs Choice.fail

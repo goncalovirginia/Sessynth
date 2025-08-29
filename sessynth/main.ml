@@ -1,4 +1,4 @@
-open Sessynth.Language;;
+open Language
 
 (* Running stuff *)
 

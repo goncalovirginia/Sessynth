@@ -1,6 +1,8 @@
-module Language = Language
 open Language
+open Printer
 open ChoiceUtils.Let_syntax
+
+module Language = Language
 
 exception Fail of string
 
@@ -46,135 +48,6 @@ let fresh_chan f =
     let f' = { f with freshIndices = { f.freshIndices with chan = curr_chan + 1 } } in
     f', ("_c" ^ string_of_int curr_chan)
 
-
-let uOp_to_string t =
-    match t with
-    | Not -> "!"
-    | Neg -> "-"
-
-let bOp_to_string t =
-    match t with
-    | And -> " && "
-    | Or -> " || "
-    | Eq -> " == "
-    | Gr -> " > "
-    | Lt -> " < "
-    | GrE -> " >= "
-    | LtE -> " <= "
-    | Sum -> " + "
-    | Sub -> " - "
-    | Mult -> " * "
-    | Div -> " / "
-
-let tyA_to_string t =
-    match t with
-    | TInt -> "int"
-    | TBool -> "bool"
-
-let rec tyR_to_string t =
-    match t with
-    | RTUOp(op, t) -> uOp_to_string op ^ tyR_to_string t
-    | RTBOp(op, t1, t2) -> tyR_to_string t1 ^ bOp_to_string op ^ tyR_to_string t2
-    | RTInt(v) -> string_of_int v
-    | RTBool(v) -> string_of_bool v
-    | RTVar(x) -> x
-
-and tyF_to_string t =
-    match t with 
-    | TAtomic(t) -> tyA_to_string t
-    | TRefinement(x, t1, RTBool(true)) -> x ^ ":" ^ tyA_to_string t1
-    | TRefinement(x, t1, t2) -> "{" ^ x ^ ":" ^ tyA_to_string t1 ^ " | " ^ tyR_to_string t2 ^ "}"
-    | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
-    | TProcess(incsl, outs) -> "{" ^ cs_list_to_string incsl ^ " |- " ^ tyS_to_string outs ^ "}"
-    | TDeclr(x) -> x
-
-and tyS_to_string t =
-    match t with 
-    | STDeclr(x) -> x
-    | STSendF(t1, t2) -> tyF_to_string t1 ^ " ∧ " ^ tyS_to_string t2
-    | STRecvF(t1, t2) -> tyF_to_string t1 ^ " ⊃ " ^ tyS_to_string t2
-    | STSendS(t1, t2) -> tyS_to_string t1 ^ " ⊗ " ^ tyS_to_string t2
-    | STRecvS(t1, t2) -> tyS_to_string t1 ^ " -o " ^ tyS_to_string t2
-    | STExtChoice(xtl) -> "&{" ^ label_tyS_list_to_string xtl ^ "}"
-    | STIntChoice(xtl) -> "⊕{" ^ label_tyS_list_to_string xtl ^ "}"
-    | STRec(x, t) -> "𝜇" ^ x ^ "." ^ tyS_to_string t
-    | STRecVar(x) -> x
-    | STUnit -> "1"
-
-and cs_list_to_string csl =
-    match csl with
-    | [] -> ""
-    | [(c, s)] -> c ^ ":" ^ tyS_to_string s
-    | (c, s)::csl' -> c ^ ":" ^ tyS_to_string s ^ ", " ^ cs_list_to_string csl'
-
-and label_tyS_list_to_string xtl =
-    match xtl with
-    | [] -> ""
-    | [(l, t)] -> l ^ ":" ^ tyS_to_string t
-    | (l, t)::xtl' -> l ^ ":" ^ tyS_to_string t ^ ", " ^ label_tyS_list_to_string xtl' 
-
-let rec expF_to_string e =
-    match e with 
-    | Int(v) -> string_of_int v
-    | Bool(v) -> string_of_bool v
-    | UOp(op, e) -> uOp_to_string op ^ expF_to_string e
-    | BOp(op, e1, e2) -> expF_to_string e1 ^ bOp_to_string op ^ expF_to_string e2
-    | Var x -> x
-    | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 ^ " in " ^expF_to_string e2
-    | Lam(x, t, e) -> x ^ " -> " ^ expF_to_string e 
-    | App(e1, e2) -> "(" ^ expF_to_string e1 ^ ") " ^ expF_to_string e2
-    | Ite(e1, e2, e3) -> "if " ^ expF_to_string e1 ^ " then " ^ expF_to_string e2 ^ " else " ^ expF_to_string e3
-    | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
-    | LetRec(x, t, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF
-
-and process_input_channels_to_string xtl =
-    if List.is_empty xtl then ""
-    else " <- [" ^ label_tyS_list_to_string xtl ^ "]" 
-
-and expP_to_string e =
-    match e with 
-    | SendF(c, eF, eP) -> "send " ^ c ^ " " ^ expF_to_string eF ^ ";\n" ^ expP_to_string eP
-    | RecvF(x, tF, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
-    | SendS(c1, c2, eP1, eP2) -> "send " ^ c1 ^ " (" ^ c2 ^ " <- " ^ expP_to_string eP1 ^ ");\n" ^ expP_to_string eP2
-    | RecvS(x, tS, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP
-    | Close(c) -> "close " ^ c ^ "\n"
-    | Wait(c, eP) -> "wait " ^ c ^ ";\n" ^ expP_to_string eP
-    | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ "\n"
-    | Choice(c, labelprocesslist) -> "case " ^ c ^ " of\n" ^ label_process_list_to_string labelprocesslist 
-    | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP
-    | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF ^ spawn_c_list_to_string cl  ^ ";\n" ^ expP_to_string eP
-
-and label_process_list_to_string labelprocesslist = 
-    match labelprocesslist with
-    | [] -> ""
-    | (l, eP)::labelprocesslist' -> l ^ ": (\n" ^ expP_to_string eP ^ ")\n" ^ label_process_list_to_string labelprocesslist' 
-
-and spawn_c_list_to_string cl =
-    if List.is_empty cl then ""
-    else " [" ^ c_list_to_string cl ^ "]" 
-
-and c_list_to_string cl =
-    match cl with
-    | [] -> ""
-    | [c] -> c
-    | c::cl' -> c ^ "; " ^ c_list_to_string cl'
-
-let rec delta_to_string c = 
-    match c with
-    | [] -> "";
-    | [(x, t)] -> x ^ ":" ^ tyS_to_string t
-    | (x, t)::c' -> x ^ ":" ^ tyS_to_string t ^ "; " ^ delta_to_string c'
-
-let rec psi_to_string c = 
-    match c with
-    | [] -> "";
-    | [(x, t)] -> x ^ ":" ^ tyF_to_string t
-    | (x, t)::c' -> x ^ ":" ^ tyF_to_string t ^ "; " ^ psi_to_string c'
-
-let print_delta c = print_endline ("[" ^ delta_to_string c ^ "]")
-
-let print_psi c = print_endline ("[" ^ psi_to_string c ^ "]")
-
 let increment_depth f = 
     if f.currDepth < f.maxDepth then Choice.return { f with currDepth = f.currDepth + 1 }
     else Choice.fail 
@@ -186,8 +59,8 @@ let debugF f ctxts goal tFocus curr_fun =
         match curr_fun with
         | "invertRightF" | "invertLeftF" | "focusDecideF" ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyF_to_string goal);
-            print_string (indent ^ "pa: "); print_psi ctxts.p.a;
-            print_string (indent ^ "ps: "); print_psi ctxts.p.s
+            print_endline (indent ^ "pa: " ^ psi_to_string ctxts.p.a);
+            print_endline (indent ^ "ps: " ^ psi_to_string ctxts.p.s)
         | _ ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyF_to_string goal);
             print_endline (indent ^ "tFocus: " ^ tyF_to_string tFocus)
@@ -199,8 +72,8 @@ let debugS f ctxts goal tFocus curr_fun =
         match curr_fun with
         | "invertRightS" | "invertLeftS" | "focusDecideS" ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
-            print_string (indent ^ "da: "); print_delta ctxts.d.a;
-            print_string (indent ^ "ds: "); print_delta ctxts.d.s
+            print_string (indent ^ "da: " ^ delta_to_string ctxts.d.a);
+            print_string (indent ^ "ds: " ^ delta_to_string ctxts.d.s)
         | _ ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
             print_endline (indent ^ "tFocus: " ^ tyS_to_string tFocus)
@@ -250,7 +123,7 @@ let rec subst e1 x e2 =
     | Var y -> if x=y then e2 else e1 
     | App(e, e') -> App (subst e x e2 , subst e' x e2)
     | Lam(y, t, e) -> if x <> y then Lam (y,t,(subst e x e2)) else e1 
-    | _ -> raise (Fail("subst pattern matching not defined for " ^ expF_to_string e1))
+    | _ -> raise (Fail("subst pattern matching not defined for " ^ expF_to_string e1 0))
 
 let get_keys kvl =
     List.map (fun (k, v) -> k) kvl
@@ -691,7 +564,7 @@ and synth_interactive_ext_choice f ctxts c goal labelsesslist =
             else
                 (* print solutions for this branch *)
                 print_endline ("\nLabel: " ^ label ^ "\n");
-                List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e)) compatible_solutions;
+                List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e 0)) compatible_solutions;
                 (* let user pick a solution *)
                 let rec pick () =
                     print_string "Select solution: ";
@@ -722,7 +595,7 @@ let synth n_sol p d goal =
     let expl = List.map (fun (_, _, e) -> e) solutions in
     let i = ref 0 in
     print_newline ();
-    List.iter (fun e -> print_endline (string_of_int !i ^ ":"); print_endline (expF_to_string e); incr i) expl;
+    List.iter (fun e -> print_endline (string_of_int !i ^ ":"); print_endline (expF_to_string e 0); incr i) expl;
     if List.length expl = 1 then List.hd expl
     else let rec choose_exp() =
             print_string "Select solution: "; 
