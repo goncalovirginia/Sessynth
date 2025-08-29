@@ -1,5 +1,5 @@
-# Thesis
-Stuff related to my Thesis on Synthesizing Session-Typed Programs
+# Sessynth
+Synthesizer for Session-Typed Programs
 
 ## Running Stuff
 
