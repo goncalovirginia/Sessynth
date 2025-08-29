@@ -10,13 +10,25 @@ exception Fail of string
 
 type fresh_indices = { id : int; func : int; chan : int }
 
-type flags = { isUnfoldedRight : bool; isUnfoldedLeft : bool; xRecLam : id; freshIndices : fresh_indices; currDepth : int; maxDepth : int; printDebug : bool }
+type flags = { 
+    isUnfoldedRight : bool; 
+    isUnfoldedLeft : bool; 
+    xRecLam : id; 
+    freshIndices : fresh_indices; 
+    currDepth : int; 
+    maxDepth : int; 
+    printDebug : bool 
+}
 
-type gamma = { a : (id * tyS) list; s :  (id * tyS) list }
+type bindingsS = (id * tyS) list
+
+type bindingsF = (id * tyF) list
+
+type gamma = { a : bindingsS; s : bindingsS }
     
-type psi = { a : (id * tyF) list; s :  (id * tyF) list }
+type psi = { a : bindingsF; s : bindingsF }
     
-type delta = { a : (id * tyS) list; s :  (id * tyS) list }
+type delta = { a : bindingsS; s : bindingsS }
     
 type contexts = { g : gamma; p : psi; d : delta }
 
