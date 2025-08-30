@@ -279,6 +279,76 @@ let rec unfold tUnfold stRecReplacement xReplace =
         else STRecVar(x)
     | _ -> raise (Fail "Unexpected STDeclr while unfolding recursive session-type")
 
+(* polymorphism *)
+
+module S = Set.Make(String)
+
+    (* free type variables *)
+    
+let ftv_tyA = function
+    | TInt | TBool -> S.empty
+    | TPolyVar a -> S.singleton a
+
+let rec ftv_tyR = function
+    | RTInt _ | RTBool _ -> S.empty
+    | RTVar _ -> S.empty 
+    | RTUOp (_, r) -> ftv_tyR r
+    | RTBOp (_, r1, r2) -> S.union (ftv_tyR r1) (ftv_tyR r2)
+
+let rec ftv_tyF = function
+    | TAtomic a -> ftv_tyA a
+    | TRefinement (_, a, r) ->
+        S.union (ftv_tyA a) (ftv_tyR r)
+    | TArrow (t1, t2) ->
+        S.union (ftv_tyF t1) (ftv_tyF t2)
+    | TProcess (_, _) -> S.empty
+    | TDeclr _ -> S.empty
+    | TForAll (vars, body) ->
+        let vars_set = List.fold_left (fun acc (x, _) -> S.add x acc) S.empty vars in
+        S.diff (ftv_tyF body) vars_set
+
+    (* instantiate (∀ᾱ. F → F[β̄/ᾱ]) *)
+
+let counter = ref 0
+let fresh_k_id () =
+    let n = !counter in
+    incr counter;
+    "α" ^ string_of_int n
+
+let subst_tyA subst = function
+    | TInt -> TInt
+    | TBool -> TBool
+    | TPolyVar a -> try List.assoc a subst with Not_found -> TPolyVar a
+
+let rec subst_tyF subst = function
+    | TAtomic a -> TAtomic (subst_tyA subst a)
+    | TRefinement (x, a, r) -> TRefinement (x, subst_tyA subst a, r) 
+    | TArrow (t1, t2) -> TArrow (subst_tyF subst t1, subst_tyF subst t2)
+    | TProcess (incsl, outs) -> TProcess (incsl, outs)
+    | TDeclr x -> TDeclr x
+    | TForAll (xkl, tF) ->
+        (* avoid capture: ignore substitution for re-bound vars *)
+        let subst' = List.filter (fun (a, _) -> not (List.exists (fun (v, _) -> v = a) xkl)) subst in
+        TForAll (xkl, subst_tyF subst' tF)
+
+let instantiate_tyF = function
+    | TForAll (xkl, tF) ->
+        let subst = List.map (fun (a, _) -> (a, TPolyVar (fresh_k_id ()))) xkl in
+        subst_tyF subst tF
+    | t -> t
+
+    (* generalize (F → ∀ᾱ.F) *)
+
+let ftv_env env =
+    List.fold_left (fun acc (_, t) -> S.union acc (ftv_tyF t)) S.empty env
+
+let generalize env t =
+    let ftv_t = ftv_tyF t in
+    let ftv_env = ftv_env env in
+    let vars = S.elements (S.diff ftv_t ftv_env) in
+    if vars = [] then t
+    else TForAll (List.map (fun a -> (a, KBase)) vars, t)
+
 (* inversion and focusing *)
 
 (* flags + gamma-async; gamma-sync; psi-async; psi-async; delta-async; delta-sync |- P :: c : goal *)
@@ -508,6 +578,7 @@ and focus_left_F f ctxts xFocus tFocus c goal =
     | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
         if tFocus = goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
+    | TForAll _ -> Choice.fail
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in

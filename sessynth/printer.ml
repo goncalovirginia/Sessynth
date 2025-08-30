@@ -23,6 +23,12 @@ let tyA_to_string t =
     match t with
     | TInt -> "int"
     | TBool -> "bool"
+    | TPolyVar a -> a
+
+let tyK_to_string t =
+    match t with
+    | KBase -> "*"
+    | KArrow -> "* -> *"
 
 let rec tyR_to_string t =
     match t with
@@ -40,7 +46,7 @@ and tyF_to_string t =
     | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
     | TProcess(incsl, outs) -> "{" ^ cs_list_to_string incsl ^ " |- " ^ tyS_to_string outs ^ "}"
     | TDeclr(x) -> x
-
+    | TForAll(xkl, t) -> "∀" ^ id_kind_list_to_string xkl ^ ". " ^ tyF_to_string t
 and tyS_to_string t =
     match t with 
     | STDeclr(x) -> x
@@ -66,6 +72,12 @@ and label_tyS_list_to_string xtl =
     | [(l, t)] -> l ^ ":" ^ tyS_to_string t
     | (l, t)::xtl' -> l ^ ":" ^ tyS_to_string t ^ ", " ^ label_tyS_list_to_string xtl' 
 	
+and id_kind_list_to_string xkl =
+    match xkl with
+    | [] -> ""
+    | [(x, k)] -> x ^ ":" ^ tyK_to_string k
+    | (x, k)::xkl' -> x ^ ":" ^ tyK_to_string k ^ ", " ^ id_kind_list_to_string xkl'
+
 let rec expF_to_string e depth =
     match e with 
     | Int(v) -> string_of_int v

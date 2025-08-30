@@ -50,6 +50,7 @@ let tyA_to_ty tyA =
     match tyA with
     | Language.TInt -> TNum
     | Language.TBool -> TBool
+    | Language.TPolyVar _ -> assert false
 
 let rec tyF_to_ty tyF =
     match tyF with
@@ -58,6 +59,7 @@ let rec tyF_to_ty tyF =
     | Language.TArrow(tF1, tF2) -> TFun(tyF_to_ty tF1, tyF_to_ty  tF2)
     | Language.TProcess(incsl, outs) -> TProc(tyS_to_stype outs, List.map(fun (c, s) -> (c, tyS_to_stype s)) incsl)
     | Language.TDeclr(x) -> TVar(x)
+    | Language.TForAll _ -> assert false
 
 and tyS_to_stype tyS =
     match tyS with

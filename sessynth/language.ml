@@ -7,8 +7,13 @@ type uOp = Not | Neg
 type bOp = And | Or | Eq | Gr | Lt | GrE | LtE | Sum | Sub | Mult | Div
 
 type tyA = (* atomic types (A) *)
-    | TInt
-    | TBool
+    | TInt (* int *)
+    | TBool (* bool *)
+    | TPolyVar of id (* α *)
+
+type tyK = (* polymorphic kinds (K) *)
+    | KBase (* base kind *)
+    | KArrow (* arrow kind *)
     
 type tyR = (* refinement types (R) *)
     | RTInt of int
@@ -16,14 +21,15 @@ type tyR = (* refinement types (R) *)
     | RTVar of id (* x *)
     | RTUOp of uOp * tyR
     | RTBOp of bOp * tyR * tyR
-    
+
 and tyF = (* functional types (F) *)
     | TAtomic of tyA (* A *)
     | TRefinement of id * tyA * tyR (* { x:A | R } *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
     | TProcess of (id * tyS) list * tyS (* { c1:S1, ..., cn:Sn |- P :: c : S } *)
     | TDeclr of id (* variable bound to a previously defined functional type declaration *)
-    
+    | TForAll of (id * tyK) list * tyF (* ∀ᾱ. F *)
+
 and tyS = (* channel/session types (S) *)
     | STSendF of tyF * tyS (* F ∧ S *)
     | STRecvF of tyF * tyS (* F ⊃ S *)
@@ -32,7 +38,7 @@ and tyS = (* channel/session types (S) *)
     | STUnit (* 1 *)
     | STExtChoice of (id * tyS) list (* &{ l1:S1, ..., ln:Sn } *)
     | STIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
-    | STRec of id * tyS (* mu t . S *)
+    | STRec of id * tyS (* 𝜇t. S *)
     | STRecVar of id (* t *)
     | STDeclr of id (* variable bound to a previously defined session type declaration *)
     
