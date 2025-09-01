@@ -541,6 +541,9 @@ and focus_right_F f ctxts c goal =
     match goal with
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
     | TAtomic(TBool) -> Choice.return (f, ctxts, Bool(true))
+    | TAtomic(TPolyVar(_)) -> Choice.mplus 
+        (focus_right_F f ctxts c (TAtomic(TInt))) 
+        (focus_right_F f ctxts c (TAtomic(TBool)))
     | TRefinement(x, t1, t2) ->
         let solution = Cvc5adapter.solve ctxts.p.s goal in
         Choice.return (f, ctxts, solution)
@@ -581,7 +584,11 @@ and focus_left_F f ctxts xFocus tFocus c goal =
     | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
         if tFocus = goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
-    | TForAll _ -> Choice.fail
+    | TForAll(xkl, t) -> 
+        let f, t = instantiate_tyF f goal in
+        let* (f, ctxts, e) = focus_left_F f ctxts xFocus t c goal in
+        if t = goal then Choice.return (f, ctxts, Var(xFocus)) (* TODO: somehow get type of synthesized exp e, and compare that *)
+        else Choice.fail
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in
