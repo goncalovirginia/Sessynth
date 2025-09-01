@@ -8,7 +8,7 @@ exception Fail of string
 
 (* records *)
 
-type fresh_indices = { id : int; func : int; chan : int }
+type fresh_indices = { id : int; func : int; chan : int; kind : int }
 
 type flags = { 
     isUnfoldedRight : bool; 
@@ -35,7 +35,7 @@ type contexts = { g : gamma; p : psi; d : delta }
 (* auxiliary functions *)
 
 let initialize_flags maxDepth printDebug =
-    let f : flags = { isUnfoldedRight = false; isUnfoldedLeft = false; xRecLam = ""; freshIndices = { id = 0; func = 0; chan = 0 }; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
+    let f : flags = { isUnfoldedRight = false; isUnfoldedLeft = false; xRecLam = ""; freshIndices = { id = 0; func = 0; chan = 0; kind = 0 }; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
     f
 
 let initialize_ctxts =
@@ -59,6 +59,11 @@ let fresh_chan f =
     let curr_chan = f.freshIndices.chan in
     let f' = { f with freshIndices = { f.freshIndices with chan = curr_chan + 1 } } in
     f', ("_c" ^ string_of_int curr_chan)
+
+let fresh_kind f =
+    let curr_kind = f.freshIndices.kind in
+    let f' = { f with freshIndices = { f.freshIndices with kind = curr_kind + 1 } } in
+    f', ("_α" ^ string_of_int curr_kind)
 
 let increment_depth f = 
     if f.currDepth < f.maxDepth then Choice.return { f with currDepth = f.currDepth + 1 }
@@ -283,44 +288,36 @@ let rec unfold tUnfold stRecReplacement xReplace =
 
 module S = Set.Make(String)
 
-    (* free type variables *)
-    
+(* free type variables *)
 let ftv_tyA = function
     | TInt | TBool -> S.empty
     | TPolyVar a -> S.singleton a
 
 let rec ftv_tyR = function
-    | RTInt _ | RTBool _ -> S.empty
-    | RTVar _ -> S.empty 
+    | RTInt _ | RTBool _ | RTVar _ -> S.empty
     | RTUOp (_, r) -> ftv_tyR r
     | RTBOp (_, r1, r2) -> S.union (ftv_tyR r1) (ftv_tyR r2)
 
 let rec ftv_tyF = function
     | TAtomic a -> ftv_tyA a
-    | TRefinement (_, a, r) ->
-        S.union (ftv_tyA a) (ftv_tyR r)
-    | TArrow (t1, t2) ->
-        S.union (ftv_tyF t1) (ftv_tyF t2)
-    | TProcess (_, _) -> S.empty
-    | TDeclr _ -> S.empty
-    | TForAll (vars, body) ->
-        let vars_set = List.fold_left (fun acc (x, _) -> S.add x acc) S.empty vars in
-        S.diff (ftv_tyF body) vars_set
+    | TRefinement (_, a, r) -> S.union (ftv_tyA a) (ftv_tyR r)
+    | TArrow (t1, t2) -> S.union (ftv_tyF t1) (ftv_tyF t2)
+    | TProcess (_, _) | TDeclr _ -> S.empty
+    | TForAll (xkl, t) ->
+        let vars_set = List.fold_left (fun s (x, _) -> S.add x s) S.empty xkl in
+        S.diff (ftv_tyF t) vars_set
 
-    (* instantiate (∀ᾱ. F → F[β̄/ᾱ]) *)
+let ftv_env ctxts =
+    List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty ctxts.p.s
 
-let counter = ref 0
-let fresh_k_id () =
-    let n = !counter in
-    incr counter;
-    "α" ^ string_of_int n
-
-let subst_tyA subst = function
+let subst_tyA subst t =
+    match t with
     | TInt -> TInt
     | TBool -> TBool
     | TPolyVar a -> try List.assoc a subst with Not_found -> TPolyVar a
 
-let rec subst_tyF subst = function
+let rec subst_tyF subst t = 
+    match t with
     | TAtomic a -> TAtomic (subst_tyA subst a)
     | TRefinement (x, a, r) -> TRefinement (x, subst_tyA subst a, r) 
     | TArrow (t1, t2) -> TArrow (subst_tyF subst t1, subst_tyF subst t2)
@@ -331,20 +328,23 @@ let rec subst_tyF subst = function
         let subst' = List.filter (fun (a, _) -> not (List.exists (fun (v, _) -> v = a) xkl)) subst in
         TForAll (xkl, subst_tyF subst' tF)
 
-let instantiate_tyF = function
+(* ∀ᾱ. F → F[β̄/ᾱ] *)
+let instantiate_tyF f t =
+    match t with
     | TForAll (xkl, tF) ->
-        let subst = List.map (fun (a, _) -> (a, TPolyVar (fresh_k_id ()))) xkl in
-        subst_tyF subst tF
-    | t -> t
+        let f, subst =
+            List.fold_left (fun (f', subst') (a, k) ->
+                let f'', k = fresh_kind f' in
+                f'', (a, TPolyVar(k))::subst'
+            ) (f, []) xkl
+        in
+        f, subst_tyF subst tF
+    | _ -> f, t
 
-    (* generalize (F → ∀ᾱ.F) *)
-
-let ftv_env env =
-    List.fold_left (fun acc (_, t) -> S.union acc (ftv_tyF t)) S.empty env
-
-let generalize env t =
+(* F → ∀ᾱ.F *)
+let generalize ctxts t =
     let ftv_t = ftv_tyF t in
-    let ftv_env = ftv_env env in
+    let ftv_env = ftv_env ctxts in
     let vars = S.elements (S.diff ftv_t ftv_env) in
     if vars = [] then t
     else TForAll (List.map (fun a -> (a, KBase)) vars, t)
@@ -389,12 +389,15 @@ let rec invert_right_F f ctxts c goal =
             Choice.return (f, ctxts', Process(c, e, outs, incsl))
         with Not_found -> Choice.fail
         end
-    | TDeclr(x) -> 
+    | TDeclr(x) ->
         begin try
             let t = List.assoc x ctxts.p.s in 
             invert_right_F f ctxts c t
         with Not_found -> Choice.fail
         end
+    | TForAll(xkl, t) -> 
+        let f, t = instantiate_tyF f goal in
+        invert_right_F f ctxts c t 
     | _ -> invert_left_F f ctxts c goal
 
 and invert_right_S f ctxts c goal = 
