@@ -310,23 +310,23 @@ let rec ftv_tyF = function
 let ftv_env ctxts =
     List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty ctxts.p.s
 
-let subst_tyA subst t =
+let instantiate_subst_tyA subst t =
     match t with
     | TInt -> TInt
     | TBool -> TBool
     | TPolyVar a -> try List.assoc a subst with Not_found -> TPolyVar a
 
-let rec subst_tyF subst t = 
+let rec instantiate_subst_tyF subst t = 
     match t with
-    | TAtomic a -> TAtomic (subst_tyA subst a)
-    | TRefinement (x, a, r) -> TRefinement (x, subst_tyA subst a, r) 
-    | TArrow (t1, t2) -> TArrow (subst_tyF subst t1, subst_tyF subst t2)
+    | TAtomic a -> TAtomic (instantiate_subst_tyA subst a)
+    | TRefinement (x, a, r) -> TRefinement (x, instantiate_subst_tyA subst a, r) 
+    | TArrow (t1, t2) -> TArrow (instantiate_subst_tyF subst t1, instantiate_subst_tyF subst t2)
     | TProcess (incsl, outs) -> TProcess (incsl, outs)
     | TDeclr x -> TDeclr x
     | TForAll (xkl, tF) ->
         (* avoid capture: ignore substitution for re-bound vars *)
         let subst' = List.filter (fun (a, _) -> not (List.exists (fun (v, _) -> v = a) xkl)) subst in
-        TForAll (xkl, subst_tyF subst' tF)
+        TForAll (xkl, instantiate_subst_tyF subst' tF)
 
 (* ∀ᾱ. F → F[β̄/ᾱ] *)
 let instantiate_tyF f t =
@@ -338,7 +338,7 @@ let instantiate_tyF f t =
                 f'', (a, TPolyVar(k))::subst'
             ) (f, []) xkl
         in
-        f, subst_tyF subst tF
+        f, instantiate_subst_tyF subst tF
     | _ -> f, t
 
 (* F → ∀ᾱ.F *)
@@ -348,6 +348,55 @@ let generalize ctxts t =
     let vars = S.elements (S.diff ftv_t ftv_env) in
     if vars = [] then t
     else TForAll (List.map (fun a -> (a, KBase)) vars, t)
+
+let rec unify_subst s t =
+    match t with
+    | TAtomic (TPolyVar a) -> 
+        begin 
+            match List.assoc_opt a s with
+            | Some t' -> t'
+            | None -> t
+        end
+    | TAtomic _ -> t
+    | TArrow (t1, t2) -> TArrow (unify_subst s t1, unify_subst s t2)
+    | TRefinement (x, a, r) -> TRefinement (x, a, r)  (* TODO extend *)
+    | TProcess (cs, s') -> TProcess (cs, s')          (* TODO extend *)
+    | TDeclr x -> TDeclr x                            (* TODO extend *)
+    | TForAll (xks, t') -> TForAll (xks, unify_subst s t')
+
+(* apply substitution to entire substitution set *)
+let unify_subst_subst s1 s2 =
+    List.map (fun (x, t) -> (x, unify_subst s1 t)) s2
+
+(* apply s2, then s1 *)
+let unify_compose_subst s1 s2 =
+    s1 @ unify_subst_subst s1 s2
+
+(* check to avoid α = α -> α *)
+let rec occurs a t =
+    match t with
+    | TAtomic (TPolyVar b) -> a = b
+    | TArrow (t1, t2) -> occurs a t1 || occurs a t2
+    | TAtomic _ -> false
+    | TRefinement _ -> false
+    | TProcess _ -> false
+    | TDeclr _ -> false
+    | TForAll (_, t') -> occurs a t'
+
+(* unify(t1​, t2​) = θ *)
+let rec unify t1 t2 =
+    match (t1, t2) with
+    | TAtomic(TInt), TAtomic(TInt) -> []
+    | TAtomic(TBool), TAtomic(TBool) -> []
+    | TAtomic(TPolyVar(a)), t | t, TAtomic(TPolyVar(a)) ->
+        if t = TAtomic(TPolyVar(a)) then []
+        else if occurs a t then raise (Fail "Occurs check failed.")
+        else [(a, t)]
+    | TArrow(a1, b1), TArrow(a2, b2) ->
+        let s1 = unify a1 a2 in
+        let s2 = unify (unify_subst s1 b1) (unify_subst s1 b2) in
+        unify_compose_subst s2 s1
+    | _ -> raise (Fail "Cannot unify.")
 
 (* inversion and focusing *)
 
