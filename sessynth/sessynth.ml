@@ -642,11 +642,13 @@ and focus_left_F f ctxts xFocus tFocus c goal =
     | TDeclr x ->
         if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
-    | TForAll(xkl, t) -> 
-        let f, t_inst = instantiate_tyF f goal in
-        let* (f, ctxts, e) = focus_left_F f ctxts xFocus t_inst c goal in
-        if t_inst = goal then Choice.return (f, ctxts, Var(xFocus)) (* TODO: somehow get type of synthesized exp e, and compare that *)
-        else Choice.fail
+    | TForAll(xkl, t) ->
+        let f, t_inst = instantiate_tyF f tFocus in
+        let subst = unify t_inst goal in
+        let ctxts' = append_bindings_psi ctxts subst in
+        let goal' = unify_subst subst goal in
+        focus_left_F f ctxts' xFocus t_inst c goal'
+
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in
