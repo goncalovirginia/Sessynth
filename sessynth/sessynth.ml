@@ -375,13 +375,13 @@ let unify_compose_subst s1 s2 =
 (* check to avoid α = α -> α *)
 let rec occurs a t =
     match t with
-    | TAtomic (TPolyVar b) -> a = b
-    | TArrow (t1, t2) -> occurs a t1 || occurs a t2
+    | TAtomic(TPolyVar b) -> a = b
     | TAtomic _ -> false
+    | TArrow(t1, t2) -> occurs a t1 || occurs a t2
     | TRefinement _ -> false
     | TProcess _ -> false
     | TDeclr _ -> false
-    | TForAll (_, t') -> occurs a t'
+    | TForAll(_, t') -> occurs a t'
 
 (* unify(t1​, t2​) = θ *)
 let rec unify t1 t2 =
@@ -630,8 +630,11 @@ and focus_left_F f ctxts xFocus tFocus c goal =
         let* (f, ctxts', e2) = focus_left_F f ctxts c' t2 c goal in
         let* (f, ctxts'', e1) = invert_right_F f ctxts c t1 in
         Choice.return (f, ctxts'', subst e2 c' (App(Var(xFocus), e1)))
-    | TProcess _ | TAtomic _ | TRefinement _ | TDeclr _ -> 
+    | TProcess _ | TAtomic _ | TRefinement _ -> 
         if tFocus = goal then Choice.return (f, ctxts, Var(xFocus))
+        else Choice.fail
+    | TDeclr x ->
+        if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
     | TForAll(xkl, t) -> 
         let f, t = instantiate_tyF f goal in
