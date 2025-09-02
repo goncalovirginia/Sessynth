@@ -592,11 +592,13 @@ and focus_right_F f ctxts c goal =
     | TAtomic(TPolyVar(_)) ->
         let ground_atomic_types = [TInt; TBool] in
         let map_unify = fun tA ->
-            let candidate = TAtomic(tA) in
-            let subst = unify goal candidate in
-            let ctxts' = append_bindings_psi ctxts subst in
-            let goal' = unify_subst subst goal in
-            focus_right_F f ctxts' c goal'
+            try 
+                let candidate = TAtomic(tA) in
+                let subst = unify goal candidate in
+                let ctxts' = append_bindings_psi ctxts subst in
+                let goal' = unify_subst subst goal in
+                focus_right_F f ctxts' c goal'
+            with Fail _ -> Choice.fail
         in
         ChoiceUtils.map_mplus_list map_unify ground_atomic_types
     | TRefinement(x, t1, t2) ->
@@ -643,12 +645,13 @@ and focus_left_F f ctxts xFocus tFocus c goal =
         if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
     | TForAll(xkl, t) ->
-        let f, t_inst = instantiate_tyF f tFocus in
-        let subst = unify t_inst goal in
-        let ctxts' = append_bindings_psi ctxts subst in
-        let goal' = unify_subst subst goal in
-        focus_left_F f ctxts' xFocus t_inst c goal'
-
+        try
+            let f, t_inst = instantiate_tyF f tFocus in
+            let subst = unify t_inst goal in
+            let ctxts' = append_bindings_psi ctxts subst in
+            let goal' = unify_subst subst goal in
+            focus_left_F f ctxts' xFocus t_inst c goal'
+        with Fail _ -> Choice.fail
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in
