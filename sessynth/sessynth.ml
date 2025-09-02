@@ -351,18 +351,17 @@ let generalize ctxts t =
 
 let rec unify_subst s t =
     match t with
-    | TAtomic (TPolyVar a) -> 
-        begin 
-            match List.assoc_opt a s with
-            | Some t' -> t'
-            | None -> t
+    | TAtomic(TPolyVar a) -> begin 
+        match List.assoc_opt a s with
+        | Some t' -> t'
+        | None -> t
         end
     | TAtomic _ -> t
-    | TArrow (t1, t2) -> TArrow (unify_subst s t1, unify_subst s t2)
-    | TRefinement (x, a, r) -> TRefinement (x, a, r)  (* TODO extend *)
-    | TProcess (cs, s') -> TProcess (cs, s')          (* TODO extend *)
-    | TDeclr x -> TDeclr x                            (* TODO extend *)
-    | TForAll (xks, t') -> TForAll (xks, unify_subst s t')
+    | TArrow(t1, t2) -> TArrow (unify_subst s t1, unify_subst s t2)
+    | TRefinement(x, a, r) -> TRefinement (x, a, r)  (* TODO extend *)
+    | TProcess(cs, s') -> TProcess (cs, s')          (* TODO extend *)
+    | TDeclr(x) -> TDeclr x                          (* TODO extend *)
+    | TForAll(xks, t') -> TForAll (xks, unify_subst s t')
 
 (* apply substitution to entire substitution set *)
 let unify_subst_subst s1 s2 =
@@ -385,7 +384,7 @@ let rec occurs a t =
 
 (* unify(t1​, t2​) = θ *)
 let rec unify t1 t2 =
-    match (t1, t2) with
+    match t1, t2 with
     | TAtomic(TInt), TAtomic(TInt) -> []
     | TAtomic(TBool), TAtomic(TBool) -> []
     | TAtomic(TPolyVar(a)), t | t, TAtomic(TPolyVar(a)) ->
@@ -590,9 +589,15 @@ and focus_right_F f ctxts c goal =
     match goal with
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
     | TAtomic(TBool) -> Choice.return (f, ctxts, Bool(true))
-    | TAtomic(TPolyVar(_)) -> Choice.mplus 
-        (focus_right_F f ctxts c (TAtomic(TInt))) 
-        (focus_right_F f ctxts c (TAtomic(TBool)))
+    | TAtomic(TPolyVar(_)) ->
+        let ground_atomic_types = [TInt; TBool] in
+        let map_unify = fun tA ->
+            let candidate = TAtomic(tA) in
+            let subst = unify goal candidate in
+            let goal' = unify_subst subst goal in
+            focus_right_F f ctxts c goal'
+        in
+        ChoiceUtils.map_mplus_list map_unify ground_atomic_types
     | TRefinement(x, t1, t2) ->
         let solution = Cvc5adapter.solve ctxts.p.s goal in
         Choice.return (f, ctxts, solution)
@@ -637,9 +642,9 @@ and focus_left_F f ctxts xFocus tFocus c goal =
         if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
     | TForAll(xkl, t) -> 
-        let f, t = instantiate_tyF f goal in
-        let* (f, ctxts, e) = focus_left_F f ctxts xFocus t c goal in
-        if t = goal then Choice.return (f, ctxts, Var(xFocus)) (* TODO: somehow get type of synthesized exp e, and compare that *)
+        let f, t_inst = instantiate_tyF f goal in
+        let* (f, ctxts, e) = focus_left_F f ctxts xFocus t_inst c goal in
+        if t_inst = goal then Choice.return (f, ctxts, Var(xFocus)) (* TODO: somehow get type of synthesized exp e, and compare that *)
         else Choice.fail
 
 and focus_left_S f ctxts cFocus tFocus c goal =
