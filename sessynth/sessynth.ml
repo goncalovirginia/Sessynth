@@ -594,8 +594,9 @@ and focus_right_F f ctxts c goal =
         let map_unify = fun tA ->
             let candidate = TAtomic(tA) in
             let subst = unify goal candidate in
+            let ctxts' = append_bindings_psi ctxts subst in
             let goal' = unify_subst subst goal in
-            focus_right_F f ctxts c goal'
+            focus_right_F f ctxts' c goal'
         in
         ChoiceUtils.map_mplus_list map_unify ground_atomic_types
     | TRefinement(x, t1, t2) ->
