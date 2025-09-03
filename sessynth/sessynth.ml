@@ -363,6 +363,13 @@ let rec unify_subst s t =
     | TDeclr(x) -> TDeclr x                          (* TODO extend *)
     | TForAll(xks, t') -> TForAll (xks, unify_subst s t')
 
+let unify_subst_ctxts subst ctxts =
+    let existing_binding_ids = List.map fst ctxts.p.s in
+    let new_bindings = List.filter (fun (a, _) -> not (List.mem a existing_binding_ids)) subst in
+    let ctxts' = append_bindings_psi ctxts new_bindings in
+    let ps'' = List.map (fun (x, t) -> (x, unify_subst subst t)) ctxts'.p.s in
+    { ctxts with p = { ctxts.p with s = ps'' } }
+
 (* apply substitution to entire substitution set *)
 let unify_subst_subst s1 s2 =
     List.map (fun (x, t) -> (x, unify_subst s1 t)) s2
@@ -592,8 +599,7 @@ and focus_right_F f ctxts c goal =
     | TAtomic(TPolyVar(_)) ->
         let ground_atomic_types = [TInt; TBool] in
         let map_unify = fun tA ->
-            try 
-                let candidate = TAtomic(tA) in
+            try let candidate = TAtomic(tA) in
                 let subst = unify goal candidate in
                 let ctxts' = append_bindings_psi ctxts subst in
                 let goal' = unify_subst subst goal in
@@ -645,12 +651,12 @@ and focus_left_F f ctxts xFocus tFocus c goal =
         if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
     | TForAll(xkl, t) ->
-        try
-            let f, t_inst = instantiate_tyF f tFocus in
+        try let f, t_inst = instantiate_tyF f tFocus in
             let subst = unify t_inst goal in
-            let ctxts' = append_bindings_psi ctxts subst in
+            let t_inst' = unify_subst subst t_inst in
             let goal' = unify_subst subst goal in
-            focus_left_F f ctxts' xFocus t_inst c goal'
+            let ctxts' = unify_subst_ctxts subst ctxts in
+            focus_left_F f ctxts' xFocus t_inst' c goal'
         with Fail _ -> Choice.fail
 
 and focus_left_S f ctxts cFocus tFocus c goal =
