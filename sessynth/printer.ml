@@ -47,6 +47,14 @@ and tyF_to_string t =
     | TProcess(incsl, outs) -> "{" ^ cs_list_to_string incsl ^ " |- " ^ tyS_to_string outs ^ "}"
     | TDeclr(x) -> x
     | TForAll(xkl, t) -> "∀" ^ id_kind_list_to_string xkl ^ ". " ^ tyF_to_string t
+    | TConstructor(x, args) -> x ^ " " ^ tyF_args_to_string args
+
+and tyF_args_to_string args =
+    match args with
+    | [] -> ""
+    | [t] -> tyF_to_string t
+    | t::args' -> tyF_to_string t ^ " " ^ tyF_args_to_string args'
+
 and tyS_to_string t =
     match t with 
     | STDeclr(x) -> x
@@ -91,10 +99,30 @@ let rec expF_to_string e depth =
     | Ite(e1, e2, e3) -> "if " ^ expF_to_string e1 depth ^ " then " ^ expF_to_string e2 depth ^ " else " ^ expF_to_string e3 depth
     | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP (depth + 1) ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
     | LetRec(x, t, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF depth
+    | Constructor(x, args) -> x ^ " " ^ expF_args_to_string args
+    | Match(e1, cons_exp_list) -> "match " ^ expF_to_string e1 depth ^ " with " ^ match_cases_to_string cons_exp_list depth
 
 and process_input_channels_to_string xtl =
     if List.is_empty xtl then ""
     else " <- [" ^ label_tyS_list_to_string xtl ^ "]" 
+
+and expF_args_to_string args =
+    match args with
+    | [] -> ""
+    | [t] -> expF_to_string t 0
+    | t::args' -> expF_to_string t 0 ^ " " ^ expF_args_to_string args'
+
+and match_cases_to_string cons_exp_list depth =
+    match cons_exp_list with
+    | [] -> ""
+    | [(x, args, e)] -> x ^ " " ^ id_args_to_string args ^ " -> " ^ expF_to_string e depth
+    | (x, args, e)::args' -> x ^ " " ^ id_args_to_string args ^ " -> " ^ expF_to_string e depth ^ " | " ^ match_cases_to_string args' depth
+
+and id_args_to_string args =
+    match args with
+    | [] -> ""
+    | [x] -> x
+    | x::args' -> x ^ " " ^ id_args_to_string args'
 
 and expP_to_string e depth =
     let indent = String.make (depth * 2) ' ' in

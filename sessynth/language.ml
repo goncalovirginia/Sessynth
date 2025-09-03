@@ -29,6 +29,7 @@ and tyF = (* functional types (F) *)
     | TProcess of (id * tyS) list * tyS (* { c1:S1, ..., cn:Sn |- P :: c : S } *)
     | TDeclr of id (* variable bound to a previously defined functional type declaration *)
     | TForAll of (id * tyK) list * tyF (* ∀ᾱ. F *)
+    | TConstructor of id * tyF list (* T F1 ... Fn *)
 
 and tyS = (* channel/session types (S) *)
     | STSendF of tyF * tyS (* F ∧ S *)
@@ -56,7 +57,9 @@ type expF = (* functional terms (M) *)
     | Ite of expF * expF * expF (* if M1 then M2 else M3 *)
     | Process of id * expP * tyS * (id * tyS) list (* c <- {P :: c : S} <- [c1:S1; ...; cn:Sn] (opaque functional value, P not evaluated) *)
     | LetRec of id * tyF * expF (* let rec x:F = M1 *)
-    
+    | Constructor of id * expF list (* C M1 ... Mn *)
+    | Match of expF * (id * id list * expF) list (* match M1 with C x̄ -> M2 | ... *)
+
 and expP = (* process terms (P) *)
     | SendF of id * expF * expP (* send c M; P : F ∧ S *)
     | RecvF of id * tyF * id * expP (* x:F <- recv c; P : F ⊃ S *)

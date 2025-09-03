@@ -60,6 +60,7 @@ let rec tyF_to_ty tyF =
     | Language.TProcess(incsl, outs) -> TProc(tyS_to_stype outs, List.map(fun (c, s) -> (c, tyS_to_stype s)) incsl)
     | Language.TDeclr(x) -> TVar(x)
     | Language.TForAll _ -> assert false
+    | Language.TConstructor _ -> assert false
 
 and tyS_to_stype tyS =
     match tyS with
@@ -89,6 +90,8 @@ let rec expF_to_exp expF =
     | Language.Ite(e1, e2, e3) -> Cond(expF_to_exp e1, expF_to_exp e2, expF_to_exp e3)
     | Language.Process(c, eP, tS, csl) -> ProcExp(c, expP_to_proc eP, Some (tyS_to_stype tS), List.map(fun (c, s) -> (c, tyS_to_stype s)) csl)
     | Language.LetRec(_, _, e) -> expF_to_exp e
+    | Language.Constructor _ -> assert false
+    | Language.Match _ -> assert false
 
 and expP_to_proc expP =
     match expP with

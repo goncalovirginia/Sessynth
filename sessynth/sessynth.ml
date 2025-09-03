@@ -21,16 +21,18 @@ type flags = {
 }
 
 type bindingsS = (id * tyS) list
-
 type bindingsF = (id * tyF) list
+
+type constructor_scheme = (id * tyK) list * tyF (* K : ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
+type constructors = (id * constructor_scheme) list
 
 type gamma = { a : bindingsS; s : bindingsS }
     
-type psi = { a : bindingsF; s : bindingsF }
+type psi = { a : bindingsF; s : bindingsF; c : constructors }
     
 type delta = { a : bindingsS; s : bindingsS }
     
-type contexts = { g : gamma; p : psi; d : delta }
+type contexts = { g : gamma; p : psi; d : delta; }
 
 (* auxiliary functions *)
 
@@ -40,7 +42,7 @@ let initialize_flags maxDepth printDebug =
 
 let initialize_ctxts =
     let g : gamma = { a = []; s = [] } in
-    let p : psi = { a = []; s = [] } in
+    let p : psi = { a = []; s = []; c = [] } in
     let d : delta = { a = []; s = [] } in
     let ctxts : contexts = { g = g; p = p; d = d } in
     ctxts
@@ -118,7 +120,7 @@ let append_bindings_gamma ctxts bindings =
 
 let append_bindings_psi ctxts bindings = 
     let pa', ps' = append_bindings (ctxts.p.a, ctxts.p.s) bindings is_tyF_left_async in
-    { ctxts with p = { a = pa'; s = ps' } }
+    { ctxts with p = { a = pa'; s = ps'; c = ctxts.p.c } }
 
 let append_bindings_delta ctxts bindings =
     let da', ds' = append_bindings (ctxts.d.a, ctxts.d.s) bindings is_tyS_left_async in
@@ -300,12 +302,14 @@ let rec ftv_tyR = function
 
 let rec ftv_tyF = function
     | TAtomic a -> ftv_tyA a
-    | TRefinement (_, a, r) -> S.union (ftv_tyA a) (ftv_tyR r)
-    | TArrow (t1, t2) -> S.union (ftv_tyF t1) (ftv_tyF t2)
-    | TProcess (_, _) | TDeclr _ -> S.empty
-    | TForAll (xkl, t) ->
+    | TRefinement(_, a, r) -> S.union (ftv_tyA a) (ftv_tyR r)
+    | TArrow(t1, t2) -> S.union (ftv_tyF t1) (ftv_tyF t2)
+    | TProcess(_, _) | TDeclr _ -> S.empty
+    | TForAll(xkl, t) ->
         let vars_set = List.fold_left (fun s (x, _) -> S.add x s) S.empty xkl in
         S.diff (ftv_tyF t) vars_set
+    | TConstructor(_, args) -> 
+        List.fold_left (fun s t -> S.union s (ftv_tyF t)) S.empty args
 
 let ftv_env ctxts =
     List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty ctxts.p.s
@@ -327,6 +331,8 @@ let rec instantiate_subst_tyF subst t =
         (* avoid capture: ignore substitution for re-bound vars *)
         let subst' = List.filter (fun (a, _) -> not (List.exists (fun (v, _) -> v = a) xkl)) subst in
         TForAll (xkl, instantiate_subst_tyF subst' tF)
+    | TConstructor(x, args) ->
+        TConstructor(x, List.map (fun arg -> instantiate_subst_tyF subst arg) args)
 
 (* ∀ᾱ. F → F[β̄/ᾱ] *)
 let instantiate_tyF f t =
@@ -362,6 +368,7 @@ let rec unify_subst s t =
     | TProcess(cs, s') -> TProcess (cs, s')          (* TODO extend *)
     | TDeclr(x) -> TDeclr x                          (* TODO extend *)
     | TForAll(xks, t') -> TForAll (xks, unify_subst s t')
+    | TConstructor(x, args) -> TConstructor(x, List.map (fun arg -> unify_subst s arg) args)
 
 let unify_subst_ctxts subst ctxts =
     let existing_binding_ids = List.map fst ctxts.p.s in
@@ -388,6 +395,7 @@ let rec occurs a t =
     | TProcess _ -> false
     | TDeclr _ -> false
     | TForAll(_, t') -> occurs a t'
+    | TConstructor(x, args) -> List.exists (fun arg -> occurs a arg) args
 
 (* unify(t1​, t2​) = θ *)
 let rec unify t1 t2 =
@@ -453,6 +461,7 @@ let rec invert_right_F f ctxts c goal =
     | TForAll(xkl, t) -> 
         let f, t = instantiate_tyF f goal in
         invert_right_F f ctxts c t 
+    | TConstructor(x, args) -> Choice.fail
     | _ -> invert_left_F f ctxts c goal
 
 and invert_right_S f ctxts c goal = 
@@ -650,14 +659,16 @@ and focus_left_F f ctxts xFocus tFocus c goal =
     | TDeclr x ->
         if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
-    | TForAll(xkl, t) ->
+    | TForAll(xkl, t) -> begin
         try let f, t_inst = instantiate_tyF f tFocus in
             let subst = unify t_inst goal in
             let t_inst' = unify_subst subst t_inst in
             let goal' = unify_subst subst goal in
             let ctxts' = unify_subst_ctxts subst ctxts in
             focus_left_F f ctxts' xFocus t_inst' c goal'
-        with Fail _ -> Choice.fail
+        with Fail _ -> Choice.fail end
+    | TConstructor(x, args) ->
+        Choice.fail
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in
