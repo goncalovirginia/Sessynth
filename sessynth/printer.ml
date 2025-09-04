@@ -100,7 +100,7 @@ let rec expF_to_string e depth =
     | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP (depth + 1) ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
     | LetRec(x, t, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF depth
     | Constructor(x, args) -> x ^ " " ^ expF_args_to_string args
-    | Match(e1, cons_exp_list) -> "match " ^ expF_to_string e1 depth ^ " with " ^ match_cases_to_string cons_exp_list depth
+    | Match(e1, cons_exp_list) -> "match " ^ expF_to_string e1 depth ^ " with\n" ^ match_cases_to_string cons_exp_list depth
 
 and process_input_channels_to_string xtl =
     if List.is_empty xtl then ""
@@ -113,10 +113,11 @@ and expF_args_to_string args =
     | t::args' -> expF_to_string t 0 ^ " " ^ expF_args_to_string args'
 
 and match_cases_to_string cons_exp_list depth =
+    let indent = String.make (depth * 2) ' ' in
     match cons_exp_list with
     | [] -> ""
-    | [(x, args, e)] -> x ^ " " ^ id_args_to_string args ^ " -> " ^ expF_to_string e depth
-    | (x, args, e)::args' -> x ^ " " ^ id_args_to_string args ^ " -> " ^ expF_to_string e depth ^ " | " ^ match_cases_to_string args' depth
+    | [(x, args, e)] -> indent ^ "| " ^ x ^ " " ^ id_args_to_string args ^ " -> " ^ expF_to_string e depth
+    | (x, args, e)::args' -> indent ^ "| " ^ x ^ " " ^ id_args_to_string args ^ " -> " ^ expF_to_string e depth ^ match_cases_to_string args' depth
 
 and id_args_to_string args =
     match args with

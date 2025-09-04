@@ -22,9 +22,7 @@ type flags = {
 
 type bindingsS = (id * tyS) list
 type bindingsF = (id * tyF) list
-
-type constructor_scheme = (id * tyK) list * tyF (* K : ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
-type constructors = (id * constructor_scheme) list
+type constructors = bindingsF (* x_c : ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
 
 type gamma = { a : bindingsS; s : bindingsS }
     
@@ -183,6 +181,13 @@ let rec get_return_type t =
     match t with
     | TArrow(t1, t2) -> get_return_type t2
     | _ -> t
+
+let rec flatten_TArrow t =
+    match t with
+    | TArrow(t1, t2) ->
+        let args, res = flatten_TArrow t2 in
+        t1::args, res
+    | _ -> [], t
 
 let get_TProcess_insl t =
     match t with
@@ -410,7 +415,22 @@ let rec unify t1 t2 =
         let s1 = unify a1 a2 in
         let s2 = unify (unify_subst s1 b1) (unify_subst s1 b2) in
         unify_compose_subst s2 s1
+    | TConstructor(x1, args1), TConstructor(x2, args2) when x1 = x2 && List.length args1 = List.length args2 ->
+        List.fold_left2 (fun s a1 a2 ->
+            let a1' = unify_subst s a1 in
+            let a2' = unify_subst s a2 in
+            unify_compose_subst (unify a1' a2') s
+        ) [] args1 args2
     | _ -> raise (Fail "Cannot unify.")
+
+(* ADTs *)
+
+let constructors_of constructors c_T =
+    List.filter (fun (c, tF) -> 
+        match tF with
+        | TForAll(_, tF') -> let _, c_T' = flatten_TArrow tF' in c_T' = c_T
+        | _ -> raise (Fail "constructors_of: binding in constructors ctxt not a TForAll.")
+    ) constructors
 
 (* inversion and focusing *)
 
@@ -461,7 +481,6 @@ let rec invert_right_F f ctxts c goal =
     | TForAll(xkl, t) -> 
         let f, t = instantiate_tyF f goal in
         invert_right_F f ctxts c t 
-    | TConstructor(x, args) -> Choice.fail
     | _ -> invert_left_F f ctxts c goal
 
 and invert_right_S f ctxts c goal = 
@@ -619,6 +638,28 @@ and focus_right_F f ctxts c goal =
     | TRefinement(x, t1, t2) ->
         let solution = Cvc5adapter.solve ctxts.p.s goal in
         Choice.return (f, ctxts, solution)
+    | TConstructor(x, args) ->
+        let synth_constructor_select (x_c, tF) = 
+            (* instantiate ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
+            let f, t_inst = instantiate_tyF f tF in
+            let args, res = flatten_TArrow t_inst in
+            (* unify res with goal + subst *)
+            let subst = unify res goal in
+            let args' = List.map (unify_subst subst) args in
+            let ctxts' = unify_subst_ctxts subst ctxts in
+            (* synthesize constructor arguments *)
+            let rec synth_args f ctxts acc args =
+                match args with
+                | [] -> Choice.return (f, ctxts, List.rev acc)
+                | a::args' ->
+                    let* (f, ctxts, e) = focus_right_F f ctxts c a in
+                    synth_args f ctxts (e::acc) args'
+            in
+            let* (f, ctxts, e_args) = synth_args f ctxts' [] args' in
+            Choice.return (f, ctxts, Constructor(x_c, e_args))
+        in
+        let x_constructors = constructors_of ctxts.p.c goal in
+        ChoiceUtils.map_mplus_list synth_constructor_select x_constructors
     | _ -> invert_right_F f ctxts c goal
 
 and focus_right_S f ctxts c goal =
@@ -668,7 +709,34 @@ and focus_left_F f ctxts xFocus tFocus c goal =
             focus_left_F f ctxts' xFocus t_inst' c goal'
         with Fail _ -> Choice.fail end
     | TConstructor(x, args) ->
-        Choice.fail
+        let synth_constructor_branch (x_c, tF) =
+            (* instantiate ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
+            let f, ty_inst = instantiate_tyF f tF in
+            let args, res = flatten_TArrow ty_inst in
+            (* unify res with tFocus + subst *)
+            let subst = unify res tFocus in
+            let args' = List.map (unify_subst subst) args in
+            let goal' = unify_subst subst goal in
+            let ctxts' = unify_subst_ctxts subst ctxts in
+            (* introduce fresh bindings for constructor args *)
+            let rec fresh_args f acc_ids acc_tys args =
+                match args with
+                | [] -> (f, List.rev acc_ids, List.rev acc_tys)
+                | a::as' ->
+                    let f, xi = fresh_id f in
+                    fresh_args f (xi::acc_ids) (a::acc_tys) as'
+            in
+            let f, x_args, t_args = fresh_args f [] [] args' in
+            (* extend psi *)
+            let bindings = List.combine x_args t_args in
+            let ctxts'' = append_bindings_psi ctxts' bindings in
+            (* synthesize branch body *)
+            let* (f, ctxts''', e_branch) = focus_right_F f ctxts'' c goal' in
+            Choice.return (x_c, x_args, e_branch)
+        in 
+        let x_constructors = constructors_of ctxts.p.c goal in
+        let* branches = ChoiceUtils.map_list synth_constructor_branch x_constructors in
+        Choice.return (f, ctxts, Match(Var(xFocus), branches))
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in
