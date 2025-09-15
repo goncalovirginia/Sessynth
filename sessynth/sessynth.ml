@@ -469,6 +469,8 @@ let rec invert_right_F f ctxts c goal =
             let f = if f.xRecLam = "" then { f with xRecLam = find_binding_for_tyF ctxts goal } else f in
             let ctxts1 = append_bindings_delta ctxts incsl in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
+            let incsl_consumed = List.for_all (fun (c', _) -> List.assoc_opt c' ctxts'.d.a = None && List.assoc_opt c' ctxts'.d.s = None) incsl in
+            let* () = Choice.guard incsl_consumed in
             Choice.return (f, ctxts', Process(c, e, outs, incsl))
         with Not_found -> Choice.fail
         end
