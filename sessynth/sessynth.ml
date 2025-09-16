@@ -465,16 +465,13 @@ let rec invert_right_F f ctxts goal =
             Choice.return (f, ctxts', Lam(x, t1, e))
         end
     | TProcess(incsl, outs) ->
-        begin try 
-            let f = if f.xRecLam = "" then { f with xRecLam = find_binding_for_tyF ctxts goal } else f in
+            let f = if f.xRecLam = "" then try { f with xRecLam = find_binding_for_tyF ctxts goal } with Not_found -> f else f in
             let ctxts1 = append_bindings_delta ctxts incsl in
             let f, c = fresh_chan f in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
             let incsl_consumed = List.for_all (fun (c', _) -> List.assoc_opt c' ctxts'.d.a = None && List.assoc_opt c' ctxts'.d.s = None) incsl in
             let* () = Choice.guard incsl_consumed in
             Choice.return (f, ctxts', Process(c, e, outs, incsl))
-        with Not_found -> Choice.fail
-        end
     | TDeclr(x) ->
         begin try
             let t = List.assoc x ctxts.p.s in 
