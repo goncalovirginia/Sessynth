@@ -786,7 +786,7 @@ and wander_unfold f ctxts c goal =
 
 (** 
 synthesizes possible spawn expressions which output a desired session-type, containing a placeholder continuation expression
-@param spawnable_proc_list: list of TProcess(insl, outs)'s with equivalent outs session-types, which will be provided by the spawned channel
+@param goal_tProcess_filter: option possibly containing a TProcess(insl, outs) whose outs serves as a filter for valid spawnable processes with equivalent outs session-types, which will be provided by the spawned channel. If goal_tProcess_filter is None, then any TProcess(_, _) is spawnable
 *)
 and focus_left_TProcess f ctxts c goal_tProcess_filter =
     let f, cSpawn = fresh_chan f in
