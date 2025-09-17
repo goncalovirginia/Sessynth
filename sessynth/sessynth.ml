@@ -694,8 +694,11 @@ and focus_left_F f ctxts xFocus tFocus goal =
         let* (f, ctxts', e2) = focus_left_F f ctxts c' t2 goal in
         let* (f, ctxts'', e1) = invert_right_F f ctxts t1 in
         Choice.return (f, ctxts'', subst e2 c' (App(Var(xFocus), e1)))
-    | TProcess _ | TAtomic _ | TRefinement _ -> 
+    | TProcess _ | TAtomic _ -> 
         if tFocus = goal then Choice.return (f, ctxts, Var(xFocus))
+        else Choice.fail
+    | TRefinement(x, tA, tR) ->
+        if TAtomic(tA) = goal then Choice.return (f, ctxts, Var(xFocus)) (* add another condition: if both tFocus and goal are TRefinement of same atomic type, ask solver to verify if tFocus refinement is a subset of goal refinement  *)
         else Choice.fail
     | TDeclr x ->
         if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
