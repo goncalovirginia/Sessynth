@@ -530,11 +530,7 @@ and invert_right_S f ctxts c goal =
                 (* wander + spawn + fwd *)
                 let tRecLam = List.assoc f.xRecLam ctxts.p.s in
                 let tProcess = get_return_type tRecLam in
-                let spawnable_proc_list = List.filter(fun (_, t) -> 
-                    let tReturn = get_return_type t in 
-                    is_TProcess tReturn && get_TProcess_outs tReturn = get_TProcess_outs tProcess
-                ) ctxts.p.s in
-                let* (f, ctxts', eSpawn) = synth_spawn f ctxts c spawnable_proc_list in
+                let* (f, ctxts', eSpawn) = focus_left_TProcess f ctxts c (Some tProcess) in
                 let f, ctxts'', eFwd = synth_fwd f ctxts' (get_Spawn_c eSpawn) c t in
                 let eSpawnAndFwd = subst_continuation_exp eSpawn eFwd in
                 let eWanderAndSpawn = subst_continuation_exp eWander eSpawnAndFwd in
@@ -779,8 +775,7 @@ and wander f ctxts c goal =
     ChoiceUtils.mplus_list [skipChoice; spawnChoice; unfoldChoice]
 
 and wander_spawn f ctxts c goal =
-    let spawnable_proc_list = List.filter (fun (_, t) -> is_TProcess (get_return_type t)) ctxts.p.s in
-    synth_spawn f ctxts c spawnable_proc_list
+    focus_left_TProcess f ctxts c None
 
 and wander_unfold f ctxts c goal =
     let recsessl = List.filter (fun (_, t) -> is_STRec t) ctxts.d.s in
@@ -793,8 +788,15 @@ and wander_unfold f ctxts c goal =
 synthesizes possible spawn expressions which output a desired session-type, containing a placeholder continuation expression
 @param spawnable_proc_list: list of TProcess(insl, outs)'s with equivalent outs session-types, which will be provided by the spawned channel
 *)
-and synth_spawn f ctxts c spawnable_proc_list =
+and focus_left_TProcess f ctxts c goal_tProcess_filter =
     let f, cSpawn = fresh_chan f in
+    let spawnable_proc_list = 
+        List.filter(fun (_, t) -> 
+            let tReturn = get_return_type t in is_TProcess tReturn && (
+            (Option.is_none goal_tProcess_filter) ||
+            (Option.is_some goal_tProcess_filter && get_TProcess_outs tReturn = get_TProcess_outs (Option.get goal_tProcess_filter)))
+        ) ctxts.p.s
+    in 
     let* (x, t) = Choice.of_list spawnable_proc_list in
     let tProcess = get_return_type t in
     let insl = get_TProcess_insl tProcess in
