@@ -560,30 +560,30 @@ and invert_left_S f ctxts c goal =
     let* f = increment_depth f in
     debugS f ctxts goal goal "invertLeftS";
     match ctxts.d.a with
-    | (x, t)::da' ->
+    | (c', t')::da' ->
         let ctxts = { ctxts with d = { ctxts.d with a = da' } } in
-        begin match t with 
+        begin match t' with 
         | STSendF(t1, t2) ->
             let f, x = fresh_id f in
-            let f, c' = fresh_chan f in
             let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
-            let ctxts2 = append_bindings_delta ctxts1 [(c, t2)] in
-            let* (f, ctxts', e) = invert_left_S f ctxts2 c' goal in
-            let c_consumed = List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None in
-            let* () = Choice.guard c_consumed in
-            Choice.return (f, ctxts', RecvF(x, t1, c, e))
+            let ctxts2 = append_bindings_delta ctxts1 [(c', t2)] in
+            let* (f, ctxts', e) = invert_left_S f ctxts2 c goal in
+            let c'_consumed = List.assoc_opt c' ctxts'.d.a = None && List.assoc_opt c' ctxts'.d.s = None in
+            let* () = Choice.guard c'_consumed in
+            Choice.return (f, ctxts', RecvF(x, t1, c', e))
         | STSendS(t1, t2) ->
             let f, c1 = fresh_chan f in
-            let f, c2 = fresh_chan f in
-            let ctxts1 = append_bindings_delta ctxts [(c1, t1); (c, t2)] in
-            let* (f, ctxts', e) = invert_left_S f ctxts1 c2 goal in
-            let c_consumed = List.assoc_opt c ctxts'.d.a = None && List.assoc_opt c ctxts'.d.s = None in
-            let* () = Choice.guard c_consumed in
-            Choice.return (f, ctxts', RecvS(c1, t1, c, e))
+            let ctxts1 = append_bindings_delta ctxts [(c1, t1); (c', t2)] in
+            let* (f, ctxts', e) = invert_left_S f ctxts1 c goal in
+            let channels_consumed = 
+                List.assoc_opt c1 ctxts'.d.a = None && List.assoc_opt c1 ctxts'.d.s = None &&
+                List.assoc_opt c' ctxts'.d.a = None && List.assoc_opt c' ctxts'.d.s = None
+            in
+            let* () = Choice.guard channels_consumed in
+            Choice.return (f, ctxts', RecvS(c1, t1, c', e))
         | STUnit -> 
-            let f, c' = fresh_chan f in
-            let* (f, ctxts', e) = invert_left_S f ctxts c' goal in
-            Choice.return (f, ctxts', Wait(c, e))
+            let* (f, ctxts', e) = invert_left_S f ctxts c goal in
+            Choice.return (f, ctxts', Wait(c', e))
         | STIntChoice(labelsesslist) ->
             let synth_branch f (l, s) =
                 let f, cn = fresh_chan f in
@@ -597,7 +597,7 @@ and invert_left_S f ctxts c goal =
             let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
             let* () = Choice.guard (Option.is_some (deltas_are_equal ctxtsl)) in
             let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
-            Choice.return (f, List.hd ctxtsl, Choice(x, labelproclist))
+            Choice.return (f, List.hd ctxtsl, Choice(c', labelproclist))
         | _ -> Choice.fail
         end
     | [] -> focus_decide_S f ctxts c goal
