@@ -478,6 +478,9 @@ let rec invert_right_F f ctxts goal =
             invert_right_F f ctxts t
         with Not_found -> Choice.fail
         end
+    | TRefinement(x, t1, t2) ->
+        let solution = Cvc5adapter.solve ctxts.p.s goal in
+        Choice.return (f, ctxts, solution)
     | TForAll(xkl, t) -> 
         let f, t = instantiate_tyF f goal in
         invert_right_F f ctxts t 
@@ -631,9 +634,6 @@ and focus_right_F f ctxts goal =
             with Fail _ -> Choice.fail
         in
         ChoiceUtils.map_mplus_list map_unify ground_atomic_types
-    | TRefinement(x, t1, t2) ->
-        let solution = Cvc5adapter.solve ctxts.p.s goal in
-        Choice.return (f, ctxts, solution)
     | TConstructor(x, args) ->
         let synth_constructor_select (x_c, tF) = 
             (* instantiate ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
