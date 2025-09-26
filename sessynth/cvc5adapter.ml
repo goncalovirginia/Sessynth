@@ -31,24 +31,34 @@ let sygus_code4 = {|
 (check-synth)
 |}
 
-let call_cvc5 sygus_code =
-  let command = "cvc5 --lang=sygus2" in
-  let (in_ch, out_ch, err_ch) = Unix.open_process_full command (Unix.environment ()) in
-  output_string out_ch sygus_code;
-  flush out_ch;
-  close_out out_ch;
+let call_sygus sygus_code =
+  	let command = "cvc5 --lang=sygus2" in
+  	let (in_ch, out_ch, err_ch) = Unix.open_process_full command (Unix.environment ()) in
+  	output_string out_ch sygus_code;
+  	flush out_ch;
+  	close_out out_ch;
 
-  let buf = Buffer.create 1024 in
-  (try
-     while true do
-       let line = input_line in_ch in
-       Buffer.add_string buf line;
-       Buffer.add_char buf '\n';
-     done
-   with End_of_file -> ());
-  close_in in_ch;
-  close_in err_ch;
-  Buffer.contents buf
+  	let buf = Buffer.create 1024 in
+  	(try while true do
+      	let line = input_line in_ch in
+      	Buffer.add_string buf line;
+      	Buffer.add_char buf '\n';
+     	done
+   	with End_of_file -> ());
+  	close_in in_ch;
+  	close_in err_ch;
+  	Buffer.contents buf
+
+let call_sat sat_code =
+	let command = "cvc5 --lang=smt2" in
+  	let (in_ch, out_ch, err_ch) = Unix.open_process_full command (Unix.environment ()) in
+  	output_string out_ch sat_code;
+  	flush out_ch;
+  	close_out out_ch;
+	let output = input_line in_ch in
+  	close_in in_ch;
+  	close_in err_ch;
+	output
 
 let rec parse_sexp sexp =
  	match sexp with
@@ -79,38 +89,38 @@ let contains_substring s sub =
   try ignore (Str.search_forward (Str.regexp_string sub) s 0); true
   with Not_found -> false
 
-let parse_cvc5_output output =
+let parse_sygus_output output =
 	if contains_substring output "infeasible" then raise (CVC5Infeasible "Goal function is infeasible") else
 	let sexps = Sexp.scan_sexps (Lexing.from_string output) in
   	match sexps with
   	| [List [define_fun]] -> [parse_sexp define_fun]
   	| [List defs] -> List.map parse_sexp defs
   	| _ -> raise (CVC5ParseError "Unexpected output format from CVC5")
+	
+let rec tyR_to_sexp_string tR =
+  	match tR with
+  	| RTBOp(And, a, b) -> Printf.sprintf "(and %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Or, a, b) -> Printf.sprintf "(or %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Eq, a, b) -> Printf.sprintf "(= %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Gr, a, b) -> Printf.sprintf "(> %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Lt, a, b) -> Printf.sprintf "(< %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(GrE, a, b) -> Printf.sprintf "(>= %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(LtE, a, b) -> Printf.sprintf "(<= %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Sum, a, b) -> Printf.sprintf "(+ %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Sub, a, b) -> Printf.sprintf "(- %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Mult, a, b) -> Printf.sprintf "(* %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTBOp(Div, a, b) -> Printf.sprintf "(div %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
+  	| RTUOp(Not, a) -> Printf.sprintf "(not %s)" (tyR_to_sexp_string a)
+	| RTUOp(Neg, a) -> Printf.sprintf "(- %s)" (tyR_to_sexp_string a)
+	| RTInt(n) -> if n < 0 
+		then Printf.sprintf "(- %s)" (string_of_int (-n))
+		else string_of_int n
+  	| RTBool(true) -> "true"
+  	| RTBool(false) -> "false"
+  	| RTVar(x) -> x
 
 let tyR_to_sygus_constraint tR =	
-	let rec tyR_to_sygus_constraint' tR =
-  		match tR with
-  		| RTBOp(And, a, b) -> Printf.sprintf "(and %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Or, a, b) -> Printf.sprintf "(or %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Eq, a, b) -> Printf.sprintf "(= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Gr, a, b) -> Printf.sprintf "(> %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Lt, a, b) -> Printf.sprintf "(< %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(GrE, a, b) -> Printf.sprintf "(>= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(LtE, a, b) -> Printf.sprintf "(<= %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Sum, a, b) -> Printf.sprintf "(+ %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Sub, a, b) -> Printf.sprintf "(- %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Mult, a, b) -> Printf.sprintf "(* %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTBOp(Div, a, b) -> Printf.sprintf "(div %s %s)" (tyR_to_sygus_constraint' a) (tyR_to_sygus_constraint' b)
-  		| RTUOp(Not, a) -> Printf.sprintf "(not %s)" (tyR_to_sygus_constraint' a)
-		| RTUOp(Neg, a) -> Printf.sprintf "(- %s)" (tyR_to_sygus_constraint' a)
-		| RTInt(n) -> if n < 0 
-			then Printf.sprintf "(- %s)" (string_of_int (-n))
-			else string_of_int n
-  		| RTBool(true) -> "true"
-  		| RTBool(false) -> "false"
-  		| RTVar(x) -> x
-	in
-	Printf.sprintf "(constraint %s)" (tyR_to_sygus_constraint' tR)
+	Printf.sprintf "(constraint %s)" (tyR_to_sexp_string tR)
 
 type parsed_TRefinement = { x : id; tA : id; constr : id }
 
@@ -140,6 +150,11 @@ let format_function_to_sygus ps_sygus goal_sygus =
 let replace_occurences s target replacement =
 	let re = Str.regexp_string target in
 	Str.global_replace re replacement s
+
+let get_TRefinement_tyR t =
+	match t with
+	| TRefinement(_, _, tR) -> tR
+	| _ -> assert false
 
 let build_sygus_input ps goal =
 	let ps_sygus = List.filter_map ( fun (x, t) -> parse_tyF x t ) ps in
@@ -172,9 +187,36 @@ let build_sygus_input ps goal =
 	let sygus_input = sygus_input ^ formatted_goal_sygus_constr ^ sygus_code4 in
 	sygus_input
 
+let build_sat_input ps tFocus goal =
+	let ps_parsed = List.filter_map ( fun (x, t) -> parse_tyF x t ) ps in
+	let goal_parsed = Option.get (parse_tyF "" goal) in
+	let consts = goal_parsed :: ps_parsed in
+	let tR_focus = get_TRefinement_tyR tFocus in
+	let tR_goal = get_TRefinement_tyR goal in
+	let predicate = RTBOp(And, tR_focus, RTUOp(Not, tR_goal)) in
+	let sat_input = "(set-logic QF_LIA)\n" in
+	let rec append_declare_consts consts =
+		match consts with
+		| [] -> ""
+		| p::consts' -> Printf.sprintf "(declare-const %s %s)\n" p.x p.tA ^ append_declare_consts consts' in
+	let sat_input = sat_input ^ append_declare_consts consts in
+	let sat_input = sat_input ^ "(assert " ^ tyR_to_sexp_string predicate ^ ")" in
+
+	let sat_input = sat_input ^ "(check-sat)" in
+	sat_input
+
 let solve ps goal =
 	let sygus_input = build_sygus_input ps goal in
 	print_endline sygus_input;
-  	let sygus_output = call_cvc5 sygus_input in
+  	let sygus_output = call_sygus sygus_input in
   	print_endline sygus_output;
-	List.hd (parse_cvc5_output sygus_output)
+	List.hd (parse_sygus_output sygus_output)
+
+(* used only for refinement subtyping: inverts R1 => R2 into R1 ∧ ¬R2, if unsatisfiable, then the original predicate holds *)
+let sat ps tFocus goal =
+	let sat_input = build_sat_input ps tFocus goal in
+	print_endline sat_input;
+	let sat_output = call_sat sat_input in
+	match sat_output with
+	| "unsat" -> true 
+	| _ -> false
