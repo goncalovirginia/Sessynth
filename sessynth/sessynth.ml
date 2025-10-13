@@ -157,6 +157,11 @@ let consume_channel ctxts c =
         let ds', s = get_and_remove c ctxts.d.s in
         { ctxts with d = { ctxts.d with s = ds'} }, s
 
+let get_first_delta_binding ctxts =
+    try List.hd ctxts.d.a
+    with Failure _ -> try List.hd ctxts.d.s
+    with Failure _ -> raise (Fail("get_first_channel: delta context empty"))
+
 let consume_channels ctxts cl =
     let rec consume_channels' ctxts' cl' sl =
         match cl' with
@@ -590,8 +595,7 @@ and invert_left_S f ctxts c goal =
             let* () = Choice.guard channels_consumed in
             Choice.return (f, ctxts', RecvS(c1, t1, c', e))
         | STUnit -> 
-            let* (f, ctxts', e) = invert_left_S f ctxts c goal in
-            Choice.return (f, ctxts', Wait(c', e))
+            Choice.return (f, ctxts, Wait(c', Close("")))
         | STIntChoice(labelsesslist) ->
             let synth_branch f (l, s) =
                 let f, cn = fresh_chan f in
@@ -677,7 +681,13 @@ and focus_right_S f ctxts c goal =
         let* (f, ctxts'', e2) = focus_right_S f ctxts' c t2 in
         Choice.return (f, ctxts'', SendS(c, c', e1 , e2))
     | STUnit ->
-        Choice.return (f, ctxts, Close(c))
+        if delta_is_empty ctxts then Choice.return (f, ctxts, Close(c))
+        else 
+            let c1, s1 = get_first_delta_binding ctxts in
+            let* (f, ctxts', e1) = focus_left_S f ctxts c1 s1 c1 goal in
+            let* (f, ctxts'', e2) = focus_right_S f ctxts' c goal in
+            let e1_e2 = subst_continuation_exp e1 e2 in
+            Choice.return (f, ctxts'', e1_e2)
     | STIntChoice(labelsesslist) -> 
         let synth_choice_select (l, s) =
             let* (f', ctxts', e1) = focus_right_S f ctxts c s in
