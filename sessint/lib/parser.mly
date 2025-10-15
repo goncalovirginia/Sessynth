@@ -211,7 +211,8 @@ sessynth_tyS:
   | END_STYPE                                                 { Sessynth.Language.STUnit }
   | AMPERSAND L_BRACE l = sessynth_choice_list R_BRACE        { Sessynth.Language.STExtChoice(l) }
   | PLUS L_BRACE l = sessynth_choice_list R_BRACE             { Sessynth.Language.STIntChoice(l) }
-  | REC v = VAR DOT st = sessynth_tyS                         { Sessynth.Language.STRec(v, st) }
+  | REC v = VAR DOT st = sessynth_tyS                         { Sessynth.Language.STRec(1, v, st) }
+  | REC k = INT v = VAR DOT st = sessynth_tyS                 { Sessynth.Language.STRec(k, v, st) }
   | v = S_VAR                                                 { Sessynth.Language.STRecVar(v) }
 
 sessynth_tyS_list:

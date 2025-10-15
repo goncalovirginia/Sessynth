@@ -11,8 +11,6 @@ exception Fail of string
 type fresh_indices = { id : int; func : int; chan : int; kind : int }
 
 type flags = { 
-    isUnfoldedRight : bool; 
-    isUnfoldedLeft : bool; 
     xRecLam : id; 
     freshIndices : fresh_indices; 
     currDepth : int; 
@@ -35,8 +33,13 @@ type contexts = { g : gamma; p : psi; d : delta; }
 (* auxiliary functions *)
 
 let initialize_flags maxDepth printDebug =
-    let f : flags = { isUnfoldedRight = false; isUnfoldedLeft = false; xRecLam = ""; freshIndices = { id = 0; func = 0; chan = 0; kind = 0 }; currDepth = -1; maxDepth = maxDepth; printDebug = printDebug } in
-    f
+    { 
+        xRecLam = ""; 
+        freshIndices = { id = 0; func = 0; chan = 0; kind = 0 }; 
+        currDepth = -1; 
+        maxDepth = maxDepth; 
+        printDebug = printDebug 
+    }
 
 let initialize_ctxts =
     let g : gamma = { a = []; s = [] } in
@@ -277,29 +280,29 @@ let rec interactive_ext_choice_filter_solutions solutions =
         end
 
 (* S[μt.S / t] *)
-let rec unfold tUnfold stRecReplacement xReplace =
+let rec unfold tUnfold stRec stRecVar =
     match tUnfold with
     | STSendF(t1, t2) ->
-        STSendF(t1, unfold t2 stRecReplacement xReplace)
+        STSendF(t1, unfold t2 stRec stRecVar)
     | STRecvF(t1, t2) ->
-        STRecvF(t1, unfold t2 stRecReplacement xReplace)
+        STRecvF(t1, unfold t2 stRec stRecVar)
     | STSendS(t1, t2) ->
-        STSendS (unfold t1 stRecReplacement xReplace, unfold t2 stRecReplacement xReplace)
+        STSendS (unfold t1 stRec stRecVar, unfold t2 stRec stRecVar)
     | STRecvS(t1, t2) ->
-        STRecvS (unfold t1 stRecReplacement xReplace, unfold t2 stRecReplacement xReplace)
+        STRecvS (unfold t1 stRec stRecVar, unfold t2 stRec stRecVar)
     | STUnit ->
         STUnit
     | STExtChoice labelsesslist ->
-        STExtChoice (List.map (fun (l, t) -> (l, unfold t stRecReplacement xReplace)) labelsesslist)
+        STExtChoice (List.map (fun (l, t) -> (l, unfold t stRec stRecVar)) labelsesslist)
     | STIntChoice labelsesslist ->
-        STIntChoice (List.map (fun (l, t) -> (l, unfold t stRecReplacement xReplace)) labelsesslist)
-    | STRec(x, t) ->
-        if x = xReplace then STRec(x, t)
-        else STRec(x, unfold t stRecReplacement xReplace)
+        STIntChoice (List.map (fun (l, t) -> (l, unfold t stRec stRecVar)) labelsesslist)
+    | STRec(k, x, t) ->
+        if x = stRecVar then tUnfold (* prevents infinite unfolding if for some reason μt.S is used inside the original μt.S *)
+        else STRec(k, x, unfold t stRec stRecVar) (* in case another recursive session type μt2.S2 is used inside μt.S *)
     | STRecVar(x) ->
-        if x = xReplace then stRecReplacement
-        else STRecVar(x)
-    | _ -> raise (Fail "Unexpected STDeclr while unfolding recursive session-type")
+        if x = stRecVar then stRec (* where unfolding happens *)
+        else tUnfold (* if it's another recursive name t2 != t, simply return t2 *)
+    | _ -> raise (Fail "unfold: unexpected STDeclr while unfolding recursive session-type")
 
 (* polymorphism *)
 
@@ -528,8 +531,8 @@ and invert_right_S f ctxts c goal =
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
         let (_, (f', ctxts', _)) = List.hd branches in
         Choice.return (f', ctxts', Choice(c, labelproclist))
-    | STRec(x, t) ->
-        if f.isUnfoldedRight then try
+    | STRec(k, x, t) ->
+        if k <= 0 then try
             let* (f, ctxts, eWander) = wander f ctxts c goal in
             Choice.mplus
                 (
@@ -551,8 +554,7 @@ and invert_right_S f ctxts c goal =
                 )
             with Not_found -> Choice.fail
         else 
-            let tUnfolded = unfold t goal x in
-            let f = {f with isUnfoldedRight = true } in
+            let tUnfolded = unfold t (STRec(k-1, x, t)) x in
             invert_right_S f ctxts c tUnfolded
     | STDeclr(x) ->
         begin try
@@ -772,12 +774,11 @@ and focus_left_S f ctxts cFocus tFocus c goal =
             Choice.return (f', ctxts', ChoiceSelect(cFocus, l, e1))
         in
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
-    | STRec(x, t) ->
-        if f.isUnfoldedLeft then
+    | STRec(k, x, t) ->
+        if k <= 0 then
             Choice.return (f, ctxts, Close(""))
         else
-            let tUnfolded = unfold t goal x in
-            let f = { f with isUnfoldedLeft = true } in
+            let tUnfolded = unfold t (STRec(k-1, x, t)) x in
             focus_left_S f ctxts cFocus tUnfolded c goal
     | _ -> invert_left_S f ctxts c goal
 

@@ -21,7 +21,7 @@ and stype_to_tyS sty =
   | STRecv(t, st) -> Language.STRecvF(ty_to_tyF t, stype_to_tyS st)
   | STSendChan(st1, st2) -> Language.STSendS(stype_to_tyS st1, stype_to_tyS st2)
   | STRecvChan(st1, st2) -> Language.STRecvS(stype_to_tyS st1, stype_to_tyS st2)
-  | STRec(v, st) -> Language.STRec(v, stype_to_tyS st)
+  | STRec(v, st) -> Language.STRec(1, v, stype_to_tyS st)
   | STVar(x) -> Language.STRecVar(x)
   | STUVar(x) -> Language.STDeclr(x)
   | STMultiSend _ | STMultiRecv _ -> assert false 
@@ -71,7 +71,7 @@ and tyS_to_stype tyS =
     | Language.STUnit -> STEnd
     | Language.STExtChoice labelsesslist -> STExtChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
     | Language.STIntChoice labelsesslist -> STIntChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
-    | Language.STRec(t, tS) -> STRec(t, tyS_to_stype tS)
+    | Language.STRec(_, t, tS) -> STRec(t, tyS_to_stype tS)
     | Language.STRecVar t -> STVar(t)
     | Language.STDeclr x -> STUVar(x)
 

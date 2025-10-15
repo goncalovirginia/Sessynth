@@ -39,7 +39,7 @@ and tyS = (* channel/session types (S) *)
     | STUnit (* 1 *)
     | STExtChoice of (id * tyS) list (* &{ l1:S1, ..., ln:Sn } *)
     | STIntChoice of (id * tyS) list (* ⊕{ l1:S1, ..., ln:Sn } *)
-    | STRec of id * tyS (* 𝜇t. S *)
+    | STRec of int * id * tyS (* 𝜇k t. S (k represents the current unfolding budget (maximum remaining unfoldings), default value 1) *)
     | STRecVar of id (* t *)
     | STDeclr of id (* variable bound to a previously defined session type declaration *)
     

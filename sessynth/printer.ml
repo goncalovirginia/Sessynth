@@ -64,7 +64,7 @@ and tyS_to_string t =
     | STRecvS(t1, t2) -> tyS_to_string t1 ^ " -o " ^ tyS_to_string t2
     | STExtChoice(xtl) -> "&{" ^ label_tyS_list_to_string xtl ^ "}"
     | STIntChoice(xtl) -> "⊕{" ^ label_tyS_list_to_string xtl ^ "}"
-    | STRec(x, t) -> "𝜇" ^ x ^ "." ^ tyS_to_string t
+    | STRec(k, x, t) -> "𝜇"^ string_of_int k ^ " " ^ x ^ ". " ^ tyS_to_string t
     | STRecVar(x) -> x
     | STUnit -> "1"
 
