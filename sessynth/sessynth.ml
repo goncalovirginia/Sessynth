@@ -568,7 +568,40 @@ and invert_left_F f ctxts goal =
     let* f = increment_depth f in
     debugF f ctxts goal goal "invertLeftF";
     match ctxts.p.a with
-    | (x, t)::pa' -> Choice.fail
+    | (x, t)::pa' ->
+        let ctxts = { ctxts with p = { ctxts.p with a = pa' } } in
+        begin match t with 
+        | TConstructor(x, args) ->
+            let synth_constructor_branch (x_c, tF) =
+                (* instantiate ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
+                let f, ty_inst = instantiate_tyF f tF in
+                let args, res = flatten_TArrow ty_inst in
+                (* unify res with t + subst *)
+                let subst = unify res t in
+                let args' = List.map (unify_subst subst) args in
+                let goal' = unify_subst subst goal in
+                let ctxts' = unify_subst_ctxts subst ctxts in
+                (* introduce fresh bindings for constructor args *)
+                let rec fresh_args f acc_ids acc_tys args =
+                    match args with
+                    | [] -> (f, List.rev acc_ids, List.rev acc_tys)
+                    | a::as' ->
+                        let f, xi = fresh_id f in
+                        fresh_args f (xi::acc_ids) (a::acc_tys) as'
+                in
+                let f, x_args, t_args = fresh_args f [] [] args' in
+                (* extend psi *)
+                let bindings = List.combine x_args t_args in
+                let ctxts'' = append_bindings_psi ctxts' bindings in
+                (* synthesize branch body *)
+                let* (f, ctxts''', e_branch) = focus_right_F f ctxts'' goal' in
+                Choice.return (x_c, x_args, e_branch)
+            in 
+            let x_constructors = constructors_of ctxts.p.c goal in
+            let* branches = ChoiceUtils.map_list synth_constructor_branch x_constructors in
+            Choice.return (f, ctxts, Match(Var(x), branches))
+        | _ -> Choice.fail
+        end
     | [] -> focus_decide_F f ctxts goal 
 
 and invert_left_S f ctxts c goal =
@@ -721,35 +754,7 @@ and focus_left_F f ctxts xFocus tFocus goal =
             let ctxts' = unify_subst_ctxts subst ctxts in
             focus_left_F f ctxts' xFocus t_inst' goal'
         with Fail _ -> Choice.fail end
-    | TConstructor(x, args) ->
-        let synth_constructor_branch (x_c, tF) =
-            (* instantiate ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
-            let f, ty_inst = instantiate_tyF f tF in
-            let args, res = flatten_TArrow ty_inst in
-            (* unify res with tFocus + subst *)
-            let subst = unify res tFocus in
-            let args' = List.map (unify_subst subst) args in
-            let goal' = unify_subst subst goal in
-            let ctxts' = unify_subst_ctxts subst ctxts in
-            (* introduce fresh bindings for constructor args *)
-            let rec fresh_args f acc_ids acc_tys args =
-                match args with
-                | [] -> (f, List.rev acc_ids, List.rev acc_tys)
-                | a::as' ->
-                    let f, xi = fresh_id f in
-                    fresh_args f (xi::acc_ids) (a::acc_tys) as'
-            in
-            let f, x_args, t_args = fresh_args f [] [] args' in
-            (* extend psi *)
-            let bindings = List.combine x_args t_args in
-            let ctxts'' = append_bindings_psi ctxts' bindings in
-            (* synthesize branch body *)
-            let* (f, ctxts''', e_branch) = focus_right_F f ctxts'' goal' in
-            Choice.return (x_c, x_args, e_branch)
-        in 
-        let x_constructors = constructors_of ctxts.p.c goal in
-        let* branches = ChoiceUtils.map_list synth_constructor_branch x_constructors in
-        Choice.return (f, ctxts, Match(Var(xFocus), branches))
+    | _ -> invert_left_F f ctxts goal
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in
