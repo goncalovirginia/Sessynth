@@ -170,7 +170,7 @@ let consume_channels ctxts cl =
         match cl' with
         | [] -> ctxts', sl
         | c'::cl'' -> 
-            let ctxts'', s = consume_channel ctxts c' in
+            let ctxts'', s = consume_channel ctxts' c' in
             consume_channels' ctxts'' cl'' (sl@[s])
     in consume_channels' ctxts cl []
 
@@ -761,17 +761,23 @@ and focus_left_S f ctxts cFocus tFocus c goal =
     debugS f ctxts goal tFocus "focusLeftS";
     match tFocus with
     | STRecvF(t1, t2) ->
-        let* (f, ctxts', e1) = invert_right_F f ctxts t1 in
+        let ctxts0, _ = consume_channel ctxts cFocus in
+        let ctxts1 = append_bindings_delta ctxts0 [(cFocus, t2)] in
+        let* (f, ctxts', e1) = invert_right_F f ctxts1 t1 in
         let* (f, ctxts'', e2) = focus_left_S f ctxts' cFocus t2 c goal in
         Choice.return (f, ctxts'', SendF(cFocus, e1, e2))
     | STRecvS(t1, t2) -> 
         let f, c' = fresh_chan f in
-        let* (f, ctxts', e1) = invert_right_S f ctxts c' t1 in
+        let ctxts0, _ = consume_channel ctxts cFocus in
+        let ctxts1 = append_bindings_delta ctxts0 [(cFocus, t2)] in
+        let* (f, ctxts', e1) = invert_right_S f ctxts1 c' t1 in
         let* (f, ctxts'', e2) = focus_left_S f ctxts' cFocus t2 c goal in
         Choice.return (f, ctxts'', SendS(cFocus, c', e1, e2))
     | STExtChoice(labelsesslist) -> 
         let synth_choice_select (l, s) =
-            let* (f', ctxts', e1) = focus_left_S f ctxts cFocus s c goal in
+            let ctxts0, _ = consume_channel ctxts cFocus in
+            let ctxts1 = append_bindings_delta ctxts0 [(cFocus, s)] in
+            let* (f', ctxts', e1) = focus_left_S f ctxts1 cFocus s c goal in
             Choice.return (f', ctxts', ChoiceSelect(cFocus, l, e1))
         in
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
@@ -780,7 +786,9 @@ and focus_left_S f ctxts cFocus tFocus c goal =
             Choice.return (f, ctxts, Close(""))
         else
             let tUnfolded = unfold t (STRec(k-1, x, t)) x in
-            focus_left_S f ctxts cFocus tUnfolded c goal
+            let ctxts0, _ = consume_channel ctxts cFocus in
+            let ctxts1 = append_bindings_delta ctxts0 [(cFocus, tUnfolded)] in
+            focus_left_S f ctxts1 cFocus tUnfolded c goal
     | _ -> invert_left_S f ctxts c goal
 
 (* wandering *)
@@ -807,6 +815,7 @@ synthesizes possible spawn expressions which output a desired session-type, cont
 @param goal_tProcess_filter: option possibly containing a TProcess(insl, outs) whose outs serves as a filter for valid spawnable processes with equivalent outs session-types, which will be provided by the spawned channel. If goal_tProcess_filter is None, then any TProcess(_, _) is spawnable
 *)
 and focus_left_TProcess f ctxts c goal_tProcess_filter =
+    let* f = increment_depth f in
     let f, cSpawn = fresh_chan f in
     let spawnable_proc_list = 
         List.filter(fun (_, t) -> 
@@ -819,7 +828,7 @@ and focus_left_TProcess f ctxts c goal_tProcess_filter =
     let tProcess = get_return_type t in
     let insl = get_TProcess_insl tProcess in
     let outs = get_TProcess_outs tProcess in
-    let* (_, ctxts', eApp) = focus_left_F f ctxts x t tProcess in
+    let* (f, ctxts', eApp) = focus_left_F f ctxts x t tProcess in
     let* (ctxts'', incl) = consume_channels_by_tyS ctxts' insl in
     let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, outs)] in
     Choice.return (f, ctxts''', Spawn(cSpawn, eApp, incl, Close("")))
@@ -871,7 +880,12 @@ and synth_interactive_ext_choice f ctxts c goal labelsesslist =
 (* entry point *)
 
 let synth n_sol p d goal = 
-    let f, ctxts = initialize_flags 100 true, initialize_ctxts in
+    let printDebug =
+        match Sys.getenv_opt "SESSYNTH_DEBUG" with
+        | Some ("1" | "true" | "TRUE" | "yes" | "YES") -> true
+        | _ -> false
+    in
+    let f, ctxts = initialize_flags 100 printDebug, initialize_ctxts in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
     let solutions_choice =
