@@ -410,7 +410,17 @@ let generalize ctxts t =
     if vars = [] then t
     else TForAll (List.map (fun a -> (a, KBase)) vars, t)
 
-let rec unify_subst s t =
+let unify_subst_tyA s a =
+    match a with
+    | TInt | TBool -> a
+    | TPolyVar v ->
+        match List.assoc_opt v s with
+        | Some (TAtomic a') -> a'
+        | Some (TRefinement(_, a', _)) -> a'
+        | Some _ -> raise (Fail "unify_subst: KBase polyvar substituted with non-base type")
+        | None -> a
+
+let rec unify_subst_tyF s t =
     match t with
     | TAtomic(TPolyVar a) -> begin 
         match List.assoc_opt a s with
@@ -418,20 +428,20 @@ let rec unify_subst s t =
         | None -> t
         end
     | TAtomic _ -> t
-    | TArrow(t1, t2) -> TArrow (unify_subst s t1, unify_subst s t2)
-    | TRefinement(x, a, r) -> TRefinement (x, a, r)
+    | TArrow(t1, t2) -> TArrow (unify_subst_tyF s t1, unify_subst_tyF s t2)
+    | TRefinement(x, a, r) -> TRefinement (x, unify_subst_tyA s a, r)
     | TProcess(cs, s') -> TProcess (List.map (fun (c, st) -> (c, unify_subst_tyS s st)) cs, unify_subst_tyS s s')
     | TDeclr(x) -> TDeclr x
     | TForAll(xks, t') ->
         let bound = List.map fst xks in
         let s' = List.filter (fun (a, _) -> not (List.mem a bound)) s in
-        TForAll (xks, unify_subst s' t')
-    | TConstructor(x, args) -> TConstructor(x, List.map (fun arg -> unify_subst s arg) args)
+        TForAll (xks, unify_subst_tyF s' t')
+    | TConstructor(x, args) -> TConstructor(x, List.map (fun arg -> unify_subst_tyF s arg) args)
 
 and unify_subst_tyS s t =
     match t with
-    | STSendF(t1, t2) -> STSendF(unify_subst s t1, unify_subst_tyS s t2)
-    | STRecvF(t1, t2) -> STRecvF(unify_subst s t1, unify_subst_tyS s t2)
+    | STSendF(t1, t2) -> STSendF(unify_subst_tyF s t1, unify_subst_tyS s t2)
+    | STRecvF(t1, t2) -> STRecvF(unify_subst_tyF s t1, unify_subst_tyS s t2)
     | STSendS(t1, t2) -> STSendS(unify_subst_tyS s t1, unify_subst_tyS s t2)
     | STRecvS(t1, t2) -> STRecvS(unify_subst_tyS s t1, unify_subst_tyS s t2)
     | STUnit -> STUnit
@@ -444,17 +454,22 @@ and unify_subst_tyS s t =
     | STDeclr _ -> t
 
 let unify_subst_ctxts subst ctxts =
-    let existing_binding_ids = List.map fst (ctxts.p.a @ ctxts.p.s) in
-    let new_bindings = List.filter (fun (a, _) -> not (List.mem a existing_binding_ids)) subst in
-    let ctxts' = append_bindings_psi ctxts new_bindings in
-    let pa'' = List.map (fun (x, t) -> (x, unify_subst subst t)) ctxts'.p.a in
-    let ps'' = List.map (fun (x, t) -> (x, unify_subst subst t)) ctxts'.p.s in
-    let pc'' = List.map (fun (x, t) -> (x, unify_subst subst t)) ctxts'.p.c in
-    { ctxts with p = { a = pa''; s = ps''; c = pc'' } }
+    let pa'' = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p.a in
+    let ps'' = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p.s in
+    let pc'' = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p.c in
+    let ga'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.g.a in
+    let gs'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.g.s in
+    let da'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.d.a in
+    let ds'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.d.s in
+    {
+        g = { a = ga''; s = gs'' };
+        p = { a = pa''; s = ps''; c = pc'' };
+        d = { a = da''; s = ds'' };
+    }
 
 (* apply substitution to entire substitution set *)
 let unify_subst_subst s1 s2 =
-    List.map (fun (x, t) -> (x, unify_subst s1 t)) s2
+    List.map (fun (x, t) -> (x, unify_subst_tyF s1 t)) s2
 
 (* apply s2, then s1 *)
 let unify_compose_subst s1 s2 =
@@ -491,14 +506,24 @@ let rec unify t1 t2 =
     | TAtomic(TInt), TAtomic(TInt) -> []
     | TAtomic(TBool), TAtomic(TBool) -> []
     | TAtomic(TPolyVar(a)), t | t, TAtomic(TPolyVar(a)) ->
-        if t = TAtomic(TPolyVar(a)) then []
-        else if occurs a t then raise (Fail "Occurs check failed.")
-        else [(a, t)]
+        let t' =
+            match t with
+            | TRefinement(_, a2, _) -> TAtomic a2
+            | _ -> t
+        in
+        begin
+        match t' with
+        | TAtomic(TInt) | TAtomic(TBool) | TAtomic(TPolyVar _) ->
+            if t' = TAtomic(TPolyVar(a)) then []
+            else if occurs a t' then raise (Fail "Occurs check failed.")
+            else [(a, t')]
+        | _ -> raise (Fail "Cannot unify: KBase polyvar with non-base type")
+        end
     | TRefinement(_, a1, _), TRefinement(_, a2, _) -> unify (TAtomic a1) (TAtomic a2)
     | TRefinement(_, a, _), t | t, TRefinement(_, a, _) -> unify (TAtomic a) t
     | TArrow(a1, b1), TArrow(a2, b2) ->
         let s1 = unify a1 a2 in
-        let s2 = unify (unify_subst s1 b1) (unify_subst s1 b2) in
+        let s2 = unify (unify_subst_tyF s1 b1) (unify_subst_tyF s1 b2) in
         unify_compose_subst s2 s1
     | TProcess(cs1, outs1), TProcess(cs2, outs2) ->
         if List.length cs1 <> List.length cs2 then raise (Fail "Cannot unify.")
@@ -512,8 +537,8 @@ let rec unify t1 t2 =
                 ) subst0 cs1 cs2
     | TConstructor(x1, args1), TConstructor(x2, args2) when x1 = x2 && List.length args1 = List.length args2 ->
         List.fold_left2 (fun s a1 a2 ->
-            let a1' = unify_subst s a1 in
-            let a2' = unify_subst s a2 in
+            let a1' = unify_subst_tyF s a1 in
+            let a2' = unify_subst_tyF s a2 in
             unify_compose_subst (unify a1' a2') s
         ) [] args1 args2
     | _ -> raise (Fail "Cannot unify.")
@@ -551,11 +576,20 @@ and unify_tyS s1 s2 =
 (* ADTs *)
 
 let constructors_of constructors c_T =
-    List.filter (fun (c, tF) -> 
-        match tF with
-        | TForAll(_, tF') -> let _, c_T' = flatten_TArrow tF' in c_T' = c_T
-        | _ -> raise (Fail "constructors_of: binding in constructors ctxt not a TForAll.")
-    ) constructors
+    match c_T with
+    | TConstructor(goal_name, _) ->
+        List.filter (fun (_, tF) ->
+            match tF with
+            | TForAll(_, tF') ->
+                let _, res = flatten_TArrow tF' in
+                begin
+                match res with
+                | TConstructor(res_name, _) -> res_name = goal_name
+                | _ -> false
+                end
+            | _ -> raise (Fail "constructors_of: binding in constructors ctxt not a TForAll.")
+        ) constructors
+    | _ -> []
 
 (* inversion and focusing *)
 
@@ -690,8 +724,8 @@ and invert_left_F f ctxts goal =
                 let args, res = flatten_TArrow ty_inst in
                 (* unify res with t + subst *)
                 let subst = unify res t in
-                let args' = List.map (unify_subst subst) args in
-                let goal' = unify_subst subst goal in
+                let args' = List.map (unify_subst_tyF subst) args in
+                let goal' = unify_subst_tyF subst goal in
                 let ctxts' = unify_subst_ctxts subst ctxts in
                 (* introduce fresh bindings for constructor args *)
                 let rec fresh_args f acc_ids acc_tys args =
@@ -709,7 +743,7 @@ and invert_left_F f ctxts goal =
                 let* (f, ctxts''', e_branch) = focus_right_F f ctxts'' goal' in
                 Choice.return (f, ctxts''', x_c, x_args, e_branch)
             in 
-            let x_constructors = constructors_of ctxts.p.c goal in
+            let x_constructors = constructors_of ctxts.p.c t in
             let* () = Choice.guard (not (List.is_empty x_constructors)) in
             let* branches = ChoiceUtils.map_list synth_constructor_branch x_constructors in
             let ctxtsl = List.map (fun (_, ctxts', _, _, _) -> ctxts') branches in
@@ -789,8 +823,8 @@ and focus_right_F f ctxts goal =
         let map_unify = fun tA ->
             try let candidate = TAtomic(tA) in
                 let subst = unify goal candidate in
-                let ctxts' = append_bindings_psi ctxts subst in
-                let goal' = unify_subst subst goal in
+                let ctxts' = unify_subst_ctxts subst ctxts in
+                let goal' = unify_subst_tyF subst goal in
                 focus_right_F f ctxts' goal'
             with Fail _ -> Choice.fail
         in
@@ -802,7 +836,7 @@ and focus_right_F f ctxts goal =
             let args, res = flatten_TArrow t_inst in
             (* unify res with goal + subst *)
             let subst = unify res goal in
-            let args' = List.map (unify_subst subst) args in
+            let args' = List.map (unify_subst_tyF subst) args in
             let ctxts' = unify_subst_ctxts subst ctxts in
             (* synthesize constructor arguments *)
             let rec synth_args f ctxts acc args =
@@ -865,8 +899,8 @@ and focus_left_F f ctxts xFocus tFocus goal =
     | TForAll(xkl, t) -> begin
         try let f, t_inst = instantiate_tyF f tFocus in
             let subst = unify t_inst goal in
-            let t_inst' = unify_subst subst t_inst in
-            let goal' = unify_subst subst goal in
+            let t_inst' = unify_subst_tyF subst t_inst in
+            let goal' = unify_subst_tyF subst goal in
             let ctxts' = unify_subst_ctxts subst ctxts in
             focus_left_F f ctxts' xFocus t_inst' goal'
         with Fail _ -> Choice.fail end
