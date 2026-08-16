@@ -72,9 +72,36 @@ let find_binding_for_tyF ctxts tF =
 
 let bindingS_equiv (x1, s1) (x2, s2) = x1 = x2 && tyS_equiv s1 s2
 
-let bindingsS_equiv l1 l2 = List.equal bindingS_equiv l1 l2
+(** Multiset equality under [bindingS_equiv].
 
-(* [Some ctxts] when every branch left Δ in the same state, [None] otherwise.
+   Δ is a linear context, so the order its bindings happen to sit in carries no
+   meaning: two branches that consumed the same channels in a different sequence
+   are left holding the same resources.
+
+   Each binding in [l1] is matched against a distinct partner in [l2] rather than
+   the two lists being compacted into sets, so repeated bindings stay significant:
+   [a:S, b:S] and [a:S, a:S, b:S] are still different contexts. *)
+let bindingsS_equiv l1 l2 =
+    let rec remove_first b skipped l =
+        match l with
+        | [] -> None
+        | b'::l' ->
+            if bindingS_equiv b b' then Some (List.rev_append skipped l')
+            else remove_first b (b'::skipped) l'
+    in
+    let rec match_up l1 l2 =
+        match l1 with
+        | [] -> List.is_empty l2
+        | b::l1' ->
+            match remove_first b [] l2 with
+            | None -> false
+            | Some l2' -> match_up l1' l2'
+    in
+    List.compare_lengths l1 l2 = 0 && match_up l1 l2
+
+(** Returns [Some ctxts] when every branch left Δ holding the same bindings, [None]
+   otherwise. The contexts of the first branch are the ones carried forward;
+   though any of them would do, since they differ at most in the order of Δ.
    An empty list yields [None]: there is no branch context to carry forward, so
    the caller has nothing to continue with even though the condition is
    vacuously true. *)
