@@ -71,4 +71,3 @@ and expP = (* process terms (P) *)
     | Choice of id * (id * expP) list (* case c of li:Pi :: c : &{ l1:S1, ..., ln:Sn } *)
     | ChoiceSelect of id * id * expP (* c.l; P :: c : ⊕{ l1:S1, ..., ln:Sn } *)
     | Spawn of id * expF * id list * expP (* c <- spawn M [c1; ...; cn]; P *)
-    

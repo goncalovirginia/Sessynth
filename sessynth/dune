@@ -1,7 +1,7 @@
 (library
  (name sessynth)
  (public_name sessynth)
- (modules Sessynth Language Cvc5adapter ChoiceUtils Printer)
+ (modules Sessynth Language TyUtils Contexts Polymorphism Adts Flags Cvc5adapter ChoiceUtils Printer)
  (libraries z3 unix sexplib str choice))
 
 (env
