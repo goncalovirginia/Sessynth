@@ -105,6 +105,7 @@ and expP_to_proc expP =
     | Language.Choice(c, labelproclist) -> Choice(c, List.map(fun (l, p) -> (l, (expP_to_proc p, None))) labelproclist)
     | Language.ChoiceSelect(c, l, eP) -> Label(c, l, expP_to_proc eP, None)
     | Language.Spawn(c, eF, cl, eP) -> Spawn(c, expF_to_exp eF, None, expP_to_proc eP, cl)
+    | Language.Hole(c, _) -> raise (Sessynth.Fail ("unfilled synthesis placeholder on channel " ^ c))
 
 (* adapter synth function *)
 

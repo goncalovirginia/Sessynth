@@ -41,16 +41,41 @@ let debugS f ctxts goal tFocus curr_fun =
 let get_keys kvl =
     List.map (fun (k, v) -> k) kvl
 
+(** Substitutes every [Hole] in [exp] with [cont_exp]. *)
 let rec subst_continuation_exp exp cont_exp =
     match exp with
-    | SendF(c, e1, e2) -> SendF(c, e1, subst_continuation_exp e2 cont_exp)
-    | RecvF(c, t, e1, e2) -> RecvF(c, t, e1, subst_continuation_exp e2 cont_exp)
-    | SendS(c1, c2, e1, e2) -> SendS(c1, c2, e1, subst_continuation_exp e2 cont_exp)
-    | RecvS(c, t, e1, e2) -> RecvS(c, t, e1, subst_continuation_exp e2 cont_exp)
-    | Wait(c, e) -> Wait(c, subst_continuation_exp e cont_exp)
-    | ChoiceSelect(c, l, e) -> ChoiceSelect(c, l, subst_continuation_exp e cont_exp)
-    | Spawn(cSpawn, eApp, cl, e) -> Spawn(cSpawn, eApp, cl, subst_continuation_exp e cont_exp )
-    | _ -> cont_exp
+    | Hole _ -> cont_exp
+    | SendF(c, eF, eP) -> SendF(c, eF, subst_continuation_exp eP cont_exp)
+    | RecvF(x, t, c, eP) -> RecvF(x, t, c, subst_continuation_exp eP cont_exp)
+    | SendS(c1, c2, eP1, eP2) -> SendS(c1, c2, eP1, subst_continuation_exp eP2 cont_exp)
+    | RecvS(c1, t, c2, eP) -> RecvS(c1, t, c2, subst_continuation_exp eP cont_exp)
+    | Wait(c, eP) -> Wait(c, subst_continuation_exp eP cont_exp)
+    | ChoiceSelect(c, l, eP) -> ChoiceSelect(c, l, subst_continuation_exp eP cont_exp)
+    | Spawn(cSpawn, eApp, cl, eP) -> Spawn(cSpawn, eApp, cl, subst_continuation_exp eP cont_exp)
+    | Choice(c, labelproclist) ->
+        Choice(c, List.map (fun (l, eP) -> (l, subst_continuation_exp eP cont_exp)) labelproclist)
+    | Close _ | Fwd _ -> exp
+
+(* a solution still containing a placeholder is incomplete, not a valid program *)
+let rec has_hole exp =
+    match exp with
+    | Hole _ -> true
+    | Close _ | Fwd _ -> false
+    | SendF(_, _, eP) | RecvF(_, _, _, eP) | RecvS(_, _, _, eP)
+    | Wait(_, eP) | ChoiceSelect(_, _, eP) -> has_hole eP
+    | SendS(_, _, eP1, eP2) -> has_hole eP1 || has_hole eP2
+    | Spawn(_, eApp, _, eP) -> has_hole_expF eApp || has_hole eP
+    | Choice(_, labelproclist) -> List.exists (fun (_, eP) -> has_hole eP) labelproclist
+
+and has_hole_expF exp =
+    match exp with
+    | Int _ | Bool _ | Var _ -> false
+    | UOp(_, e) | Lam(_, _, e) | LetRec(_, _, e) -> has_hole_expF e
+    | BOp(_, e1, e2) | Let(_, e1, e2) | App(e1, e2) -> has_hole_expF e1 || has_hole_expF e2
+    | Ite(e1, e2, e3) -> has_hole_expF e1 || has_hole_expF e2 || has_hole_expF e3
+    | Process(_, eP, _, _) -> has_hole eP
+    | Constructor(_, el) -> List.exists has_hole_expF el
+    | Match(e, branches) -> has_hole_expF e || List.exists (fun (_, _, e') -> has_hole_expF e') branches
 
 let get_Spawn_c e =
     match e with
@@ -199,7 +224,7 @@ and invert_right_S f ctxts c goal =
                 (* wander + spawn + fwd *)
                 let* tRecLam = ChoiceUtils.of_option (List.assoc_opt f.xRecLam ctxts.p) in
                 let tProcess = get_return_type tRecLam in
-                let* (f, ctxts', eSpawn) = focus_left_TProcess f ctxts c (Some tProcess) in
+                let* (f, ctxts', eSpawn) = focus_left_TProcess f ctxts c goal (Some tProcess) in
                 let* cSpawn = ChoiceUtils.of_option (get_Spawn_c eSpawn) in
                 let* (f, ctxts'', eFwd) = synth_fwd f ctxts' cSpawn c goal in
                 let eSpawnAndFwd = subst_continuation_exp eSpawn eFwd in
@@ -442,7 +467,7 @@ and focus_left_S f ctxts cFocus tFocus c goal =
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
     | STRec(k, x, t) ->
         if k <= 0 then
-            Choice.return (f, ctxts, Close(""))
+            Choice.return (f, ctxts, Hole(c, goal))
         else
             let* tUnfolded = ChoiceUtils.of_option (unfold t (STRec(k-1, x, t)) x) in
             let* (ctxts0, _) = ChoiceUtils.of_option (consume_channel ctxts cFocus) in
@@ -454,13 +479,13 @@ and focus_left_S f ctxts cFocus tFocus c goal =
 
 and wander f ctxts c goal =
     debugS f ctxts goal goal "wander";
-    let skipChoice = Choice.return (f, ctxts, Close("")) in
+    let skipChoice = Choice.return (f, ctxts, Hole(c, goal)) in
     let spawnChoice = wander_spawn f ctxts c goal in
     let unfoldChoice = wander_unfold f ctxts c goal in
     ChoiceUtils.mplus_list [skipChoice; spawnChoice; unfoldChoice]
 
 and wander_spawn f ctxts c goal =
-    focus_left_TProcess f ctxts c None
+    focus_left_TProcess f ctxts c goal None
 
 and wander_unfold f ctxts c goal =
     let recsessl = List.filter (fun (_, t) -> is_STRec t) (get_sync_bindings is_tyS_left_async ctxts.d) in
@@ -469,11 +494,12 @@ and wander_unfold f ctxts c goal =
 
 (* reusable synthesis functions *)
 
-(** 
+(**
 synthesizes possible spawn expressions which output a desired session-type, containing a placeholder continuation expression
+@param goal: the session type the continuation still has to offer on [c], recorded in the placeholder it leaves behind
 @param goal_tProcess_filter: option possibly containing a TProcess(insl, outs) whose outs serves as a filter for valid spawnable processes with equivalent outs session-types, which will be provided by the spawned channel. If goal_tProcess_filter is None, then any TProcess(_, _) is spawnable
 *)
-and focus_left_TProcess f ctxts c goal_tProcess_filter =
+and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
     let* f = consume_fuel f in
     let f, cSpawn = fresh_chan f in
     (* a binding is spawnable when its return type is a process type, and when 
@@ -499,7 +525,7 @@ and focus_left_TProcess f ctxts c goal_tProcess_filter =
     let* (f, ctxts', eApp) = focus_left_F f ctxts (Var x) t tProcess in
     let* (ctxts'', incl) = consume_channels_by_tyS ctxts' insl in
     let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, outs)] in
-    Choice.return (f, ctxts''', Spawn(cSpawn, eApp, incl, Close("")))
+    Choice.return (f, ctxts''', Spawn(cSpawn, eApp, incl, Hole(c, goal)))
 
 and synth_fwd f ctxts cToFwd c goal =
     let* (ctxts', tToFwd) = ChoiceUtils.of_option (consume_channel ctxts cToFwd) in
@@ -565,6 +591,7 @@ let synth n_sol p d goal =
     let solutions_choice =
         let* (f', ctxts', expF') = invert_right_F f ctxts goal in
         let* () = Choice.guard (delta_is_empty ctxts') in
+        let* () = Choice.guard (not (has_hole_expF expF')) in
         Choice.return (f', ctxts', expF')
     in
     let solutions = Choice.run_n n_sol solutions_choice |> List.rev in

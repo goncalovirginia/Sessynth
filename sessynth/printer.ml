@@ -139,6 +139,7 @@ and expP_to_string e depth =
     | Choice(c, labelprocesslist) -> "case " ^ c ^ " of\n" ^ label_process_list_to_string labelprocesslist depth
     | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP depth
     | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF 0 ^ spawn_c_list_to_string cl ^ ";\n" ^ expP_to_string eP depth
+    | Hole(c, tS) -> "? :: " ^ c ^ " : " ^ tyS_to_string tS ^ "\n"
 
 and label_process_list_to_string labelprocesslist depth = 
     let indent = String.make (depth * 2) ' ' in
