@@ -22,13 +22,12 @@ type bindingsS = (id * tyS) list
 type bindingsF = (id * tyF) list
 type constructors = bindingsF (* x_c : ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
 
-type gamma = { a : bindingsS; s : bindingsS }
-    
-type psi = { a : bindingsF; s : bindingsF; c : constructors }
-    
-type delta = { a : bindingsS; s : bindingsS }
-    
-type contexts = { g : gamma; p : psi; d : delta; }
+type contexts = {
+    g : bindingsS;      (* Γ: unrestricted session-type declarations *)
+    p : bindingsF;      (* Ψ: functional bindings *)
+    c : constructors;   (* ADT constructors *)
+    d : bindingsS;      (* Δ: linear session-typed channel bindings *)
+}
 
 (* auxiliary functions *)
 
@@ -42,10 +41,7 @@ let initialize_flags maxDepth printDebug =
     }
 
 let initialize_ctxts =
-    let g : gamma = { a = []; s = [] } in
-    let p : psi = { a = []; s = []; c = [] } in
-    let d : delta = { a = []; s = [] } in
-    let ctxts : contexts = { g = g; p = p; d = d } in
+    let ctxts : contexts = { g = []; p = []; c = []; d = [] } in
     ctxts
 
 let fresh_id f =
@@ -79,8 +75,7 @@ let debugF f ctxts goal tFocus curr_fun =
         match curr_fun with
         | "invertRightF" | "invertLeftF" | "focusDecideF" ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyF_to_string goal);
-            print_endline (indent ^ "pa: " ^ psi_to_string ctxts.p.a);
-            print_endline (indent ^ "ps: " ^ psi_to_string ctxts.p.s)
+            print_endline (indent ^ "p: " ^ psi_to_string ctxts.p)
         | _ ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyF_to_string goal);
             print_endline (indent ^ "tFocus: " ^ tyF_to_string tFocus)
@@ -92,8 +87,7 @@ let debugS f ctxts goal tFocus curr_fun =
         match curr_fun with
         | "invertRightS" | "invertLeftS" | "focusDecideS" ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
-            print_string (indent ^ "da: " ^ delta_to_string ctxts.d.a);
-            print_string (indent ^ "ds: " ^ delta_to_string ctxts.d.s)
+            print_string (indent ^ "d: " ^ delta_to_string ctxts.d)
         | _ ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
             print_endline (indent ^ "tFocus: " ^ tyS_to_string tFocus)
@@ -108,36 +102,37 @@ let is_tyS_left_async t =
     | STSendF _ | STSendS _ | STUnit | STIntChoice _ -> true
     | _ -> false
 
-let rec append_bindings ctxt bindings is_left_async_func =
-    let ctxta, ctxts = ctxt in
-    match bindings with
-    | (x, t)::bindings' ->
-        if is_left_async_func t then append_bindings ((x, t)::ctxta, ctxts) bindings' is_left_async_func
-        else append_bindings (ctxta, (x, t)::ctxts) bindings' is_left_async_func
-    | [] -> ctxt
+let append_bindings_gamma ctxts bindings = { ctxts with g = bindings @ ctxts.g }
+let append_bindings_psi ctxts bindings = { ctxts with p = bindings @ ctxts.p }
+let append_bindings_delta ctxts bindings = { ctxts with d = bindings @ ctxts.d }
 
-let append_bindings_gamma ctxts bindings =
-    let ga', gs' = append_bindings (ctxts.g.a, ctxts.g.s) bindings is_tyS_left_async in
-    { ctxts with g = { a = ga'; s = gs' } }
+(* returns [Some (b, ctxt')], where [b] is the first binding of [ctxt] satisfying
+   [predicate], and [ctxt'] is [ctxt] without [b]. 
+   or returns [None] when no binding satisfies [predicate]. *)
+let extract_first_binding predicate ctxt =
+    let rec extract_first' seen rest =
+        match rest with
+        | [] -> None
+        | b::rest' ->
+            if predicate b then Some (b, List.rev_append seen rest')
+            else extract_first' (b::seen) rest'
+    in extract_first' [] ctxt
 
-let append_bindings_psi ctxts bindings = 
-    let pa', ps' = append_bindings (ctxts.p.a, ctxts.p.s) bindings is_tyF_left_async in
-    { ctxts with p = { a = pa'; s = ps'; c = ctxts.p.c } }
+let extract_first_async is_left_async ctxt =
+    extract_first_binding (fun (_, t) -> is_left_async t) ctxt
 
-let append_bindings_delta ctxts bindings =
-    let da', ds' = append_bindings (ctxts.d.a, ctxts.d.s) bindings is_tyS_left_async in
-    { ctxts with d = { a = da'; s = ds' } }
+let get_sync_bindings is_left_async ctxt =
+    List.filter (fun (_, t) -> not (is_left_async t)) ctxt
 
-let deltas_are_equal ctxtsl = 
+let deltas_are_equal ctxtsl =
     let hdCtxts = List.hd ctxtsl in
-    let are_equal = List.for_all (fun currCtxts -> 
-        List.equal (=) hdCtxts.d.a currCtxts.d.a && 
-        List.equal (=) hdCtxts.d.s currCtxts.d.s
+    let are_equal = List.for_all (fun currCtxts ->
+        List.equal (=) hdCtxts.d currCtxts.d
     ) (List.tl ctxtsl) in
     if are_equal then Some hdCtxts else None
 
 let delta_is_empty ctxts =
-    List.is_empty ctxts.d.a && List.is_empty ctxts.d.s
+    List.is_empty ctxts.d
 
 let rec subst e1 x e2 =
     match e1 with 
@@ -155,16 +150,8 @@ let get_and_remove k kvl =
     kvl', v
 
 let consume_channel ctxts c =
-    try let da', s = get_and_remove c ctxts.d.a in
-        { ctxts with d = { ctxts.d with a = da'} }, s
-    with Not_found ->
-        let ds', s = get_and_remove c ctxts.d.s in
-        { ctxts with d = { ctxts.d with s = ds'} }, s
-
-let get_first_delta_binding ctxts =
-    try List.hd ctxts.d.a
-    with Failure _ -> try List.hd ctxts.d.s
-    with Failure _ -> raise (Fail("get_first_channel: delta context empty"))
+    let d', s = get_and_remove c ctxts.d in
+    { ctxts with d = d' }, s
 
 let consume_channels ctxts cl =
     let rec consume_channels' ctxts' cl' sl =
@@ -179,8 +166,7 @@ let rec consume_channels_by_tyS ctxts tSl =
     match tSl with
     | [] -> Choice.return (ctxts, [])
     | tS::tSl' ->
-        let csl = List.filter (fun (_, s) -> s = tS) ctxts.d.a @
-            List.filter (fun (_, s) -> s = tS) ctxts.d.s in
+        let csl = List.filter (fun (_, s) -> s = tS) ctxts.d in
         let* (c, _) = Choice.of_list csl in
         let ctxts', _ = consume_channel ctxts c in
         let* (ctxts'', cl) = consume_channels_by_tyS ctxts' tSl' in
@@ -227,8 +213,7 @@ let find_binding_for_ty bl bt =
     let (x, _) = List.find (fun (_, t) -> t = bt) bl in x
 
 let find_binding_for_tyF ctxts tF =
-    try find_binding_for_ty ctxts.p.a tF
-    with Not_found -> find_binding_for_ty ctxts.p.s tF
+    find_binding_for_ty ctxts.p tF
 
 let rec subst_continuation_exp exp cont_exp =
     match exp with
@@ -331,7 +316,7 @@ let rec ftv_tyF = function
         List.fold_left (fun s t -> S.union s (ftv_tyF t)) S.empty args
 
 let ftv_env ctxts =
-    List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty (ctxts.p.a @ ctxts.p.s)
+    List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty ctxts.p
 
 let rec rename_recvar_in_tyS from_id to_id t =
     match t with
@@ -454,17 +439,11 @@ and unify_subst_tyS s t =
     | STDeclr _ -> t
 
 let unify_subst_ctxts subst ctxts =
-    let pa'' = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p.a in
-    let ps'' = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p.s in
-    let pc'' = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p.c in
-    let ga'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.g.a in
-    let gs'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.g.s in
-    let da'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.d.a in
-    let ds'' = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.d.s in
     {
-        g = { a = ga''; s = gs'' };
-        p = { a = pa''; s = ps''; c = pc'' };
-        d = { a = da''; s = ds'' };
+        g = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.g;
+        p = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p;
+        c = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.c;
+        d = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.d;
     }
 
 (* apply substitution to entire substitution set *)
@@ -605,10 +584,10 @@ let rec invert_right_F f ctxts goal =
             | _ -> fresh_id f in 
         let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
         begin match get_return_type t2 with
-        | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p.s) ->
+        | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p) ->
             let f, ctxts2 =
             try
-                let (xRecFun, _) = List.find (fun (_, t) -> t = goal) ctxts.p.s in
+                let (xRecFun, _) = List.find (fun (_, t) -> t = goal) ctxts.p in
                 let f = { f with xRecLam = xRecFun } in
                 f, ctxts1
             with Not_found ->
@@ -628,21 +607,21 @@ let rec invert_right_F f ctxts goal =
             let ctxts1 = append_bindings_delta ctxts incsl in
             let f, c = fresh_chan f in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
-            let incsl_consumed = List.for_all (fun (c', _) -> List.assoc_opt c' ctxts'.d.a = None && List.assoc_opt c' ctxts'.d.s = None) incsl in
+            let incsl_consumed = List.for_all (fun (c', _) -> List.assoc_opt c' ctxts'.d = None) incsl in
             let* () = Choice.guard incsl_consumed in
             Choice.return (f, ctxts', Process(c, e, outs, incsl))
     | TDeclr(x) ->
         begin try
-            let t = List.assoc x ctxts.p.s in 
+            let t = List.assoc x ctxts.p in
             invert_right_F f ctxts t
         with Not_found -> Choice.fail
         end
     | TRefinement(x, t1, t2) ->
-        let solution = Cvc5adapter.solve ctxts.p.s goal in
+        let solution = Cvc5adapter.solve ctxts.p goal in
         Choice.return (f, ctxts, solution)
     | TForAll(xkl, t) -> 
-        let f, t = instantiate_tyF f goal in
-        invert_right_F f ctxts t 
+        let f, t' = instantiate_tyF f goal in
+        invert_right_F f ctxts t' 
     | _ -> invert_left_F f ctxts goal
 
 and invert_right_S f ctxts c goal = 
@@ -654,11 +633,11 @@ and invert_right_S f ctxts c goal =
         let ctxts1 = append_bindings_psi ctxts [(x1, t1)] in
         let* (f, ctxts', e) = invert_right_S f ctxts1 c t2 in
         Choice.return (f, ctxts', RecvF(x1, t1, c, e))
-    | STRecvS(t1, t2) -> 
+    | STRecvS(t1, t2) ->
         let f, c1 = fresh_chan f in
         let ctxts1 = append_bindings_delta ctxts [(c1, t1)] in
         let* (f, ctxts', e) = invert_right_S f ctxts1 c t2 in
-        let c1_consumed = List.assoc_opt c1 ctxts'.d.a = None && List.assoc_opt c1 ctxts'.d.s = None in
+        let c1_consumed = List.assoc_opt c1 ctxts'.d = None in
         let* () = Choice.guard c1_consumed in
         Choice.return (f, ctxts', RecvS(c1, t1, c, e))
     | STExtChoice(labelsesslist) ->
@@ -684,13 +663,13 @@ and invert_right_S f ctxts c goal =
                 (
                 (* wander + fwd *)
                 let synthFwdCombination = fun (c', t') -> synth_fwd f ctxts c' c t' in
-                let* (f, ctxts', eFwd) = Choice.of_list (List.map synthFwdCombination ctxts.d.s) in
+                let* (f, ctxts', eFwd) = Choice.of_list (List.map synthFwdCombination (get_sync_bindings is_tyS_left_async ctxts.d)) in
                 let eWanderAndFwd = subst_continuation_exp eWander eFwd in
                 Choice.return (f, ctxts', eWanderAndFwd)
                 )
                 (
                 (* wander + spawn + fwd *)
-                let tRecLam = List.assoc f.xRecLam ctxts.p.s in
+                let tRecLam = List.assoc f.xRecLam ctxts.p in
                 let tProcess = get_return_type tRecLam in
                 let* (f, ctxts', eSpawn) = focus_left_TProcess f ctxts c (Some tProcess) in
                 let f, ctxts'', eFwd = synth_fwd f ctxts' (get_Spawn_c eSpawn) c t in
@@ -703,8 +682,9 @@ and invert_right_S f ctxts c goal =
             let tUnfolded = unfold t (STRec(k-1, x, t)) x in
             invert_right_S f ctxts c tUnfolded
     | STDeclr(x) ->
+        (* TODO: session-type declarations belong in Γ, not Δ (see planned task 2) *)
         begin try
-            let t = List.assoc x ctxts.d.s in 
+            let t = List.assoc x ctxts.d in
             invert_right_S f ctxts c t
         with Not_found -> Choice.fail
         end
@@ -713,10 +693,10 @@ and invert_right_S f ctxts c goal =
 and invert_left_F f ctxts goal =
     let* f = increment_depth f in
     debugF f ctxts goal goal "invertLeftF";
-    match ctxts.p.a with
-    | (x, t)::pa' ->
-        let ctxts = { ctxts with p = { ctxts.p with a = pa' } } in
-        begin match t with 
+    match extract_first_async is_tyF_left_async ctxts.p with
+    | Some ((x, t), p') ->
+        let ctxts = { ctxts with p = p' } in
+        begin match t with
         | TConstructor(x, args) ->
             let synth_constructor_branch (x_c, tF) =
                 (* instantiate ∀ᾱ. τ1 -> ... -> τn -> T ᾱ *)
@@ -742,8 +722,8 @@ and invert_left_F f ctxts goal =
                 (* synthesize branch body *)
                 let* (f, ctxts''', e_branch) = focus_right_F f ctxts'' goal' in
                 Choice.return (f, ctxts''', x_c, x_args, e_branch)
-            in 
-            let x_constructors = constructors_of ctxts.p.c t in
+            in
+            let x_constructors = constructors_of ctxts.c t in
             let* () = Choice.guard (not (List.is_empty x_constructors)) in
             let* branches = ChoiceUtils.map_list synth_constructor_branch x_constructors in
             let ctxtsl = List.map (fun (_, ctxts', _, _, _) -> ctxts') branches in
@@ -752,30 +732,29 @@ and invert_left_F f ctxts goal =
             Choice.return (f, List.hd ctxtsl, Match(Var(x), branches))
         | _ -> Choice.fail
         end
-    | [] -> focus_decide_F f ctxts goal 
+    | None -> focus_decide_F f ctxts goal
 
 and invert_left_S f ctxts c goal =
     let* f = increment_depth f in
     debugS f ctxts goal goal "invertLeftS";
-    match ctxts.d.a with
-    | (c', t')::da' ->
-        let ctxts = { ctxts with d = { ctxts.d with a = da' } } in
-        begin match t' with 
+    match extract_first_async is_tyS_left_async ctxts.d with
+    | Some ((c', t'), d') ->
+        let ctxts = { ctxts with d = d' } in
+        begin match t' with
         | STSendF(t1, t2) ->
             let f, x = fresh_id f in
             let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
             let ctxts2 = append_bindings_delta ctxts1 [(c', t2)] in
             let* (f, ctxts', e) = invert_left_S f ctxts2 c goal in
-            let c'_consumed = List.assoc_opt c' ctxts'.d.a = None && List.assoc_opt c' ctxts'.d.s = None in
+            let c'_consumed = List.assoc_opt c' ctxts'.d = None in
             let* () = Choice.guard c'_consumed in
             Choice.return (f, ctxts', RecvF(x, t1, c', e))
         | STSendS(t1, t2) ->
             let f, c1 = fresh_chan f in
             let ctxts1 = append_bindings_delta ctxts [(c1, t1); (c', t2)] in
             let* (f, ctxts', e) = invert_left_S f ctxts1 c goal in
-            let channels_consumed = 
-                List.assoc_opt c1 ctxts'.d.a = None && List.assoc_opt c1 ctxts'.d.s = None &&
-                List.assoc_opt c' ctxts'.d.a = None && List.assoc_opt c' ctxts'.d.s = None
+            let channels_consumed =
+                List.assoc_opt c1 ctxts'.d = None && List.assoc_opt c' ctxts'.d = None
             in
             let* () = Choice.guard channels_consumed in
             Choice.return (f, ctxts', RecvS(c1, t1, c', e))
@@ -787,7 +766,7 @@ and invert_left_S f ctxts c goal =
                 let f, cn = fresh_chan f in
                 let ctxtsn = append_bindings_delta ctxts [(cn, s)] in
                 let* (f', ctxts', eP) = invert_left_S f ctxtsn c goal in
-                let cn_consumed = List.assoc_opt cn ctxts'.d.a = None && List.assoc_opt cn ctxts'.d.s = None in
+                let cn_consumed = List.assoc_opt cn ctxts'.d = None in
                 let* () = Choice.guard cn_consumed in
                 Choice.return (f', (l, (f', ctxts', eP)))
             in
@@ -798,17 +777,17 @@ and invert_left_S f ctxts c goal =
             Choice.return (f, List.hd ctxtsl, Choice(c', labelproclist))
         | _ -> Choice.fail
         end
-    | [] -> focus_decide_S f ctxts c goal
+    | None -> focus_decide_S f ctxts c goal
 
-and focus_decide_F f ctxts goal = 
+and focus_decide_F f ctxts goal =
     debugF f ctxts goal goal "focusDecideF";
-    let left_focuses = List.map (fun (xFoc, tFoc) -> focus_left_F f ctxts xFoc tFoc goal) ctxts.p.s in
+    let left_focuses = List.map (fun (xFoc, tFoc) -> focus_left_F f ctxts xFoc tFoc goal) (get_sync_bindings is_tyF_left_async ctxts.p) in
     let right_focus = focus_right_F f ctxts goal in
     ChoiceUtils.mplus_list (left_focuses @ [right_focus])
 
-and focus_decide_S f ctxts c goal = 
+and focus_decide_S f ctxts c goal =
     debugS f ctxts goal goal "focusDecideS";
-    let left_focuses = List.map (fun (xFoc, tFoc) -> focus_left_S f ctxts xFoc tFoc c goal) ctxts.d.s in
+    let left_focuses = List.map (fun (xFoc, tFoc) -> focus_left_S f ctxts xFoc tFoc c goal) (get_sync_bindings is_tyS_left_async ctxts.d) in
     let right_focus = focus_right_S f ctxts c goal in
     ChoiceUtils.mplus_list (left_focuses @ [right_focus])
 
@@ -849,7 +828,7 @@ and focus_right_F f ctxts goal =
             let* (f, ctxts, e_args) = synth_args f ctxts' [] args' in
             Choice.return (f, ctxts, Constructor(x_c, e_args))
         in
-        let x_constructors = constructors_of ctxts.p.c goal in
+        let x_constructors = constructors_of ctxts.c goal in
         ChoiceUtils.map_mplus_list synth_constructor_select x_constructors
     | _ -> invert_right_F f ctxts goal
 
@@ -890,11 +869,11 @@ and focus_left_F f ctxts xFocus tFocus goal =
         if tFocus = goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
     | TRefinement(x, tA, tR) ->
-        if TAtomic(tA) = goal || (is_TRefinement goal && Cvc5adapter.sat ctxts.p.s tFocus goal)
+        if TAtomic(tA) = goal || (is_TRefinement goal && Cvc5adapter.sat ctxts.p tFocus goal)
             then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
     | TDeclr x ->
-        if tFocus = goal || List.assoc_opt x ctxts.p.s = Some goal then Choice.return (f, ctxts, Var(xFocus))
+        if tFocus = goal || List.assoc_opt x ctxts.p = Some goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
     | TForAll(xkl, t) -> begin
         try let f, t_inst = instantiate_tyF f tFocus in
@@ -954,7 +933,7 @@ and wander_spawn f ctxts c goal =
     focus_left_TProcess f ctxts c None
 
 and wander_unfold f ctxts c goal =
-    let recsessl = List.filter (fun (_, t) -> is_STRec t) ctxts.d.s in
+    let recsessl = List.filter (fun (_, t) -> is_STRec t) (get_sync_bindings is_tyS_left_async ctxts.d) in
     let synth_unfolds (c', t') = focus_left_S f ctxts c' t' c goal in
     ChoiceUtils.map_mplus_list synth_unfolds recsessl
 
@@ -972,8 +951,8 @@ and focus_left_TProcess f ctxts c goal_tProcess_filter =
             let tReturn = get_return_type t in is_TProcess tReturn && (
             (Option.is_none goal_tProcess_filter) ||
             (Option.is_some goal_tProcess_filter && get_TProcess_outs tReturn = get_TProcess_outs (Option.get goal_tProcess_filter)))
-        ) ctxts.p.s
-    in 
+        ) (get_sync_bindings is_tyF_left_async ctxts.p)
+    in
     let* (x, t) = Choice.of_list spawnable_proc_list in
     let tProcess = get_return_type t in
     let insl = get_TProcess_insl tProcess in
