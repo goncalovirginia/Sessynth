@@ -1,0 +1,12 @@
+0:
+_c0 <- {
+  case _ of
+  a:
+    wait _;
+    close _c0
+  b:
+    wait _;
+    close _c0
+} <- [_:⊕{a:1, b:1}]
+
+UnexpectedType: got { @ <- _ : +{ a : @, b : @} }, expected { @ <- q : +{ b : @, a : @} }

@@ -283,17 +283,16 @@ and invert_left_S f ctxts c goal =
             Choice.return (f, ctxts', Wait(c', e))
         | STIntChoice(labelsesslist) ->
             let synth_branch f (l, s) =
-                let f, cn = fresh_chan f in
-                let ctxtsn = append_bindings_delta ctxts [(cn, s)] in
-                let* (f', ctxts', eP) = invert_left_S f ctxtsn c goal in
-                let cn_consumed = List.assoc_opt cn ctxts'.d = None in
-                let* () = Choice.guard cn_consumed in
-                Choice.return (f', (l, (f', ctxts', eP)))
+                let ctxtsn = append_bindings_delta ctxts [(c', s)] in
+                let* (f, ctxts', eP) = invert_left_S f ctxtsn c goal in
+                let c'_consumed = List.assoc_opt c' ctxts'.d = None in
+                let* () = Choice.guard c'_consumed in
+                Choice.return (f, (l, (ctxts', eP)))
             in
-            let* (_, branches) = ChoiceUtils.map_list_state f synth_branch labelsesslist in
-            let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
+            let* (f, branches) = ChoiceUtils.map_list_state f synth_branch labelsesslist in
+            let ctxtsl = List.map (fun (_, (ctxts', _)) -> ctxts') branches in
             let* ctxts' = ChoiceUtils.of_option (deltas_are_equal ctxtsl) in
-            let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
+            let labelproclist = List.map (fun (l, (_, e)) -> (l, e)) branches in
             Choice.return (f, ctxts', Choice(c', labelproclist))
         | _ -> Choice.fail
         end

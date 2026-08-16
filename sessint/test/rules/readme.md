@@ -31,6 +31,14 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `arrow_left_3args` | →L | the spine is not limited to arity 2, and stays left-associated |
 | `arrow_left_mixed` | →L | arguments land in the right *slots*: `pick : int -> bool -> int` must yield `((pick) r) true`, never the reverse |
 | `arrow_right_lambda` | →R, →L | one lambda per arrow, each bound variable enters Ψ, and →L can then focus on it |
+| `intchoice_left` | ⊕L | every label is covered, and each branch continues on the *same* channel the `case` scrutinizes |
+| `intchoice_left_branches` | ⊕L | that channel carries each branch's own continuation type: `a: int^@` receives before waiting, `b: @` waits straight away |
+
+The two `intchoice_left*` goldens end in a `UnexpectedType` from sessint's own
+typechecker. That is not the synthesizer disagreeing with itself — a hole's
+input channels are all named `"_"` by the parser (`sessynth_tyS_list`), so the
+synthesized process cannot match the declaration's named `lin_ctxt`. Re-bless
+these two once that is fixed.
 
 ## What they catch
 
@@ -45,3 +53,8 @@ All four fail against the previous placeholder-and-substitute implementation of
   synthesized arguments right-to-left and handed both premises the same Δ,
   rather than threading it left-to-right.
 - `arrow_left_2args` produced fewer solutions within the same budget.
+
+Both `intchoice_left*` tests fail against the previous ⊕L rule, which bound each
+branch continuation to a *fresh* channel while still emitting `case c' of ...`.
+The branch bodies then referenced a channel that was never introduced, and
+sessint rejected the result with `NoSuchChannelInContext: _c1`.

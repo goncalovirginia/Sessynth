@@ -22,6 +22,8 @@ TESTS=(
     "arrow_left_3args:16"
     "arrow_left_mixed:12"
     "arrow_right_lambda:12"
+    "intchoice_left:20"
+    "intchoice_left_branches:20"
 )
 
 DIR=sessint/test/rules
