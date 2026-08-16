@@ -54,6 +54,11 @@ let () =
   let prog = Parser.main Lexer.token lexbuf in
   let use_struct = bool_of_string Sys.argv.(2) in
   compile_times := bool_of_string Sys.argv.(3);
+  (* optional 4th argument: synthesis fuel budget (defaults to 100) *)
+  if Array.length Sys.argv > 4 then
+    (match int_of_string_opt Sys.argv.(4) with
+     | Some n -> Sessynth.set_max_fuel n
+     | None -> prerr_endline ("ignoring non-numeric fuel budget: " ^ Sys.argv.(4)));
   if !compile_times then (
     Sys.argv.(1) <- "time";
     Sys.argv.(2) <- "samples";

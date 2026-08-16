@@ -1,0 +1,7 @@
+pick : int -> bool -> int
+fun x q -> x end;
+r : int
+? int #2 ?;
+;;
+m <- { close m }
+;;

@@ -38,13 +38,6 @@ let debugS f ctxts goal tFocus curr_fun =
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
             print_endline (indent ^ "tFocus: " ^ tyS_to_string tFocus)
 
-let rec subst e1 x e2 =
-    match e1 with 
-    | Var y -> if x=y then e2 else e1 
-    | App(e, e') -> App (subst e x e2 , subst e' x e2)
-    | Lam(y, t, e) -> if x <> y then Lam (y,t,(subst e x e2)) else e1 
-    | _ -> raise (Fail("subst pattern matching not defined for " ^ expF_to_string e1 0))
-
 let get_keys kvl =
     List.map (fun (k, v) -> k) kvl
 
@@ -308,7 +301,7 @@ and invert_left_S f ctxts c goal =
 
 and focus_decide_F f ctxts goal =
     debugF f ctxts goal goal "focusDecideF";
-    let left_focuses = List.map (fun (xFoc, tFoc) -> focus_left_F f ctxts xFoc tFoc goal) (get_sync_bindings is_tyF_left_async ctxts.p) in
+    let left_focuses = List.map (fun (xFoc, tFoc) -> focus_left_F f ctxts (Var xFoc) tFoc goal) (get_sync_bindings is_tyF_left_async ctxts.p) in
     let right_focus = focus_right_F f ctxts goal in
     ChoiceUtils.mplus_list (left_focuses @ [right_focus])
 
@@ -383,21 +376,23 @@ and focus_right_S f ctxts c goal =
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
     | _ -> invert_right_S f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
-and focus_left_F f ctxts xFocus tFocus goal =
+(** Left focus on the binding whose type is [tFocus].
+    [eFocus] is the application spine built so far: callers start it at
+    [Var x] for the binding [x] being focused, and each arrow rule extends it
+    with the argument it synthesizes, so the term is assembled on the way down. *)
+and focus_left_F f ctxts eFocus tFocus goal =
     let* f = consume_fuel f in
     debugF f ctxts goal tFocus "focusLeftF";
     match tFocus with
     | TArrow(t1, t2) ->
-        let f, c' = fresh_chan f in
-        let* (f, ctxts', e2) = focus_left_F f ctxts c' t2 goal in
-        let* (f, ctxts'', e1) = invert_right_F f ctxts t1 in
-        Choice.return (f, ctxts'', subst e2 c' (App(Var(xFocus), e1)))
+        let* (f, ctxts', e1) = invert_right_F f ctxts t1 in
+        focus_left_F f ctxts' (App(eFocus, e1)) t2 goal
     | TProcess _ | TAtomic _ ->
-        if tyF_equiv tFocus goal then Choice.return (f, ctxts, Var(xFocus))
+        if tyF_equiv tFocus goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TRefinement(x, tA, tR) ->
         if tyF_equiv (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat ctxts.p tFocus goal)
-            then Choice.return (f, ctxts, Var(xFocus))
+            then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TDeclr x ->
         let declr_matches_goal =
@@ -405,7 +400,7 @@ and focus_left_F f ctxts xFocus tFocus goal =
             | Some t -> tyF_equiv t goal
             | None -> false
         in
-        if tyF_equiv tFocus goal || declr_matches_goal then Choice.return (f, ctxts, Var(xFocus))
+        if tyF_equiv tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TForAll(xkl, t) ->
         (* as in focus_right_F: catch around the eager part only *)
@@ -418,7 +413,7 @@ and focus_left_F f ctxts xFocus tFocus goal =
             with Fail _ -> None
         in
         let* (f, t_inst', goal', ctxts') = ChoiceUtils.of_option instantiated in
-        focus_left_F f ctxts' xFocus t_inst' goal'
+        focus_left_F f ctxts' eFocus t_inst' goal'
     | _ -> invert_left_F f ctxts goal
 
 and focus_left_S f ctxts cFocus tFocus c goal =
@@ -502,7 +497,7 @@ and focus_left_TProcess f ctxts c goal_tProcess_filter =
     let tProcess = get_return_type t in
     let* insl = ChoiceUtils.of_option (get_TProcess_insl tProcess) in
     let* outs = ChoiceUtils.of_option (get_TProcess_outs tProcess) in
-    let* (f, ctxts', eApp) = focus_left_F f ctxts x t tProcess in
+    let* (f, ctxts', eApp) = focus_left_F f ctxts (Var x) t tProcess in
     let* (ctxts'', incl) = consume_channels_by_tyS ctxts' insl in
     let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, outs)] in
     Choice.return (f, ctxts''', Spawn(cSpawn, eApp, incl, Close("")))
@@ -553,13 +548,17 @@ and synth_interactive_ext_choice f ctxts c goal labelsesslist =
 
 (* entry point *)
 
-let synth n_sol p d goal = 
+let default_max_fuel = 100
+let max_fuel = ref default_max_fuel
+let set_max_fuel n = if n > 0 then max_fuel := n
+
+let synth n_sol p d goal =
     let printDebug =
         match Sys.getenv_opt "SESSYNTH_DEBUG" with
         | Some ("1" | "true" | "TRUE" | "yes" | "YES") -> true
         | _ -> false
     in
-    let f, ctxts = initialize_flags 100 printDebug, initialize_ctxts in
+    let f, ctxts = initialize_flags !max_fuel printDebug, initialize_ctxts in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
     let solutions_choice =

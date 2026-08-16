@@ -1,0 +1,7 @@
+add : int -> int -> int
+fun x y -> x + y end;
+k : int -> int -> int
+? int -> int -> int #4 ?;
+;;
+m <- { close m }
+;;
