@@ -24,6 +24,9 @@ TESTS=(
     "arrow_right_lambda:12"
     "intchoice_left:20"
     "intchoice_left_branches:20"
+    "fwd_recursive:25"
+    "fwd_type_mismatch:25"
+    "fwd_leftover_channel:25"
 )
 
 DIR=sessint/test/rules

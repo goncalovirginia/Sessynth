@@ -1,0 +1,7 @@
+stype Stream rec x. int ^ x;
+stype BStream rec y. bool ^ y;
+mix : {Stream <- t:BStream}
+? mix #4 ?;
+;;
+m <- { close m }
+;;

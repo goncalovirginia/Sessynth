@@ -33,6 +33,9 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `arrow_right_lambda` | →R, →L | one lambda per arrow, each bound variable enters Ψ, and →L can then focus on it |
 | `intchoice_left` | ⊕L | every label is covered, and each branch continues on the *same* channel the `case` scrutinizes |
 | `intchoice_left_branches` | ⊕L | that channel carries each branch's own continuation type: `a: int^@` receives before waiting, `b: @` waits straight away |
+| `fwd_recursive` | fwd | `fwd t c` is allowed when `t` and the goal are the same protocol at different unfolding budgets (`𝜇¹` against `𝜇⁰`) |
+| `fwd_type_mismatch` | fwd | a `bool` stream is never forwarded onto an `int` stream goal; the only forwards are of channels obtained by spawning |
+| `fwd_leftover_channel` | fwd | with two input channels, both are consumed before forwarding |
 
 The two `intchoice_left*` goldens end in a `UnexpectedType` from sessint's own
 typechecker. That is not the synthesizer disagreeing with itself — a hole's
@@ -58,3 +61,16 @@ Both `intchoice_left*` tests fail against the previous ⊕L rule, which bound ea
 branch continuation to a *fresh* channel while still emitting `case c' of ...`.
 The branch bodies then referenced a channel that was never introduced, and
 sessint rejected the result with `NoSuchChannelInContext: _c1`.
+
+The `fwd_*` tests cover the two guards `synth_fwd` gained, but not equally:
+
+- `fwd_type_mismatch` fails outright without the type guard — it synthesizes
+  `fwd t _c0` forwarding a `bool` stream onto an `int` stream goal.
+- all three fail if the guard is weakened from `tyS_equiv` to `=`, since the
+  channel and the goal almost always sit at different unfolding budgets.
+- none of them notice if the `delta_is_empty` guard is dropped. That is expected:
+  `synth` already requires an empty Δ of a finished solution, so a leaked channel
+  cannot reach the output by that route. The guard earns its place elsewhere — it
+  removed five leaking solutions from `intqueue.sessint`, all of the shape
+  `_c1 <- spawn IntQueue; ...; fwd _c2 _c0`, which survive the top-level check
+  only because external-choice branch merging keeps just branch 0's contexts.

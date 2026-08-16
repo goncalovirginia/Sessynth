@@ -1,0 +1,6 @@
+stype Stream rec x. int ^ x;
+two : {Stream <- t:Stream, u:Stream}
+? two #4 ?;
+;;
+m <- { close m }
+;;

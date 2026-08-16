@@ -190,7 +190,7 @@ and invert_right_S f ctxts c goal =
             Choice.mplus
                 (
                 (* wander + fwd *)
-                let synthFwdCombination = fun (c', t') -> synth_fwd f ctxts c' c t' in
+                let synthFwdCombination = fun (c', _) -> synth_fwd f ctxts c' c goal in
                 let* (f, ctxts', eFwd) = ChoiceUtils.map_mplus_list synthFwdCombination (get_sync_bindings is_tyS_left_async ctxts.d) in
                 let eWanderAndFwd = subst_continuation_exp eWander eFwd in
                 Choice.return (f, ctxts', eWanderAndFwd)
@@ -201,7 +201,7 @@ and invert_right_S f ctxts c goal =
                 let tProcess = get_return_type tRecLam in
                 let* (f, ctxts', eSpawn) = focus_left_TProcess f ctxts c (Some tProcess) in
                 let* cSpawn = ChoiceUtils.of_option (get_Spawn_c eSpawn) in
-                let* (f, ctxts'', eFwd) = synth_fwd f ctxts' cSpawn c t in
+                let* (f, ctxts'', eFwd) = synth_fwd f ctxts' cSpawn c goal in
                 let eSpawnAndFwd = subst_continuation_exp eSpawn eFwd in
                 let eWanderAndSpawn = subst_continuation_exp eWander eSpawnAndFwd in
                 Choice.return (f, ctxts'', eWanderAndSpawn)
@@ -501,9 +501,11 @@ and focus_left_TProcess f ctxts c goal_tProcess_filter =
     let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, outs)] in
     Choice.return (f, ctxts''', Spawn(cSpawn, eApp, incl, Close("")))
 
-and synth_fwd f ctxts cToFwd c t =
-    let* (ctxts', _) = ChoiceUtils.of_option (consume_channel ctxts cToFwd) in
-    Choice.return (f, ctxts', Fwd(cToFwd, c, t))
+and synth_fwd f ctxts cToFwd c goal =
+    let* (ctxts', tToFwd) = ChoiceUtils.of_option (consume_channel ctxts cToFwd) in
+    let* () = Choice.guard (tyS_equiv tToFwd goal) in
+    let* () = Choice.guard (delta_is_empty ctxts') in
+    Choice.return (f, ctxts', Fwd(cToFwd, c, goal))
 
 and synth_interactive_ext_choice f ctxts c goal labelsesslist =
     let synth_branch = fun (l, s) ->
