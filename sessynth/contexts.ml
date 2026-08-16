@@ -66,7 +66,7 @@ let get_sync_bindings is_left_async ctxt =
     List.filter (fun (_, t) -> not (is_left_async t)) ctxt
 
 let find_binding_for_tyF ctxts tF =
-    let (x, _) = List.find (fun (_, t) -> tyF_equiv t tF) ctxts.p in x
+    Option.map fst (List.find_opt (fun (_, t) -> tyF_equiv t tF) ctxts.p)
 
 (* comparing contexts *)
 
@@ -74,26 +74,31 @@ let bindingS_equiv (x1, s1) (x2, s2) = x1 = x2 && tyS_equiv s1 s2
 
 let bindingsS_equiv l1 l2 = List.equal bindingS_equiv l1 l2
 
+(* [Some ctxts] when every branch left Δ in the same state, [None] otherwise.
+   An empty list yields [None]: there is no branch context to carry forward, so
+   the caller has nothing to continue with even though the condition is
+   vacuously true. *)
 let deltas_are_equal ctxtsl =
-    let hdCtxts = List.hd ctxtsl in
-    let are_equal = List.for_all (fun currCtxts ->
-        bindingsS_equiv hdCtxts.d currCtxts.d
-    ) (List.tl ctxtsl) in
-    if are_equal then Some hdCtxts else None
+    match ctxtsl with
+    | [] -> None
+    | hdCtxts::tlCtxts ->
+        let are_equal = List.for_all (fun currCtxts ->
+            bindingsS_equiv hdCtxts.d currCtxts.d
+        ) tlCtxts in
+        if are_equal then Some hdCtxts else None
 
 let delta_is_empty ctxts =
     List.is_empty ctxts.d
 
 (* consuming linear channels *)
 
-let get_and_remove k kvl =
-    let v = List.assoc k kvl in
-    let kvl' = List.remove_assoc k kvl in
-    kvl', v
-
+(* removes channel [c] from Δ, returning the shrunk contexts and the session
+   type [c] was carrying; None when [c] is not in Δ (already consumed, or never
+   there) *)
 let consume_channel ctxts c =
-    let d', s = get_and_remove c ctxts.d in
-    { ctxts with d = d' }, s
+    match List.assoc_opt c ctxts.d with
+    | None -> None
+    | Some s -> Some ({ ctxts with d = List.remove_assoc c ctxts.d }, s)
 
 let rec consume_channels_by_tyS ctxts tSl =
     match tSl with
@@ -101,7 +106,7 @@ let rec consume_channels_by_tyS ctxts tSl =
     | tS::tSl' ->
         let csl = List.filter (fun (_, s) -> tyS_equiv s tS) ctxts.d in
         let* (c, _) = Choice.of_list csl in
-        let ctxts', _ = consume_channel ctxts c in
+        let* (ctxts', _) = ChoiceUtils.of_option (consume_channel ctxts c) in
         let* (ctxts'', cl) = consume_channels_by_tyS ctxts' tSl' in
         Choice.return (ctxts'', c::cl)
 

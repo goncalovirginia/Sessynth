@@ -16,8 +16,8 @@ exception Fail = TyUtils.Fail
 
 let debugF f ctxts goal tFocus curr_fun =
     if not f.printDebug then ()
-    else let indent = String.make (f.currDepth * 2) ' ' in
-        print_endline (indent ^ "currDepth: " ^ string_of_int f.currDepth); 
+    else let indent = String.make (f.usedFuel * 2) ' ' in
+        print_endline (indent ^ "usedFuel: " ^ string_of_int f.usedFuel); 
         match curr_fun with
         | "invertRightF" | "invertLeftF" | "focusDecideF" ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyF_to_string goal);
@@ -28,8 +28,8 @@ let debugF f ctxts goal tFocus curr_fun =
 
 let debugS f ctxts goal tFocus curr_fun =
     if not f.printDebug then ()
-    else let indent = String.make (f.currDepth * 2) ' ' in
-        print_endline (indent ^ "currDepth: " ^ string_of_int f.currDepth); 
+    else let indent = String.make (f.usedFuel * 2) ' ' in
+        print_endline (indent ^ "usedFuel: " ^ string_of_int f.usedFuel); 
         match curr_fun with
         | "invertRightS" | "invertLeftS" | "focusDecideS" ->
             print_endline (indent ^ curr_fun ^ ": " ^ tyS_to_string goal);
@@ -61,8 +61,8 @@ let rec subst_continuation_exp exp cont_exp =
 
 let get_Spawn_c e =
     match e with
-    | Spawn(c, _, _, _) -> c
-    | _ -> raise (Fail("get_Spawn_c: e not Spawn expression"))
+    | Spawn(c, _, _, _) -> Some c
+    | _ -> None
 
 let filter_duplicates expl =
     let rec filter_duplicates' seen rest =
@@ -103,7 +103,7 @@ let rec interactive_ext_choice_filter_solutions solutions =
 (* flags + gamma-async; gamma-sync; psi-async; psi-async; delta-async; delta-sync |- P :: c : goal *)
 
 let rec invert_right_F f ctxts goal =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugF f ctxts goal goal "invertRightF";
     match goal with
     | TArrow(t1, t2) ->
@@ -114,11 +114,11 @@ let rec invert_right_F f ctxts goal =
         begin match get_return_type t2 with
         | TProcess(_, STRec _) when not (List.mem_assoc f.xRecLam ctxts.p) ->
             let f, ctxts2 =
-            try
-                let (xRecFun, _) = List.find (fun (_, t) -> tyF_equiv t goal) ctxts.p in
+            match find_binding_for_tyF ctxts goal with
+            | Some xRecFun ->
                 let f = { f with xRecLam = xRecFun } in
                 f, ctxts1
-            with Not_found ->
+            | None ->
                 let f, fresh_f = fresh_fun f in
                 let f = { f with xRecLam = fresh_f } in
                 let ctxts2 = append_bindings_psi ctxts1 [(f.xRecLam, goal)] in
@@ -131,7 +131,12 @@ let rec invert_right_F f ctxts goal =
             Choice.return (f, ctxts', Lam(x, t1, e))
         end
     | TProcess(incsl, outs) ->
-            let f = if f.xRecLam = "" then try { f with xRecLam = find_binding_for_tyF ctxts goal } with Not_found -> f else f in
+            let f =
+                if f.xRecLam <> "" then f
+                else match find_binding_for_tyF ctxts goal with
+                    | Some xRecFun -> { f with xRecLam = xRecFun }
+                    | None -> f
+            in
             let ctxts1 = append_bindings_delta ctxts incsl in
             let f, c = fresh_chan f in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
@@ -139,13 +144,15 @@ let rec invert_right_F f ctxts goal =
             let* () = Choice.guard incsl_consumed in
             Choice.return (f, ctxts', Process(c, e, outs, incsl))
     | TDeclr(x) ->
-        begin try
-            let t = List.assoc x ctxts.p in
-            invert_right_F f ctxts t
-        with Not_found -> Choice.fail
-        end
+        let* t = ChoiceUtils.of_option (List.assoc_opt x ctxts.p) in
+        invert_right_F f ctxts t
     | TRefinement(x, t1, t2) ->
-        let solution = Cvc5adapter.solve ctxts.p goal in
+        (* an infeasible or unparseable SyGuS goal fails this branch rather than aborting the whole search *)
+        let solution = 
+            try Some (Cvc5adapter.solve ctxts.p goal) 
+            with Cvc5adapter.CVC5Infeasible _ | Cvc5adapter.CVC5ParseError _ | Cvc5adapter.CVC5Error _ -> None
+        in
+        let* solution = ChoiceUtils.of_option solution in
         Choice.return (f, ctxts, solution)
     | TForAll(xkl, t) -> 
         let f, t' = instantiate_tyF f goal in
@@ -153,7 +160,7 @@ let rec invert_right_F f ctxts goal =
     | _ -> invert_left_F f ctxts goal
 
 and invert_right_S f ctxts c goal = 
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugS f ctxts goal goal "invertRightS";
     match goal with 
     | STRecvF(t1, t2) ->
@@ -182,44 +189,41 @@ and invert_right_S f ctxts c goal =
         Choice.return (f, ctxts', Choice(c, labelproclist))*)
         let branches = synth_interactive_ext_choice f ctxts c goal labelsesslist in
         let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
-        let (_, (f', ctxts', _)) = List.hd branches in
+        let* (_, (f', ctxts', _)) = ChoiceUtils.of_option (List.nth_opt branches 0) in
         Choice.return (f', ctxts', Choice(c, labelproclist))
     | STRec(k, x, t) ->
-        if k <= 0 then try
+        if k <= 0 then
             let* (f, ctxts, eWander) = wander f ctxts c goal in
             Choice.mplus
                 (
                 (* wander + fwd *)
                 let synthFwdCombination = fun (c', t') -> synth_fwd f ctxts c' c t' in
-                let* (f, ctxts', eFwd) = Choice.of_list (List.map synthFwdCombination (get_sync_bindings is_tyS_left_async ctxts.d)) in
+                let* (f, ctxts', eFwd) = ChoiceUtils.map_mplus_list synthFwdCombination (get_sync_bindings is_tyS_left_async ctxts.d) in
                 let eWanderAndFwd = subst_continuation_exp eWander eFwd in
                 Choice.return (f, ctxts', eWanderAndFwd)
                 )
                 (
                 (* wander + spawn + fwd *)
-                let tRecLam = List.assoc f.xRecLam ctxts.p in
+                let* tRecLam = ChoiceUtils.of_option (List.assoc_opt f.xRecLam ctxts.p) in
                 let tProcess = get_return_type tRecLam in
                 let* (f, ctxts', eSpawn) = focus_left_TProcess f ctxts c (Some tProcess) in
-                let f, ctxts'', eFwd = synth_fwd f ctxts' (get_Spawn_c eSpawn) c t in
+                let* cSpawn = ChoiceUtils.of_option (get_Spawn_c eSpawn) in
+                let* (f, ctxts'', eFwd) = synth_fwd f ctxts' cSpawn c t in
                 let eSpawnAndFwd = subst_continuation_exp eSpawn eFwd in
                 let eWanderAndSpawn = subst_continuation_exp eWander eSpawnAndFwd in
                 Choice.return (f, ctxts'', eWanderAndSpawn)
                 )
-            with Not_found -> Choice.fail
-        else 
-            let tUnfolded = unfold t (STRec(k-1, x, t)) x in
+        else
+            let* tUnfolded = ChoiceUtils.of_option (unfold t (STRec(k-1, x, t)) x) in
             invert_right_S f ctxts c tUnfolded
     | STDeclr(x) ->
         (* TODO: session-type declarations belong in Γ, not Δ (see planned task 2) *)
-        begin try
-            let t = List.assoc x ctxts.d in
-            invert_right_S f ctxts c t
-        with Not_found -> Choice.fail
-        end
+        let* t = ChoiceUtils.of_option (List.assoc_opt x ctxts.d) in
+        invert_right_S f ctxts c t
     | _ -> invert_left_S f ctxts c goal
 
 and invert_left_F f ctxts goal =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugF f ctxts goal goal "invertLeftF";
     match extract_first_async is_tyF_left_async ctxts.p with
     | Some ((x, t), p') ->
@@ -228,7 +232,7 @@ and invert_left_F f ctxts goal =
         | TConstructor(x, args) ->
             let synth_constructor_branch (x_c, tF) =
                 (* instantiate the scheme and match its result against the scrutinee *)
-                let f, ctxts', args', subst = instantiate_constructor f ctxts tF t in
+                let* (f, ctxts', args', subst) = ChoiceUtils.of_option (instantiate_constructor f ctxts tF t) in
                 let goal' = unify_subst_tyF subst goal in
                 (* introduce fresh bindings for constructor args *)
                 let rec fresh_args f acc_ids acc_tys args =
@@ -250,15 +254,15 @@ and invert_left_F f ctxts goal =
             let* () = Choice.guard (not (List.is_empty x_constructors)) in
             let* branches = ChoiceUtils.map_list synth_constructor_branch x_constructors in
             let ctxtsl = List.map (fun (_, ctxts', _, _, _) -> ctxts') branches in
-            let* () = Choice.guard (Option.is_some (deltas_are_equal ctxtsl)) in
+            let* ctxts' = ChoiceUtils.of_option (deltas_are_equal ctxtsl) in
             let branches = List.map (fun (_, _, x_c, x_args, e_branch) -> (x_c, x_args, e_branch)) branches in
-            Choice.return (f, List.hd ctxtsl, Match(Var(x), branches))
+            Choice.return (f, ctxts', Match(Var(x), branches))
         | _ -> Choice.fail
         end
     | None -> focus_decide_F f ctxts goal
 
 and invert_left_S f ctxts c goal =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugS f ctxts goal goal "invertLeftS";
     match extract_first_async is_tyS_left_async ctxts.d with
     | Some ((c', t'), d') ->
@@ -295,9 +299,9 @@ and invert_left_S f ctxts c goal =
             in
             let* (_, branches) = ChoiceUtils.map_list_state f synth_branch labelsesslist in
             let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
-            let* () = Choice.guard (Option.is_some (deltas_are_equal ctxtsl)) in
+            let* ctxts' = ChoiceUtils.of_option (deltas_are_equal ctxtsl) in
             let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
-            Choice.return (f, List.hd ctxtsl, Choice(c', labelproclist))
+            Choice.return (f, ctxts', Choice(c', labelproclist))
         | _ -> Choice.fail
         end
     | None -> focus_decide_S f ctxts c goal
@@ -315,7 +319,7 @@ and focus_decide_S f ctxts c goal =
     ChoiceUtils.mplus_list (left_focuses @ [right_focus])
 
 and focus_right_F f ctxts goal =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugF f ctxts goal goal "focusRightF";
     match goal with
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
@@ -323,18 +327,23 @@ and focus_right_F f ctxts goal =
     | TAtomic(TPolyVar(_)) ->
         let ground_atomic_types = [TInt; TBool] in
         let map_unify = fun tA ->
-            try let candidate = TAtomic(tA) in
-                let subst = unify goal candidate in
-                let ctxts' = unify_subst_ctxts subst ctxts in
-                let goal' = unify_subst_tyF subst goal in
-                focus_right_F f ctxts' goal'
-            with Fail _ -> Choice.fail
+            (* the try covers only the eager unification; the recursive call is
+               bound outside it, since a try around a let* would not protect it *)
+            let unified =
+                try
+                    let candidate = TAtomic(tA) in
+                    let subst = unify goal candidate in
+                    Some (unify_subst_ctxts subst ctxts, unify_subst_tyF subst goal)
+                with Fail _ -> None
+            in
+            let* (ctxts', goal') = ChoiceUtils.of_option unified in
+            focus_right_F f ctxts' goal'
         in
         ChoiceUtils.map_mplus_list map_unify ground_atomic_types
     | TConstructor(x, args) ->
         let synth_constructor_select (x_c, tF) = 
             (* instantiate the scheme and match its result against the goal *)
-            let f, ctxts', args', _ = instantiate_constructor f ctxts tF goal in
+            let* (f, ctxts', args', _) = ChoiceUtils.of_option (instantiate_constructor f ctxts tF goal) in
             (* synthesize constructor arguments *)
             let rec synth_args f ctxts acc args =
                 match args with
@@ -351,7 +360,7 @@ and focus_right_F f ctxts goal =
     | _ -> invert_right_F f ctxts goal
 
 and focus_right_S f ctxts c goal =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugS f ctxts goal goal "focusRightS";
     match goal with 
     | STSendF(t1, t2) ->
@@ -375,7 +384,7 @@ and focus_right_S f ctxts c goal =
     | _ -> invert_right_S f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
 and focus_left_F f ctxts xFocus tFocus goal =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugF f ctxts goal tFocus "focusLeftF";
     match tFocus with
     | TArrow(t1, t2) ->
@@ -398,36 +407,40 @@ and focus_left_F f ctxts xFocus tFocus goal =
         in
         if tyF_equiv tFocus goal || declr_matches_goal then Choice.return (f, ctxts, Var(xFocus))
         else Choice.fail
-    | TForAll(xkl, t) -> begin
-        try let f, t_inst = instantiate_tyF f tFocus in
-            let subst = unify t_inst goal in
-            let t_inst' = unify_subst_tyF subst t_inst in
-            let goal' = unify_subst_tyF subst goal in
-            let ctxts' = unify_subst_ctxts subst ctxts in
-            focus_left_F f ctxts' xFocus t_inst' goal'
-        with Fail _ -> Choice.fail end
+    | TForAll(xkl, t) ->
+        (* as in focus_right_F: catch around the eager part only *)
+        let instantiated =
+            try
+                let f, t_inst = instantiate_tyF f tFocus in
+                let subst = unify t_inst goal in
+                Some (f, unify_subst_tyF subst t_inst, unify_subst_tyF subst goal,
+                      unify_subst_ctxts subst ctxts)
+            with Fail _ -> None
+        in
+        let* (f, t_inst', goal', ctxts') = ChoiceUtils.of_option instantiated in
+        focus_left_F f ctxts' xFocus t_inst' goal'
     | _ -> invert_left_F f ctxts goal
 
 and focus_left_S f ctxts cFocus tFocus c goal =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     debugS f ctxts goal tFocus "focusLeftS";
     match tFocus with
     | STRecvF(t1, t2) ->
-        let ctxts0, _ = consume_channel ctxts cFocus in
+        let* (ctxts0, _) = ChoiceUtils.of_option (consume_channel ctxts cFocus) in
         let ctxts1 = append_bindings_delta ctxts0 [(cFocus, t2)] in
         let* (f, ctxts', e1) = invert_right_F f ctxts1 t1 in
         let* (f, ctxts'', e2) = focus_left_S f ctxts' cFocus t2 c goal in
         Choice.return (f, ctxts'', SendF(cFocus, e1, e2))
     | STRecvS(t1, t2) -> 
         let f, c' = fresh_chan f in
-        let ctxts0, _ = consume_channel ctxts cFocus in
+        let* (ctxts0, _) = ChoiceUtils.of_option (consume_channel ctxts cFocus) in
         let ctxts1 = append_bindings_delta ctxts0 [(cFocus, t2)] in
         let* (f, ctxts', e1) = invert_right_S f ctxts1 c' t1 in
         let* (f, ctxts'', e2) = focus_left_S f ctxts' cFocus t2 c goal in
         Choice.return (f, ctxts'', SendS(cFocus, c', e1, e2))
     | STExtChoice(labelsesslist) -> 
         let synth_choice_select (l, s) =
-            let ctxts0, _ = consume_channel ctxts cFocus in
+            let* (ctxts0, _) = ChoiceUtils.of_option (consume_channel ctxts cFocus) in
             let ctxts1 = append_bindings_delta ctxts0 [(cFocus, s)] in
             let* (f', ctxts', e1) = focus_left_S f ctxts1 cFocus s c goal in
             Choice.return (f', ctxts', ChoiceSelect(cFocus, l, e1))
@@ -437,8 +450,8 @@ and focus_left_S f ctxts cFocus tFocus c goal =
         if k <= 0 then
             Choice.return (f, ctxts, Close(""))
         else
-            let tUnfolded = unfold t (STRec(k-1, x, t)) x in
-            let ctxts0, _ = consume_channel ctxts cFocus in
+            let* tUnfolded = ChoiceUtils.of_option (unfold t (STRec(k-1, x, t)) x) in
+            let* (ctxts0, _) = ChoiceUtils.of_option (consume_channel ctxts cFocus) in
             let ctxts1 = append_bindings_delta ctxts0 [(cFocus, tUnfolded)] in
             focus_left_S f ctxts1 cFocus tUnfolded c goal
     | _ -> invert_left_S f ctxts c goal
@@ -467,27 +480,36 @@ synthesizes possible spawn expressions which output a desired session-type, cont
 @param goal_tProcess_filter: option possibly containing a TProcess(insl, outs) whose outs serves as a filter for valid spawnable processes with equivalent outs session-types, which will be provided by the spawned channel. If goal_tProcess_filter is None, then any TProcess(_, _) is spawnable
 *)
 and focus_left_TProcess f ctxts c goal_tProcess_filter =
-    let* f = increment_depth f in
+    let* f = consume_fuel f in
     let f, cSpawn = fresh_chan f in
-    let spawnable_proc_list = 
-        List.filter(fun (_, t) -> 
-            let tReturn = get_return_type t in is_TProcess tReturn && (
-            (Option.is_none goal_tProcess_filter) ||
-            (Option.is_some goal_tProcess_filter && tyS_equiv (get_TProcess_outs tReturn) (get_TProcess_outs (Option.get goal_tProcess_filter))))
+    (* a binding is spawnable when its return type is a process type, and when 
+       that process offers an equivalent session (when a filter is given) *)
+    let offers_goal_session tReturn =
+        match goal_tProcess_filter with
+        | None -> true
+        | Some filter_t ->
+            match get_TProcess_outs tReturn, get_TProcess_outs filter_t with
+            | Some outs, Some filter_outs -> tyS_equiv outs filter_outs
+            | _ -> false
+    in
+    let spawnable_proc_list =
+        List.filter (fun (_, t) ->
+            let tReturn = get_return_type t in
+            is_TProcess tReturn && offers_goal_session tReturn
         ) (get_sync_bindings is_tyF_left_async ctxts.p)
     in
     let* (x, t) = Choice.of_list spawnable_proc_list in
     let tProcess = get_return_type t in
-    let insl = get_TProcess_insl tProcess in
-    let outs = get_TProcess_outs tProcess in
+    let* insl = ChoiceUtils.of_option (get_TProcess_insl tProcess) in
+    let* outs = ChoiceUtils.of_option (get_TProcess_outs tProcess) in
     let* (f, ctxts', eApp) = focus_left_F f ctxts x t tProcess in
     let* (ctxts'', incl) = consume_channels_by_tyS ctxts' insl in
     let ctxts''' = append_bindings_delta ctxts'' [(cSpawn, outs)] in
     Choice.return (f, ctxts''', Spawn(cSpawn, eApp, incl, Close("")))
 
 and synth_fwd f ctxts cToFwd c t =
-    let ctxts', _ = consume_channel ctxts cToFwd in
-    f, ctxts', Fwd(cToFwd, c, t)
+    let* (ctxts', _) = ChoiceUtils.of_option (consume_channel ctxts cToFwd) in
+    Choice.return (f, ctxts', Fwd(cToFwd, c, t))
 
 and synth_interactive_ext_choice f ctxts c goal labelsesslist =
     let synth_branch = fun (l, s) ->

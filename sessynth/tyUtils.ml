@@ -22,13 +22,13 @@ let rec flatten_TArrow t =
 
 let get_TProcess_insl t =
     match t with
-    | TProcess(csl, _) -> List.map (fun (c, s) -> s) csl
-    | _ -> raise (Fail("get_TProcess_insl: t not of type TProcess"))
+    | TProcess(csl, _) -> Some (List.map (fun (c, s) -> s) csl)
+    | _ -> None
 
 let get_TProcess_outs t =
     match t with
-    | TProcess(_, outs) -> outs
-    | _ -> raise (Fail("get_TProcess_outs: t not of type TProcess"))
+    | TProcess(_, outs) -> Some outs
+    | _ -> None
 
 let is_TProcess t =
     match t with
@@ -80,30 +80,43 @@ let rec rename_recvar_in_tyS from_id to_id t =
     | STRecVar x -> if x = from_id then STRecVar to_id else t
     | STDeclr _ -> t
 
-(* S[μt.S / t] *)
+(* S[μt.S / t]; None when an unresolved session-type declaration is reached,
+   since it cannot be unfolded without Γ *)
 let rec unfold tUnfold stRec stRecVar =
+    let unfold_both t1 t2 =
+        match unfold t1 stRec stRecVar, unfold t2 stRec stRecVar with
+        | Some t1', Some t2' -> Some (t1', t2')
+        | _ -> None
+    in
+    let unfold_labels labelsesslist =
+        List.fold_right (fun (l, t) acc ->
+            match acc, unfold t stRec stRecVar with
+            | Some acc', Some t' -> Some ((l, t')::acc')
+            | _ -> None
+        ) labelsesslist (Some [])
+    in
     match tUnfold with
     | STSendF(t1, t2) ->
-        STSendF(t1, unfold t2 stRec stRecVar)
+        Option.map (fun t2' -> STSendF(t1, t2')) (unfold t2 stRec stRecVar)
     | STRecvF(t1, t2) ->
-        STRecvF(t1, unfold t2 stRec stRecVar)
+        Option.map (fun t2' -> STRecvF(t1, t2')) (unfold t2 stRec stRecVar)
     | STSendS(t1, t2) ->
-        STSendS (unfold t1 stRec stRecVar, unfold t2 stRec stRecVar)
+        Option.map (fun (t1', t2') -> STSendS(t1', t2')) (unfold_both t1 t2)
     | STRecvS(t1, t2) ->
-        STRecvS (unfold t1 stRec stRecVar, unfold t2 stRec stRecVar)
+        Option.map (fun (t1', t2') -> STRecvS(t1', t2')) (unfold_both t1 t2)
     | STUnit ->
-        STUnit
+        Some STUnit
     | STExtChoice labelsesslist ->
-        STExtChoice (List.map (fun (l, t) -> (l, unfold t stRec stRecVar)) labelsesslist)
+        Option.map (fun l -> STExtChoice l) (unfold_labels labelsesslist)
     | STIntChoice labelsesslist ->
-        STIntChoice (List.map (fun (l, t) -> (l, unfold t stRec stRecVar)) labelsesslist)
+        Option.map (fun l -> STIntChoice l) (unfold_labels labelsesslist)
     | STRec(k, x, t) ->
-        if x = stRecVar then tUnfold (* prevents infinite unfolding if for some reason μt.S is used inside the original μt.S *)
-        else STRec(k, x, unfold t stRec stRecVar) (* in case another recursive session type μt2.S2 is used inside μt.S *)
+        if x = stRecVar then Some tUnfold (* prevents infinite unfolding if for some reason μt.S is used inside the original μt.S *)
+        else Option.map (fun t' -> STRec(k, x, t')) (unfold t stRec stRecVar) (* in case another recursive session type μt2.S2 is used inside μt.S *)
     | STRecVar(x) ->
-        if x = stRecVar then stRec (* where unfolding happens *)
-        else tUnfold (* if it's another recursive name t2 != t, simply return t2 *)
-    | _ -> raise (Fail "unfold: unexpected STDeclr while unfolding recursive session-type")
+        if x = stRecVar then Some stRec (* where unfolding happens *)
+        else Some tUnfold (* if it's another recursive name t2 != t, simply return t2 *)
+    | STDeclr _ -> None
 
 (* equivalence *)
 

@@ -39,12 +39,19 @@ let constructors_of constructors c_T =
     and the substitution itself — the caller still needs it to rewrite whatever
     else it is carrying (the goal, in the case-analysis rule).
 
-    Raises {!TyUtils.Fail} when the scheme's result type does not unify with
-    [target]. *)
+    [None] when the scheme's result type does not unify with [target], or when
+    the scheme uses a kind other than KBase.
+
+    This is the boundary at which the exceptions raised by {!Polymorphism} are
+    turned into a value: the whole body is eager, so catching here is sound,
+    whereas a [try] placed around the monadic call site would not be — see
+    {!ChoiceUtils.of_option}. *)
 let instantiate_constructor f ctxts scheme target =
-    let f, ty_inst = instantiate_tyF f scheme in
-    let args, res = flatten_TArrow ty_inst in
-    let subst = unify res target in
-    let args' = List.map (unify_subst_tyF subst) args in
-    let ctxts' = unify_subst_ctxts subst ctxts in
-    f, ctxts', args', subst
+    try
+        let f, ty_inst = instantiate_tyF f scheme in
+        let args, res = flatten_TArrow ty_inst in
+        let subst = unify res target in
+        let args' = List.map (unify_subst_tyF subst) args in
+        let ctxts' = unify_subst_ctxts subst ctxts in
+        Some (f, ctxts', args', subst)
+    with Fail _ -> None

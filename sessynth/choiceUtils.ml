@@ -35,6 +35,20 @@ let rec map_list_state f g xs =
         let* (f'', ys) = map_list_state f' g xs' in
         Choice.return (f'', y :: ys)
 
+(* Bridges a partial operation into the search: [Some x] succeeds with [x],
+   [None] fails the branch.
+
+   Choice is a CPS monad, so the continuation of a [let*] runs when the search is
+   forced by run_n/run_all, long after the enclosing OCaml expression has been
+   evaluated. A [try ... with] wrapped around a [let*] therefore protects only
+   the *construction* of the search, and an exception raised inside the
+   continuation escapes it. Partial operations must return an option and be
+   bound through this, rather than raise and be caught. *)
+let of_option o =
+    match o with
+    | Some x -> Choice.return x
+    | None -> Choice.fail
+
 let mplus_list xs =
   	List.fold_right Choice.mplus xs Choice.fail
 
