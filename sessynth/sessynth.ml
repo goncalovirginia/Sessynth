@@ -155,6 +155,7 @@ let rec invert_right_F f ctxts goal =
                     | Some xRecFun -> { f with xRecLam = xRecFun }
                     | None -> f
             in
+            let* () = Choice.guard (find_first_duplicate_name (incsl @ ctxts.d) = None) in
             let ctxts1 = append_bindings_delta ctxts incsl in
             let f, c = fresh_chan f in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
@@ -585,6 +586,15 @@ let synth n_sol p d goal =
         | Some ("1" | "true" | "TRUE" | "yes" | "YES") -> true
         | _ -> false
     in
+    let reject_duplicates where bindings =
+        match find_first_duplicate_name bindings with
+        | Some x -> raise (Fail ("channel " ^ x ^ " is bound more than once in " ^ where))
+        | None -> ()
+    in
+    reject_duplicates "the linear context" d;
+    (match goal with
+     | TProcess(incsl, _) -> reject_duplicates "the goal's input channels" incsl
+     | _ -> ());
     let f, ctxts = initialize_flags !max_fuel printDebug, initialize_ctxts in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in

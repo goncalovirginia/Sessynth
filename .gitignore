@@ -10,6 +10,9 @@ _build/
 *.so
 *.annot
 
+# Compiled Go programs (sessint writes ./<program>.go next to the project root)
+/*.go
+
 # Editors
 .idea/
 .merlin

@@ -1,0 +1,7 @@
+0:
+_c0 <- {
+  wait q;
+  _x0 <- recv r;
+  wait r;
+  close _c0
+} <- [q:1, r:int ∧ 1]

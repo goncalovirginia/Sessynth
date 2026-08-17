@@ -117,6 +117,16 @@ let deltas_are_equal ctxtsl =
 let delta_is_empty ctxts =
     List.is_empty ctxts.d
 
+(** Returns [Some x] for the first name bound twice in [bindings], [None] when every
+   name is distinct. *)
+let find_first_duplicate_name bindings =
+    let rec find seen bindings =
+        match bindings with
+        | [] -> None
+        | (x, _)::bindings' ->
+            if List.mem x seen then Some x else find (x::seen) bindings'
+    in find [] bindings
+
 (* consuming linear channels *)
 
 (* removes channel [c] from Δ, returning the shrunk contexts and the session

@@ -27,6 +27,7 @@ TESTS=(
     "fwd_recursive:25"
     "fwd_type_mismatch:25"
     "fwd_leftover_channel:25"
+    "hole_named_inputs:20"
 )
 
 DIR=sessint/test/rules

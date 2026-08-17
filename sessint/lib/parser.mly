@@ -216,8 +216,8 @@ sessynth_tyS:
   | v = S_VAR                                                 { Sessynth.Language.STRecVar(v) }
 
 sessynth_tyS_list:
-  | t = sessynth_tyS                                { [("_", t)] }
-  | t = sessynth_tyS COMMA tl = sessynth_tyS_list   { ("_", t)::tl }
+  | v = VAR COLON t = sessynth_tyS                                { [(v, t)] }
+  | v = VAR COLON t = sessynth_tyS COMMA tl = sessynth_tyS_list   { (v, t)::tl }
 
 sessynth_choice_list:
   | v = VAR COLON st = sessynth_tyS                                   { [(v, st)] }

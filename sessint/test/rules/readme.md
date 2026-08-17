@@ -36,12 +36,7 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `fwd_recursive` | fwd | `fwd t c` is allowed when `t` and the goal are the same protocol at different unfolding budgets (`𝜇¹` against `𝜇⁰`) |
 | `fwd_type_mismatch` | fwd | a `bool` stream is never forwarded onto an `int` stream goal; the only forwards are of channels obtained by spawning |
 | `fwd_leftover_channel` | fwd | with two input channels, both are consumed before forwarding |
-
-The two `intchoice_left*` goldens end in a `UnexpectedType` from sessint's own
-typechecker. That is not the synthesizer disagreeing with itself — a hole's
-input channels are all named `"_"` by the parser (`sessynth_tyS_list`), so the
-synthesized process cannot match the declaration's named `lin_ctxt`. Re-bless
-these two once that is fixed.
+| `hole_named_inputs` | goal syntax | a hole can take more than one input channel, and each is reachable under its own name |
 
 ## What they catch
 
@@ -61,6 +56,13 @@ Both `intchoice_left*` tests fail against the previous ⊕L rule, which bound ea
 branch continuation to a *fresh* channel while still emitting `case c' of ...`.
 The branch bodies then referenced a channel that was never introduced, and
 sessint rejected the result with `NoSuchChannelInContext: _c1`.
+
+`hole_named_inputs` cannot even be expressed against the previous grammar:
+`sessynth_tyS_list` named every input `"_"`, so a hole could carry at most one
+usable input channel — with two, `List.assoc` and `consume_channel` both only
+ever found the first, and the second was unreachable. That is also why the two
+`intchoice_left*` goldens used to end in an `UnexpectedType`: the synthesized
+process offered `_` where the declaration named `q`.
 
 The `fwd_*` tests cover the two guards `synth_fwd` gained, but not equally:
 
