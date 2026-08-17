@@ -1,0 +1,5 @@
+p : {rec x. int ^ x <- t: rec x. int ^ x}
+? {rec x. int ^ x <- t: rec x. int ^ x} #3 ?;
+;;
+m <- { close m }
+;;

@@ -1,0 +1,5 @@
+bad : {rec x. int ^ y}
+? bad #1 ?;
+;;
+m <- { close m }
+;;

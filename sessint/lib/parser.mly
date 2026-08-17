@@ -213,7 +213,8 @@ sessynth_tyS:
   | PLUS L_BRACE l = sessynth_choice_list R_BRACE             { Sessynth.Language.STIntChoice(l) }
   | REC v = VAR DOT st = sessynth_tyS                         { Sessynth.Language.STRec(1, v, st) }
   | REC k = INT v = VAR DOT st = sessynth_tyS                 { Sessynth.Language.STRec(k, v, st) }
-  | v = S_VAR                                                 { Sessynth.Language.STRecVar(v) }
+  | v = VAR                                                   { Sessynth.Language.STRecVar(v) }
+  | v = S_VAR                                                 { Sessynth.Language.STDeclr(v) }
 
 sessynth_tyS_list:
   | v = VAR COLON t = sessynth_tyS                                { [(v, t)] }

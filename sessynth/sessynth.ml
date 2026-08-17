@@ -591,10 +591,18 @@ let synth n_sol p d goal =
         | Some x -> raise (Fail ("channel " ^ x ^ " is bound more than once in " ^ where))
         | None -> ()
     in
+    let reject_unbound_recvar where unbound =
+        match unbound with
+        | Some x -> raise (Fail ("recursion variable " ^ x ^ " in " ^ where ^ " is not bound by any enclosing rec"))
+        | None -> ()
+    in
     reject_duplicates "the linear context" d;
     (match goal with
      | TProcess(incsl, _) -> reject_duplicates "the goal's input channels" incsl
      | _ -> ());
+    reject_unbound_recvar "the goal" (unbound_recvar_tyF goal);
+    List.iter (fun (x, t) -> reject_unbound_recvar ("the type of " ^ x) (unbound_recvar_tyF t)) p;
+    List.iter (fun (c, s) -> reject_unbound_recvar ("the type of channel " ^ c) (unbound_recvar_tyS [] s)) d;
     let f, ctxts = initialize_flags !max_fuel printDebug, initialize_ctxts in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in

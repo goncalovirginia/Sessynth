@@ -118,6 +118,40 @@ let rec unfold tUnfold stRec stRecVar =
         else Some tUnfold (* if it's another recursive name t2 != t, simply return t2 *)
     | STDeclr _ -> None
 
+(** Returns [Some x] for the first recursion variable of [t] that no enclosing μ
+    binds, [None] when [t] is closed. Nothing can unfold such a variable away, so
+    unchecked it surfaces as "no valid expression" instead of a malformed type.
+
+    Session types nested in a process type are their own scopes, matching
+    [unfold]: it rebuilds [STSendF(f, t)] without descending into [f], so no
+    outer binder can reach a recursion variable in there. *)
+let rec unbound_recvar_tyS bound t =
+    let first_of tl = List.fold_left (fun acc t' ->
+        match acc with Some _ -> acc | None -> unbound_recvar_tyS bound t') None tl
+    in
+    match t with
+    | STUnit | STDeclr _ -> None
+    | STSendF(f, t') | STRecvF(f, t') ->
+        (match unbound_recvar_tyF f with Some x -> Some x | None -> unbound_recvar_tyS bound t')
+    | STSendS(t1, t2) | STRecvS(t1, t2) -> first_of [t1; t2]
+    | STExtChoice l | STIntChoice l -> first_of (List.map snd l)
+    | STRec(_, x, t') -> unbound_recvar_tyS (x::bound) t'
+    | STRecVar x -> if List.mem x bound then None else Some x
+
+and unbound_recvar_tyF t =
+    let first_of tl = List.fold_left (fun acc t' ->
+        match acc with Some _ -> acc | None -> unbound_recvar_tyF t') None tl
+    in
+    match t with
+    | TAtomic _ | TRefinement _ | TDeclr _ -> None
+    | TArrow(t1, t2) -> first_of [t1; t2]
+    | TForAll(_, t') -> unbound_recvar_tyF t'
+    | TConstructor(_, args) -> first_of args
+    | TProcess(incsl, outs) ->
+        List.fold_left (fun acc t' ->
+            match acc with Some _ -> acc | None -> unbound_recvar_tyS [] t')
+            None (outs :: List.map snd incsl)
+
 (* equivalence *)
 
 (** Equivalence of session types.

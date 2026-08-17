@@ -1,0 +1,1 @@
+Fail("recursion variable x in the goal is not bound by any enclosing rec")

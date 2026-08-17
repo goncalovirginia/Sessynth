@@ -37,6 +37,14 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `fwd_type_mismatch` | fwd | a `bool` stream is never forwarded onto an `int` stream goal; the only forwards are of channels obtained by spawning |
 | `fwd_leftover_channel` | fwd | with two input channels, both are consumed before forwarding |
 | `hole_named_inputs` | goal syntax | a hole can take more than one input channel, and each is reachable under its own name |
+| `rec_inline_goal` | goal syntax | a recursive session type can be written directly in a hole, binder and occurrence both |
+| `unbound_recvar_goal` | goal validation | a recursion variable with no enclosing `rec` is named in the error, not left to surface as "no valid expression" |
+| `unbound_recvar_declr` | goal validation | the same holds when the goal is `? name ?`, where the offending type is reached through Ψ rather than written in the hole |
+| `duplicate_input_names` | goal validation | two input channels sharing a name are rejected instead of silently hiding one |
+
+A test whose input is meant to be *rejected* has no solution block, so `run.sh`
+pins the `Fail("…")` payload instead — never the OCaml backtrace, which carries
+file and line numbers and would churn on every edit.
 
 ## What they catch
 
@@ -56,6 +64,13 @@ Both `intchoice_left*` tests fail against the previous ⊕L rule, which bound ea
 branch continuation to a *fresh* channel while still emitting `case c' of ...`.
 The branch bodies then referenced a channel that was never introduced, and
 sessint rejected the result with `NoSuchChannelInContext: _c1`.
+
+`rec_inline_goal` and `unbound_recvar_goal` do not parse at all before
+`sessynth_tyS` gained a production for a recursion variable *occurrence* — it
+had one for the `rec x.` binder but none for the `x` referring back to it.
+`unbound_recvar_declr` fails differently: it parses, but without Ψ being
+validated the goal `? bad ?` is just a `TDeclr`, the offending type is never
+looked at, and the search reports `No valid expression for the provided type`.
 
 `hole_named_inputs` cannot even be expressed against the previous grammar:
 `sessynth_tyS_list` named every input `"_"`, so a hole could carry at most one

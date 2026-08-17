@@ -1,0 +1,1 @@
+Fail("channel q is bound more than once in the goal's input channels")

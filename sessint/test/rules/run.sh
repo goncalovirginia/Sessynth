@@ -28,6 +28,10 @@ TESTS=(
     "fwd_type_mismatch:25"
     "fwd_leftover_channel:25"
     "hole_named_inputs:20"
+    "rec_inline_goal:25"
+    "unbound_recvar_goal:15"
+    "unbound_recvar_declr:15"
+    "duplicate_input_names:15"
 )
 
 DIR=sessint/test/rules
@@ -39,12 +43,21 @@ for entry in "${TESTS[@]}"; do
     name="${entry%%:*}"
     fuel="${entry##*:}"
 
+    raw=$(timeout 60 \
+             dune exec ./sessint/bin/main.exe "$DIR/$name.sessint" true false "$fuel" \
+             </dev/null 2>&1)
+
     # keep only the numbered solution block; drop the interactive tail
-    actual=$(timeout 60 \
-                dune exec ./sessint/bin/main.exe "$DIR/$name.sessint" true false "$fuel" \
-                </dev/null 2>&1 \
+    actual=$(printf '%s\n' "$raw" \
              | sed -n '/^[0-9]*:$/,$p' \
              | sed '/^Select solution: *$/,$d')
+
+    # a test whose input is meant to be rejected produces no solution block, so
+    # pin the reason instead. Only the Fail payload, never the OCaml backtrace,
+    # which carries file and line numbers and would churn on every edit.
+    if [ -z "$actual" ]; then
+        actual=$(printf '%s\n' "$raw" | grep -o 'Fail("[^"]*")' | head -1)
+    fi
 
     if [ "$BLESS" = "1" ]; then
         printf '%s\n' "$actual" > "$DIR/$name.expected"
