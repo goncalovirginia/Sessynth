@@ -32,6 +32,9 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `arrow_left_3args` | →L | the spine is not limited to arity 2, and stays left-associated |
 | `arrow_left_mixed` | →L | arguments land in the right *slots*: `pick : int -> bool -> int` must yield `((pick) r) true`, never the reverse |
 | `arrow_right_lambda` | →R, →L | one lambda per arrow, each bound variable enters Ψ, and →L can then focus on it |
+| `psi_scope_lambda` | →R, →L | a binding introduced while synthesizing one argument is *not* in scope for the next one |
+| `psi_scope_tensor` | ⊗R, ⊃R | the same across the two halves of `S1 ⊗ S2`: what the sub-process receives is not in scope for the continuation |
+| `psi_scope_letrec` | →R (recursive) | and again when the lambda is the recursive one, whose self-binding also enters Ψ |
 | `intchoice_left` | ⊕L | every label is covered, and each branch continues on the *same* channel the `case` scrutinizes |
 | `intchoice_left_branches` | ⊕L | that channel carries each branch's own continuation type: `a: int^@` receives before waiting, `b: @` waits straight away |
 | `fwd_recursive` | fwd | `fwd t c` is allowed when `t` and the goal are the same protocol at different unfolding budgets (`𝜇¹` against `𝜇⁰`) |
@@ -79,6 +82,47 @@ had one for the `rec x.` binder but none for the `x` referring back to it.
 `unbound_recvar_declr` fails differently: it parses, but without Ψ being
 validated the goal `? bad ?` is just a `TDeclr`, the offending type is never
 looked at, and the search reports `No valid expression for the provided type`.
+
+`psi_scope_lambda` is the only test where a synthesized *argument* introduces a
+binding, which is what it takes to see Ψ leaking out of a subderivation — the
+`arrow_left_*` tests all use `int` arguments, which bind nothing. Without
+`Contexts.restore_scope` it gains three solutions, each ending in a bare `_x0`
+that only the preceding lambda binds:
+
+```
+((apply) _x0 -> _x0) _x0
+((apply) _x0 -> r) _x0
+((apply) _x0 -> 1) _x0
+```
+
+sessint rejects all three (`NoSuchArg`), so they were never programs — they only
+consumed fuel and solution slots, and had one of them come out first, auto mode
+would have failed the whole compile.
+
+`psi_scope_tensor` covers the other route to the same leak, the one that runs
+through a sibling *subderivation* rather than a sibling argument. Without the fix
+it gains
+
+```
+send _c0 (_c1 <- _x0 <- recv _c1; close _c1);
+send _c0 _x0;
+close _c0
+```
+
+where `_x0` is bound inside the process offered on `_c1` and referenced from the
+continuation on `_c0`. Its golden ends in `NoSuchChannelInContext: _c1`, which is
+not this rule's doing: `SessynthAdapter.expP_to_proc` drops the sub-process of a
+`SendS`, so the channel it offers on is never bound. That is planned task 8, and
+this golden will change when it lands.
+
+`psi_scope_letrec` exists because the two above both take the plain `TArrow`
+branch of `invert_right_F`: their lambdas return a base type. Only an argument
+whose type is a *recursive process generator* reaches the branch that emits
+`LetRec` and puts the self-binding in Ψ alongside the parameter, so only this
+test fails when that branch's `restore_scope` is the one removed. Its program
+does not survive `Compiler.compile_type`, which is why `run.sh` drops OCaml
+backtraces: a test can synthesize correctly and still trip the Go compiler
+downstream, and that is not what these goldens pin.
 
 `hole_named_inputs` cannot even be expressed against the previous grammar:
 `sessynth_tyS_list` named every input `"_"`, so a hole could carry at most one

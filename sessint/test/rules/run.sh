@@ -22,6 +22,9 @@ TESTS=(
     "arrow_left_3args:16"
     "arrow_left_mixed:12"
     "arrow_right_lambda:12"
+    "psi_scope_lambda:16"
+    "psi_scope_tensor:20"
+    "psi_scope_letrec:25"
     "intchoice_left:20"
     "intchoice_left_branches:20"
     "fwd_recursive:25"
@@ -48,10 +51,14 @@ for entry in "${TESTS[@]}"; do
              dune exec ./sessint/bin/main.exe "$DIR/$name.sessint" true false "$fuel" auto \
              </dev/null 2>&1)
 
-    # keep only the numbered solution block; drop the interactive tail
+    # keep only the numbered solution block; drop the interactive tail, and any
+    # OCaml backtrace, which carries file and line numbers and would churn on
+    # every edit. A test can synthesize fine and still trip the Go compiler
+    # downstream, and that is not what these goldens are about.
     actual=$(printf '%s\n' "$raw" \
              | sed -n '/^[0-9]*:$/,$p' \
-             | sed '/^Select solution: *$/,$d')
+             | sed '/^Select solution: *$/,$d' \
+             | sed '/^Uncaught exception:/,$d')
 
     # a test whose input is meant to be rejected produces no solution block, so
     # pin the reason instead. Only the Fail payload, never the OCaml backtrace,

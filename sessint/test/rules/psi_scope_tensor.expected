@@ -1,0 +1,10 @@
+0:
+_c0 <- {
+  send _c0 (_c1 <- _x0 <- recv _c1;
+close _c1
+);
+  send _c0 1;
+  close _c0
+}
+
+NoSuchChannelInContext: _c1

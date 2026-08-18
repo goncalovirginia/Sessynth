@@ -33,6 +33,14 @@ let append_bindings_gamma ctxts bindings = { ctxts with g = bindings @ ctxts.g }
 let append_bindings_psi ctxts bindings = { ctxts with p = bindings @ ctxts.p }
 let append_bindings_delta ctxts bindings = { ctxts with d = bindings @ ctxts.d }
 
+(* handing a context back *)
+
+(** The contexts a rule returns: [outer] is what it was given, [inner] is what its
+    subderivation produced. Δ is linear, so what it left unconsumed carries on;
+    Γ, Ψ and the constructors are inputs, and the bindings a rule adds to them
+    belong to its own subterm, not to whatever the caller synthesizes next. *)
+let restore_scope outer inner = { outer with d = inner.d }
+
 (* selecting bindings *)
 
 (* returns [Some (b, ctxt')], where [b] is the first binding of [ctxt] satisfying
@@ -104,7 +112,9 @@ let bindingsS_equiv l1 l2 =
    though any of them would do, since they differ at most in the order of Δ.
    An empty list yields [None]: there is no branch context to carry forward, so
    the caller has nothing to continue with even though the condition is
-   vacuously true. *)
+   vacuously true. 
+   Only the returned Δ is meaningful, so the caller should pass the return value
+   through {!restore_scope} when used like other subderivations. *)
 let deltas_are_equal ctxtsl =
     match ctxtsl with
     | [] -> None

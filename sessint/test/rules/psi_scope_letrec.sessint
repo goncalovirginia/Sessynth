@@ -1,0 +1,8 @@
+stype Stream rec x. int ^ x;
+apply : (int -> {Stream}) -> int -> int
+fun g y -> y end;
+r : int
+? int #6 ?;
+;;
+m <- { close m }
+;;

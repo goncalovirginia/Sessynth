@@ -1,0 +1,7 @@
+apply : (int -> int) -> int -> int
+fun g y -> y end;
+r : int
+? int #12 ?;
+;;
+m <- { close m }
+;;

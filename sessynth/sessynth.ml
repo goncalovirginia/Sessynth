@@ -148,10 +148,10 @@ let rec invert_right_F f ctxts goal =
                 f, ctxts2
             in
             let* (f, ctxts', e) = invert_right_F f ctxts2 t2 in
-            Choice.return (f, ctxts', LetRec(f.xRecLam, goal, Lam(x, t1, e)))
-        | _ -> 
+            Choice.return (f, restore_scope ctxts ctxts', LetRec(f.xRecLam, goal, Lam(x, t1, e)))
+        | _ ->
             let* (f, ctxts', e) = invert_right_F f ctxts1 t2 in
-            Choice.return (f, ctxts', Lam(x, t1, e))
+            Choice.return (f, restore_scope ctxts ctxts', Lam(x, t1, e))
         end
     | TProcess(incsl, outs) ->
             let f =
@@ -191,7 +191,7 @@ and invert_right_S f ctxts c goal =
         let f, x1 = fresh_id f in
         let ctxts1 = append_bindings_psi ctxts [(x1, t1)] in
         let* (f, ctxts', e) = invert_right_S f ctxts1 c t2 in
-        Choice.return (f, ctxts', RecvF(x1, t1, c, e))
+        Choice.return (f, restore_scope ctxts ctxts', RecvF(x1, t1, c, e))
     | STRecvS(t1, t2) ->
         let f, c1 = fresh_chan f in
         let ctxts1 = append_bindings_delta ctxts [(c1, t1)] in
@@ -200,21 +200,21 @@ and invert_right_S f ctxts c goal =
         let* () = Choice.guard c1_consumed in
         Choice.return (f, ctxts', RecvS(c1, t1, c, e))
     | STExtChoice(labelsesslist) ->
-        let synth_branch (f, prev_ctxts) (l, s) =
+        let synth_branch (f, prev_delta) (l, s) =
             let* (f, ctxts', eP) = invert_right_S f ctxts c s in
             let agrees_with_previous =
-                match prev_ctxts with
+                match prev_delta with
                 | None -> true
-                | Some prev -> Option.is_some (deltas_are_equal [prev; ctxts'])
+                | Some prev -> bindingsS_equiv prev ctxts'.d
             in
             let* () = Choice.guard agrees_with_previous in
-            Choice.return ((f, Some ctxts'), (l, (ctxts', eP)))
+            Choice.return ((f, Some ctxts'.d), (l, (ctxts', eP)))
         in
         let* ((f, _), branches) = ChoiceUtils.map_list_state (f, None) synth_branch labelsesslist in
         let ctxtsl = List.map (fun (_, (ctxts', _)) -> ctxts') branches in
         let* ctxts' = ChoiceUtils.of_option (deltas_are_equal ctxtsl) in
         let labelproclist = List.map (fun (l, (_, e)) -> (l, e)) branches in
-        Choice.return (f, ctxts', Choice(c, labelproclist))
+        Choice.return (f, restore_scope ctxts ctxts', Choice(c, labelproclist))
     | STRec(k, x, t) ->
         if k <= 0 then
             let* (f, ctxts, eWander) = wander f ctxts c goal in
@@ -251,6 +251,7 @@ and invert_left_F f ctxts goal =
     debugF f ctxts goal goal "invertLeftF";
     match extract_first_async is_tyF_left_async ctxts.p with
     | Some ((x, t), p') ->
+        let ctxts_in = ctxts in
         let ctxts = { ctxts with p = p' } in
         begin match t with
         | TConstructor(x, args) ->
@@ -280,7 +281,7 @@ and invert_left_F f ctxts goal =
             let ctxtsl = List.map (fun (_, ctxts', _, _, _) -> ctxts') branches in
             let* ctxts' = ChoiceUtils.of_option (deltas_are_equal ctxtsl) in
             let branches = List.map (fun (_, _, x_c, x_args, e_branch) -> (x_c, x_args, e_branch)) branches in
-            Choice.return (f, ctxts', Match(Var(x), branches))
+            Choice.return (f, restore_scope ctxts_in ctxts', Match(Var(x), branches))
         | _ -> Choice.fail
         end
     | None -> focus_decide_F f ctxts goal
@@ -299,7 +300,7 @@ and invert_left_S f ctxts c goal =
             let* (f, ctxts', e) = invert_left_S f ctxts2 c goal in
             let c'_consumed = List.assoc_opt c' ctxts'.d = None in
             let* () = Choice.guard c'_consumed in
-            Choice.return (f, ctxts', RecvF(x, t1, c', e))
+            Choice.return (f, restore_scope ctxts ctxts', RecvF(x, t1, c', e))
         | STSendS(t1, t2) ->
             let f, c1 = fresh_chan f in
             let ctxts1 = append_bindings_delta ctxts [(c1, t1); (c', t2)] in
@@ -324,7 +325,7 @@ and invert_left_S f ctxts c goal =
             let ctxtsl = List.map (fun (_, (ctxts', _)) -> ctxts') branches in
             let* ctxts' = ChoiceUtils.of_option (deltas_are_equal ctxtsl) in
             let labelproclist = List.map (fun (l, (_, e)) -> (l, e)) branches in
-            Choice.return (f, ctxts', Choice(c', labelproclist))
+            Choice.return (f, restore_scope ctxts ctxts', Choice(c', labelproclist))
         | _ -> Choice.fail
         end
     | None -> focus_decide_S f ctxts c goal
