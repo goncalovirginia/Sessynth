@@ -97,23 +97,28 @@ let contains_substring s1 s2 =
     try ignore (Str.search_forward re s1 0); true
     with Not_found -> false
 
-let filter_ext_choice_solutions_by_substr substr solutions =
-  List.filter (fun (_, (_, _, e)) -> contains_substring (expP_to_string e 0) substr) solutions
+let print_solutions expl =
+    List.iteri (fun i e -> print_endline (string_of_int i ^ ":"); print_endline (expF_to_string e 0)) expl
 
-let rec interactive_ext_choice_filter_solutions solutions =
+(** Returns [None] at end of input, so a prompt can fall back on a default instead of
+   raising End_of_file out of the middle of synthesis *)
+let read_line_opt () = try Some (read_line ()) with End_of_file -> None
+
+(** Narrows a solution list by substring, repeatedly, until the user is happy with what is left. *)
+let rec interactive_filter_solutions expl =
     print_string "Enter a filter string (or nothing to keep all): ";
-    let filter = read_line () in
-    if filter = "" then solutions
-    else
-        let filtered_solutions = filter_ext_choice_solutions_by_substr filter solutions in
-        if filtered_solutions = [] then begin
+    match read_line_opt () with
+    | None | Some "" -> expl
+    | Some filter ->
+        let filtered = List.filter (fun e -> contains_substring (expF_to_string e 0) filter) expl in
+        if List.is_empty filtered then begin
             print_endline "No solutions matched that filter.";
-            interactive_ext_choice_filter_solutions solutions 
+            interactive_filter_solutions expl
         end
         else begin
-            print_endline ("Filtered down to " ^ string_of_int (List.length filtered_solutions) ^ " solutions:");
-            List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e 0)) filtered_solutions;
-            interactive_ext_choice_filter_solutions filtered_solutions
+            print_endline ("Filtered down to " ^ string_of_int (List.length filtered) ^ " solutions:");
+            print_solutions filtered;
+            interactive_filter_solutions filtered
         end
 
 (* inversion and focusing *)
@@ -195,21 +200,21 @@ and invert_right_S f ctxts c goal =
         let* () = Choice.guard c1_consumed in
         Choice.return (f, ctxts', RecvS(c1, t1, c, e))
     | STExtChoice(labelsesslist) ->
-        (*let synth_branch = fun (l, s) ->
-            let* (f', ctxts', eP) = invertRightS f ctxts c s in
-            Choice.return (l, (f', ctxts', eP))
+        let synth_branch (f, prev_ctxts) (l, s) =
+            let* (f, ctxts', eP) = invert_right_S f ctxts c s in
+            let agrees_with_previous =
+                match prev_ctxts with
+                | None -> true
+                | Some prev -> Option.is_some (deltas_are_equal [prev; ctxts'])
+            in
+            let* () = Choice.guard agrees_with_previous in
+            Choice.return ((f, Some ctxts'), (l, (ctxts', eP)))
         in
-        let* branches = ChoiceUtils.map_list synth_branch labelsesslist in
-        let ctxtsl = List.map (fun (_, (_, ctxts', _)) -> ctxts') branches in
-        let ctxts' = List.hd ctxtsl in
-        let ctxts_equal = List.for_all (fun ctxtsn -> ctxtsn.d = ctxts'.d) (List.tl ctxtsl) in
-        let* () = Choice.guard ctxts_equal in
-        let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
-        Choice.return (f, ctxts', Choice(c, labelproclist))*)
-        let branches = synth_interactive_ext_choice f ctxts c goal labelsesslist in
-        let labelproclist = List.map (fun (l, (_, _, e)) -> (l, e)) branches in
-        let* (_, (f', ctxts', _)) = ChoiceUtils.of_option (List.nth_opt branches 0) in
-        Choice.return (f', ctxts', Choice(c, labelproclist))
+        let* ((f, _), branches) = ChoiceUtils.map_list_state (f, None) synth_branch labelsesslist in
+        let ctxtsl = List.map (fun (_, (ctxts', _)) -> ctxts') branches in
+        let* ctxts' = ChoiceUtils.of_option (deltas_are_equal ctxtsl) in
+        let labelproclist = List.map (fun (l, (_, e)) -> (l, e)) branches in
+        Choice.return (f, ctxts', Choice(c, labelproclist))
     | STRec(k, x, t) ->
         if k <= 0 then
             let* (f, ctxts, eWander) = wander f ctxts c goal in
@@ -534,51 +539,31 @@ and synth_fwd f ctxts cToFwd c goal =
     let* () = Choice.guard (delta_is_empty ctxts') in
     Choice.return (f, ctxts', Fwd(cToFwd, c, goal))
 
-and synth_interactive_ext_choice f ctxts c goal labelsesslist =
-    let synth_branch = fun (l, s) ->
-        let* (f', ctxts', eP) = invert_right_S f ctxts c s in
-        Choice.return (l, (f', ctxts', eP))
-    in
-    (* loop over each (label, session) branch in order *)
-    let rec iter_labels prev_ctxts_opt picked_solutions labelsesslist =
-        match labelsesslist with
-        | [] -> List.rev picked_solutions (* all branches handled *)
-        | (label, s)::rest ->
-            (* synthesize all expressions for the current label *)
-            let solutions = synth_branch (label, s) |> Choice.run_all
-            in
-            (* if we already picked a previous branch, enforce context equality *)
-            let compatible_solutions = 
-                match prev_ctxts_opt with
-                | None -> solutions
-                | Some resulting_ctxts ->
-                    List.filter (fun (_, (_, ctxts', _)) -> Option.is_some (deltas_are_equal [resulting_ctxts; ctxts'])) solutions
-            in
-            if List.is_empty compatible_solutions then raise (Fail ("No compatible solutions for label: " ^ label))
-            else
-                (* print solutions for this branch *)
-                print_endline ("\nLabel: " ^ label ^ "\n");
-                List.iteri (fun i (_, (_, _, e)) -> Printf.printf "%d:\n%s\n" i (expP_to_string e 0)) compatible_solutions;
-                (* filter solutions *)
-                let filtered_solutions = interactive_ext_choice_filter_solutions compatible_solutions in
-                (* let user pick a solution *)
-                let rec pick () =
-                    print_string "Select solution: ";
-                    match read_int_opt () with
-                    | Some i when i >= 0 && i < List.length filtered_solutions -> List.nth filtered_solutions i
-                    | _ -> print_endline "Invalid choice.\n"; pick ()
-                in
-                let (l, (f', ctxts', e)) = pick () in
-                (* continue to next branch with the current context as reference *)
-                iter_labels (Some ctxts') ((l, (f', ctxts', e))::picked_solutions) rest
-        in
-        iter_labels None [] labelsesslist
-
 (* entry point *)
 
 let default_max_fuel = 100
 let max_fuel = ref default_max_fuel
 let set_max_fuel n = if n > 0 then max_fuel := n
+
+(** How the caller wants to be involved in choosing between solutions.
+    [Auto] takes the first one the search produces and never touches stdin, which
+    is what a script or a test harness needs; [Interactive] prints them all and
+    lets the user narrow and pick.
+
+    Either way the choice happens *after* the search, over whole programs. It
+    used to happen inside the external choice rule, one label at a time, which
+    committed the search to a combination of branch bodies it could never
+    backtrack into. *)
+type synth_mode = Auto | Interactive
+
+let mode = ref Interactive
+let set_mode m = mode := m
+
+let mode_of_string s =
+    match String.lowercase_ascii s with
+    | "auto" -> Some Auto
+    | "interactive" -> Some Interactive
+    | _ -> None
 
 let synth n_sol p d goal =
     let printDebug =
@@ -615,16 +600,25 @@ let synth n_sol p d goal =
     let solutions = Choice.run_n n_sol solutions_choice |> List.rev in
     if List.is_empty solutions then raise (Fail "No valid expression for the provided type") else
     let expl = List.map (fun (_, _, e) -> e) solutions in
-    let i = ref 0 in
     print_newline ();
-    List.iter (fun e -> print_endline (string_of_int !i ^ ":"); print_endline (expF_to_string e 0); incr i) expl;
-    if List.length expl = 1 then List.hd expl
-    else let rec choose_exp() =
-            print_string "Select solution: "; 
-            let chosen_exp = read_int() in
-            if chosen_exp < 0 || chosen_exp >= List.length expl then choose_exp()
-            else List.nth expl chosen_exp
-        in choose_exp()
+    print_solutions expl;
+    match !mode with
+    | Auto -> List.hd expl
+    | Interactive ->
+        if List.length expl = 1 then List.hd expl
+        else
+            let expl = interactive_filter_solutions expl in
+            let rec choose_exp () =
+                print_string "Select solution: ";
+                match read_line_opt () with
+                (* end of input is not a bad answer, it means nobody is there to
+                   give one, so fall back rather than looping on the prompt *)
+                | None -> print_endline "\nno input, taking solution 0"; List.hd expl
+                | Some line ->
+                    match int_of_string_opt (String.trim line) with
+                    | Some i when i >= 0 && i < List.length expl -> List.nth expl i
+                    | _ -> print_endline "Invalid choice.\n"; choose_exp ()
+            in choose_exp ()
 
 (* Examples and stuff *)
 

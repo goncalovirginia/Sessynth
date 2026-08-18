@@ -15,8 +15,9 @@ Two things keep these tests usable:
   arguments *before* checking whether its return type can match the goal, so a
   focus that is doomed to fail still explores its whole argument space first.
   A small budget keeps that bounded and the output deterministic.
-- **No external choice.** A session type containing `&{...}` sends the
-  synthesizer into `synth_interactive_ext_choice`, which prompts on stdin.
+- **Each test runs in auto mode** (the optional 5th argument), so the
+  synthesizer takes the first solution instead of prompting. Interactive mode is
+  the default when running by hand.
 
 Note that the declaration being synthesized is in scope for its own hole
 (`check_decl` adds it to the environment before checking the body), which is
@@ -41,10 +42,17 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `unbound_recvar_goal` | goal validation | a recursion variable with no enclosing `rec` is named in the error, not left to surface as "no valid expression" |
 | `unbound_recvar_declr` | goal validation | the same holds when the goal is `? name ?`, where the offending type is reached through Ψ rather than written in the hole |
 | `duplicate_input_names` | goal validation | two input channels sharing a name are rejected instead of silently hiding one |
+| `extchoice_right` | &R | every label is offered, and each branch drives the input channel with the matching label |
 
 A test whose input is meant to be *rejected* has no solution block, so `run.sh`
 pins the `Fail("…")` payload instead — never the OCaml backtrace, which carries
 file and line numbers and would churn on every edit.
+
+`extchoice_right` could not have existed before external choice became a plain
+monadic rule. `&{…}` used to route into `synth_interactive_ext_choice`, which
+enumerated each label with `Choice.run_all` and prompted on stdin, so any test
+touching it hung or produced a truncated per-label listing rather than a
+program.
 
 ## What they catch
 
@@ -85,9 +93,10 @@ The `fwd_*` tests cover the two guards `synth_fwd` gained, but not equally:
   `fwd t _c0` forwarding a `bool` stream onto an `int` stream goal.
 - all three fail if the guard is weakened from `tyS_equiv` to `=`, since the
   channel and the goal almost always sit at different unfolding budgets.
-- none of them notice if the `delta_is_empty` guard is dropped. That is expected:
-  `synth` already requires an empty Δ of a finished solution, so a leaked channel
-  cannot reach the output by that route. The guard earns its place elsewhere — it
-  removed five leaking solutions from `intqueue.sessint`, all of the shape
-  `_c1 <- spawn IntQueue; ...; fwd _c2 _c0`, which survive the top-level check
-  only because external-choice branch merging keeps just branch 0's contexts.
+- none of them notice if the `delta_is_empty` guard is dropped, and neither does
+  anything else: dropping it leaves `intqueue.sessint` at exactly 286 complete
+  programs. `synth` already requires an empty Δ of a finished solution, so that
+  guard is early pruning and nothing more. (An earlier note here claimed it
+  removed five leaking `spawn`-and-forward solutions from `intqueue`. That was
+  measured against the old interactive external choice, where the printed
+  "solutions" were per-label branch candidates rather than programs.)

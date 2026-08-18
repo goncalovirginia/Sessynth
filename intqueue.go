@@ -54,62 +54,98 @@ func (x *_state_0) Recv() string  { return (<-x.c).(string) }
   //Declaration list compilation
 func elem(_x0 int) func (_x *_state_0, t *_state_0) {
  return func (_c0 *_state_0, t *_state_0){
-for {
- label := _c0.Recv()
+label := _c0.Recv()
 switch label {
 case "deq" :
 _c00 := _c0.ls["deq"].(*_state_2)
+t.Send("deq")
+t0 := t.ls["deq"].(*_state_2)
+label := t0.Recv()
+switch label {
+case "some":
+t1 := t0.ls["some"].(*_state_4)
+_x2, t2 := t1.Recv()
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
-_c02 := _c01.Send(_x0)
+_c02 := _c01.Send(_x2)
 // FWD _c0 t Start
 for {
-t_c02 := _c02.Recv()
-t.Send(t_c02)
-switch t_c02 {
+t2_c02 := _c02.Recv()
+t2.Send(t2_c02)
+switch t2_c02 {
 case "enq":
-t0 := t.ls["enq"].(*_state_1)
+t3 := t2.ls["enq"].(*_state_1)
 _c03 := _c02.ls["enq"].(*_state_1)
-t0_c03, _c03_t0 := _c03.Recv()
-_c02 = _c03_t0
-t = t0.Send(t0_c03)
+t3_c03, _c03_t3 := _c03.Recv()
+_c02 = _c03_t3
+t2 = t3.Send(t3_c03)
 case "deq":
-t0 := t.ls["deq"].(*_state_2)
+t3 := t2.ls["deq"].(*_state_2)
 _c03 := _c02.ls["deq"].(*_state_2)
-_c03t0 := t0.Recv()
-_c03.Send(_c03t0)
-switch _c03t0 {
+_c03t3 := t3.Recv()
+_c03.Send(_c03t3)
+switch _c03t3 {
 case "none":
-t1 := t0.ls["none"].(*_state_3)
+t4 := t3.ls["none"].(*_state_3)
 _c04 := _c03.ls["none"].(*_state_3)
-t1.Recv()
+t4.Recv()
 _c04.Send(nil)
 return
 case "some":
-t1 := t0.ls["some"].(*_state_4)
+t4 := t3.ls["some"].(*_state_4)
 _c04 := _c03.ls["some"].(*_state_4)
-_c04t1, _c04_t1 := t1.Recv()
-t = _c04_t1
-_c02 = _c04.Send(_c04t1)
+_c04t4, _c04_t4 := t4.Recv()
+t2 = _c04_t4
+_c02 = _c04.Send(_c04t4)
 }
 }
 }
 // FWD _c0 t End
+case "none":
+t1 := t0.ls["none"].(*_state_3)
+t1.Recv()
+_c00.Send("none")
+_c01 := _c00.ls["none"].(*_state_3)
+_c01.Send(nil)
+}
 case "enq" :
 _c00 := _c0.ls["enq"].(*_state_1)
-_x1, _c01 := _c00.Recv()
-t.Send("enq")
+_, _c01 := _c00.Recv()
+// FWD _c0 t Start
+for {
+t_c01 := _c01.Recv()
+t.Send(t_c01)
+switch t_c01 {
+case "enq":
 t0 := t.ls["enq"].(*_state_1)
-t1 := t0.Send(_x1)
-//Update arguments
-_x0 = _x0
-//Update channels
-_c0 = _c01
-t = t1
- }
+_c02 := _c01.ls["enq"].(*_state_1)
+t0_c02, _c02_t0 := _c02.Recv()
+_c01 = _c02_t0
+t = t0.Send(t0_c02)
+case "deq":
+t0 := t.ls["deq"].(*_state_2)
+_c02 := _c01.ls["deq"].(*_state_2)
+_c02t0 := t0.Recv()
+_c02.Send(_c02t0)
+switch _c02t0 {
+case "none":
+t1 := t0.ls["none"].(*_state_3)
+_c03 := _c02.ls["none"].(*_state_3)
+t1.Recv()
+_c03.Send(nil)
+return
+case "some":
+t1 := t0.ls["some"].(*_state_4)
+_c03 := _c02.ls["some"].(*_state_4)
+_c03t1, _c03_t1 := t1.Recv()
+t = _c03_t1
+_c01 = _c03.Send(_c03t1)
 }
 }
 }
+// FWD _c0 t End
+}
+}}
 //Main compilation
 func main () {
     m:= init_state_3(make (chan interface{}))

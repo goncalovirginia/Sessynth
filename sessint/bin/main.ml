@@ -59,6 +59,11 @@ let () =
     (match int_of_string_opt Sys.argv.(4) with
      | Some n -> Sessynth.set_max_fuel n
      | None -> prerr_endline ("ignoring non-numeric fuel budget: " ^ Sys.argv.(4)));
+  (* optional 5th argument: "auto" to take the first solution without prompting, "interactive" (the default) to print them all and pick *)
+  if Array.length Sys.argv > 5 then
+    (match Sessynth.mode_of_string Sys.argv.(5) with
+     | Some m -> Sessynth.set_mode m
+     | None -> prerr_endline ("ignoring unknown synthesis mode: " ^ Sys.argv.(5)));
   if !compile_times then (
     Sys.argv.(1) <- "time";
     Sys.argv.(2) <- "samples";

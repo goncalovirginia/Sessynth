@@ -7,8 +7,8 @@
 # Each test pins the synthesis fuel budget (the optional 4th argument to
 # main.exe) so that the search space is small, fast and deterministic; the
 # default budget of 100 makes most of these intractable.
-# Tests deliberately avoid session types with external choice, since those make
-# the synthesizer prompt for input.
+# Tests run in auto mode (the 5th argument), so the synthesizer takes the first
+# solution rather than prompting; external choice is fine to use.
 
 set -u
 cd "$(dirname "$0")/../../.." || exit 1
@@ -32,6 +32,7 @@ TESTS=(
     "unbound_recvar_goal:15"
     "unbound_recvar_declr:15"
     "duplicate_input_names:15"
+    "extchoice_right:30"
 )
 
 DIR=sessint/test/rules
@@ -44,7 +45,7 @@ for entry in "${TESTS[@]}"; do
     fuel="${entry##*:}"
 
     raw=$(timeout 60 \
-             dune exec ./sessint/bin/main.exe "$DIR/$name.sessint" true false "$fuel" \
+             dune exec ./sessint/bin/main.exe "$DIR/$name.sessint" true false "$fuel" auto \
              </dev/null 2>&1)
 
     # keep only the numbered solution block; drop the interactive tail

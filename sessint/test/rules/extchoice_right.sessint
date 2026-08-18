@@ -1,0 +1,6 @@
+stype Echo rec x. &{ask: int ^ x, bye: @};
+echo : {Echo <- t: Echo}
+? echo #3 ?;
+;;
+m <- { close m }
+;;
