@@ -32,6 +32,7 @@ TESTS=(
     "fwd_leftover_channel:25"
     "hole_named_inputs:20"
     "process_ambient_capture:30"
+    "stype_not_spawnable:14"
     "rec_inline_goal:25"
     "unbound_recvar_goal:15"
     "unbound_recvar_declr:15"
@@ -62,10 +63,9 @@ for entry in "${TESTS[@]}"; do
              | sed '/^Uncaught exception:/,$d')
 
     # a test whose input is meant to be rejected produces no solution block, so
-    # pin the reason instead. Only the Fail payload, never the OCaml backtrace,
-    # which carries file and line numbers and would churn on every edit.
+    # pin the message the user actually sees instead
     if [ -z "$actual" ]; then
-        actual=$(printf '%s\n' "$raw" | grep -o 'Fail("[^"]*")' | head -1)
+        actual=$(printf '%s\n' "$raw" | grep '^Synthesis error: ' | head -1)
     fi
 
     if [ "$BLESS" = "1" ]; then

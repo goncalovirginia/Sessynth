@@ -1,1 +1,1 @@
-Fail("recursion variable y in the type of bad is not bound by any enclosing rec")
+Synthesis error: recursion variable y in the type of bad is not bound by any enclosing rec

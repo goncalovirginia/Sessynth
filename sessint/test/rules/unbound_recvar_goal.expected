@@ -1,1 +1,1 @@
-Fail("recursion variable x in the goal is not bound by any enclosing rec")
+Synthesis error: recursion variable x in the goal is not bound by any enclosing rec

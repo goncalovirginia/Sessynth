@@ -3,9 +3,13 @@ open Sessynth
 
 (* sessint -> sessynth *)
 
+(* Everything sessynth can build but sessint cannot represent is thrown here *)
+let unsupported what =
+    raise (Sessynth.Fail ("cannot translate " ^ what ^ " between sessint and the synthesizer"))
+
 let rec ty_to_tyF ty =
     match ty with
-    | TUnit -> assert false
+    | TUnit -> unsupported "the unit type"
     | TNum -> Language.TAtomic(TInt)
     | TBool -> Language.TAtomic(TBool)
     | TProc(st, l) -> Language.TProcess(List.map(fun (c, s) -> (c, stype_to_tyS s)) l, stype_to_tyS st)
@@ -24,7 +28,7 @@ and stype_to_tyS sty =
   | STRec(v, st) -> Language.STRec(1, v, stype_to_tyS st)
   | STVar(x) -> Language.STRecVar(x)
   | STUVar(x) -> Language.STDeclr(x)
-  | STMultiSend _ | STMultiRecv _ -> assert false 
+  | STMultiSend _ | STMultiRecv _ -> unsupported "a multisend or multireceive session type"
 
 (* sessynth -> sessint *)
 
@@ -44,13 +48,13 @@ let sessynth_bop_to_bop op =
     | Language.Sub -> Sub
     | Language.Mult -> Mul
     | Language.Div -> Div
-    | _ -> assert false
+    | Language.GrE | Language.LtE -> unsupported "a >= or <= operator, which expF_to_exp expands before reaching here"
 
 let tyA_to_ty tyA =
     match tyA with
     | Language.TInt -> TNum
     | Language.TBool -> TBool
-    | Language.TPolyVar _ -> assert false
+    | Language.TPolyVar a -> unsupported ("the type variable " ^ a ^ ", since sessint is not polymorphic")
 
 let rec tyF_to_ty tyF =
     match tyF with
@@ -59,8 +63,8 @@ let rec tyF_to_ty tyF =
     | Language.TArrow(tF1, tF2) -> TFun(tyF_to_ty tF1, tyF_to_ty  tF2)
     | Language.TProcess(incsl, outs) -> TProc(tyS_to_stype outs, List.map(fun (c, s) -> (c, tyS_to_stype s)) incsl)
     | Language.TDeclr(x) -> TVar(x)
-    | Language.TForAll _ -> assert false
-    | Language.TConstructor _ -> assert false
+    | Language.TForAll _ -> unsupported "a polymorphic type scheme"
+    | Language.TConstructor(x, _) -> unsupported ("the ADT " ^ x)
 
 and tyS_to_stype tyS =
     match tyS with
@@ -75,42 +79,137 @@ and tyS_to_stype tyS =
     | Language.STRecVar t -> STVar(t)
     | Language.STDeclr x -> STUVar(x)
 
-let rec expF_to_exp expF =
-    match expF with
-    | Language.Int v -> Num v
-    | Language.Bool v -> Bool v
-    | Language.UOp(op, e) -> UOp(sessynth_uop_to_uop op, expF_to_exp e)
-    | Language.BOp(Language.GrE, e1, e2) -> BOp(Or, BOp(Greater, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
-    | Language.BOp(Language.LtE, e1, e2) -> BOp(Or, BOp(Lesser, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
-    | Language.BOp(op, e1, e2) -> BOp(sessynth_bop_to_bop op, expF_to_exp e1, expF_to_exp e2)
-    | Language.Var x -> Var x
-    | Language.Let(x, e1, e2) -> Let(x, expF_to_exp e1, expF_to_exp e2)
-    | Language.Lam(x, t, e) -> FunDef(x, Some (tyF_to_ty t), expF_to_exp e, None)
-    | Language.App(e1, e2) -> FunApp(expF_to_exp e1, expF_to_exp e2)
-    | Language.Ite(e1, e2, e3) -> Cond(expF_to_exp e1, expF_to_exp e2, expF_to_exp e3)
-    | Language.Process(c, eP, tS, csl) -> ProcExp(c, expP_to_proc eP, Some (tyS_to_stype tS), List.map(fun (c, s) -> (c, tyS_to_stype s)) csl)
-    | Language.LetRec(_, _, e) -> expF_to_exp e
-    | Language.Constructor _ -> assert false
-    | Language.Match _ -> assert false
+let union l1 l2 = l1 @ List.filter (fun x -> not (List.mem x l1)) l2
+let without x l = List.filter (fun y -> y <> x) l
 
-and expP_to_proc expP =
-    match expP with
-    | Language.SendF(c, eF, eP) -> Send(c, expF_to_exp eF, None, expP_to_proc eP)
-    | Language.RecvF(x, tF, c, eP) -> Recv(x, c, Some (tyF_to_ty tF), expP_to_proc eP)
-    | Language.SendS(c1, c2, _, eP2) -> SendChan(c1, c2, None, expP_to_proc eP2)
-    | Language.RecvS(c1, tS, c2, eP) -> RecvChan(c1, c2, Some (tyS_to_stype tS), expP_to_proc eP)
-    | Language.Close c -> Close c
-    | Language.Wait(c, eP) -> Wait(c, expP_to_proc eP)
-    | Language.Fwd(c1, c2, tS) -> Fwd(Some (tyS_to_stype tS), c2, c1)
-    | Language.Choice(c, labelproclist) -> Choice(c, List.map(fun (l, p) -> (l, (expP_to_proc p, None))) labelproclist)
-    | Language.ChoiceSelect(c, l, eP) -> Label(c, l, expP_to_proc eP, None)
-    | Language.Spawn(c, eF, cl, eP) -> Spawn(c, expF_to_exp eF, None, expP_to_proc eP, cl)
-    | Language.Hole(c, _) -> raise (Sessynth.Fail ("unfilled synthesis placeholder on channel " ^ c))
+(** The channels [p] uses without binding them itself.
+
+    Only the names are wanted: sessint's [Spawn] takes its context as a list of
+    channel names and splits the caller's linear context by them (see
+    [split_ctxt_for_spawn]), so the types come from there.
+
+    Functional subterms are skipped. The only one that can mention a channel is
+    a [Process], and its body sees exactly the inputs its own type declares, so
+    it captures nothing from around it. *)
+let rec free_channels_expP p =
+    match p with
+    | Language.Close c | Language.Hole(c, _) -> [c]
+    | Language.Fwd(c1, c2, _) -> union [c1] [c2]
+    | Language.Wait(c, p') | Language.ChoiceSelect(c, _, p')
+    | Language.SendF(c, _, p') | Language.RecvF(_, _, c, p') ->
+        union [c] (free_channels_expP p')
+    | Language.SendS(c1, c2, p1, p2) ->
+        union (union [c1] (without c2 (free_channels_expP p1))) (free_channels_expP p2)
+    | Language.RecvS(c1, _, c2, p') -> union [c2] (without c1 (free_channels_expP p'))
+    | Language.Choice(c, labelproclist) ->
+        List.fold_left (fun acc (_, p') -> union acc (free_channels_expP p')) [c] labelproclist
+    | Language.Spawn(c, _, cl, p') -> union cl (without c (free_channels_expP p'))
+
+(** Whether [x] is named anywhere in [e]. Binders are not tracked because the
+    only caller asks about a name the synthesizer made fresh, which nothing else
+    rebinds, so a plain occurrence check is exact for it. *)
+let rec mentions_expF x e =
+    match e with
+    | Language.Var y -> x = y
+    | Language.Int _ | Language.Bool _ -> false
+    | Language.UOp(_, e1) | Language.Lam(_, _, e1) | Language.LetRec(_, _, e1) -> mentions_expF x e1
+    | Language.BOp(_, e1, e2) | Language.Let(_, e1, e2) | Language.App(e1, e2) ->
+        mentions_expF x e1 || mentions_expF x e2
+    | Language.Ite(e1, e2, e3) ->
+        mentions_expF x e1 || mentions_expF x e2 || mentions_expF x e3
+    | Language.Process(_, p, _, _) -> mentions_expP x p
+    | Language.Constructor(_, el) -> List.exists (mentions_expF x) el
+    | Language.Match(e1, branches) ->
+        mentions_expF x e1 || List.exists (fun (_, _, e2) -> mentions_expF x e2) branches
+
+and mentions_expP x p =
+    match p with
+    | Language.Close _ | Language.Fwd _ | Language.Hole _ -> false
+    | Language.RecvF(_, _, _, p') | Language.RecvS(_, _, _, p')
+    | Language.Wait(_, p') | Language.ChoiceSelect(_, _, p') -> mentions_expP x p'
+    | Language.SendF(_, e, p') -> mentions_expF x e || mentions_expP x p'
+    | Language.SendS(_, _, p1, p2) -> mentions_expP x p1 || mentions_expP x p2
+    | Language.Spawn(_, e, _, p') -> mentions_expF x e || mentions_expP x p'
+    | Language.Choice(_, labelproclist) ->
+        List.exists (fun (_, p') -> mentions_expP x p') labelproclist
+
+(** Conversion of a synthesized term into sessint, closed over the names
+    sessint already has in scope. Only the [LetRec] case consults them, and it
+    is the whole reason they are carried down. *)
+let expF_to_exp declared =
+    let rec expF_to_exp expF =
+        match expF with
+        | Language.Int v -> Num v
+        | Language.Bool v -> Bool v
+        | Language.UOp(op, e) -> UOp(sessynth_uop_to_uop op, expF_to_exp e)
+        | Language.BOp(Language.GrE, e1, e2) -> BOp(Or, BOp(Greater, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
+        | Language.BOp(Language.LtE, e1, e2) -> BOp(Or, BOp(Lesser, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
+        | Language.BOp(op, e1, e2) -> BOp(sessynth_bop_to_bop op, expF_to_exp e1, expF_to_exp e2)
+        | Language.Var x -> Var x
+        | Language.Let(x, e1, e2) -> Let(x, expF_to_exp e1, expF_to_exp e2)
+        | Language.Lam(x, t, e) -> FunDef(x, Some (tyF_to_ty t), expF_to_exp e, None)
+        | Language.App(e1, e2) -> FunApp(expF_to_exp e1, expF_to_exp e2)
+        | Language.Ite(e1, e2, e3) -> Cond(expF_to_exp e1, expF_to_exp e2, expF_to_exp e3)
+        | Language.Process(c, eP, tS, csl) -> ProcExp(c, expP_to_proc eP, Some (tyS_to_stype tS), List.map(fun (c, s) -> (c, tyS_to_stype s)) csl)
+        | Language.LetRec(x, _, e) ->
+            (* sessint has no local recursive binding: a recursive function is a
+               top-level declaration, in scope for its own body, and RecFunDef is
+               only introduced by the preprocessor long after typechecking. When [x]
+               names one of those declarations, the binder is redundant and drops
+               away, which is the usual case; when the synthesizer invented the name
+               the term needs something sessint cannot express, and saying so beats
+               emitting a body whose recursive call refers to nothing. *)
+            if mentions_expF x e && not (List.mem x declared) then
+                raise (Sessynth.Fail ("synthesized a local recursive function " ^ x
+                                      ^ ", which sessint cannot express: only top-level declarations may be recursive"))
+            else expF_to_exp e
+        | Language.Constructor(x, _) -> unsupported ("the constructor " ^ x)
+        | Language.Match _ -> unsupported "a match expression"
+
+    and expP_to_proc expP =
+        match expP with
+        | Language.SendF(c, eF, eP) -> Send(c, expF_to_exp eF, None, expP_to_proc eP)
+        | Language.RecvF(x, tF, c, eP) -> Recv(x, c, Some (tyF_to_ty tF), expP_to_proc eP)
+        | Language.SendS(c1, c2, eP1, eP2) ->
+            (* sessint's SendChan only forwards a channel that is already in the
+               linear context, whereas ⊗R bundles the offer with the send: [eP1] is
+               the process that provides [c2]. The pair desugars into a spawn and
+               then the send, naming the channels [eP1] consumes as the spawn's
+               context. The annotations are left [None] and the spawned process's
+               own context [[]] because the typechecker fills both in: it types the
+               body against the context the spawn hands it. *)
+            let args = without c2 (free_channels_expP eP1) in
+            let offered = ProcExp(c2, expP_to_proc eP1, None, []) in
+            Spawn(c2, offered, None, SendChan(c1, c2, None, expP_to_proc eP2), args)
+        | Language.RecvS(c1, tS, c2, eP) -> RecvChan(c1, c2, Some (tyS_to_stype tS), expP_to_proc eP)
+        | Language.Close c -> Close c
+        | Language.Wait(c, eP) -> Wait(c, expP_to_proc eP)
+        | Language.Fwd(c1, c2, tS) -> Fwd(Some (tyS_to_stype tS), c2, c1)
+        | Language.Choice(c, labelproclist) -> Choice(c, List.map(fun (l, p) -> (l, (expP_to_proc p, None))) labelproclist)
+        | Language.ChoiceSelect(c, l, eP) -> Label(c, l, expP_to_proc eP, None)
+        | Language.Spawn(c, eF, cl, eP) -> Spawn(c, expF_to_exp eF, None, expP_to_proc eP, cl)
+        | Language.Hole(c, _) -> raise (Sessynth.Fail ("unfilled synthesis placeholder on channel " ^ c))
+    in
+    expF_to_exp
 
 (* adapter synth function *)
 
+(** Whether [x] names a term rather than a declared type.
+
+    sessint's grammar spells the difference: an expression declaration is a
+    lowercase VAR, a session type an uppercase S_VAR, a type alias an
+    underscore-leading T_VAR. A session type is recorded as a term binding
+    [V : {S}] anyway (see the STYPE rule in parser.mly), purely so the name
+    resolves later — but in Ψ it reads as a process the search can spawn, and it
+    duly offers something like [spawn Stream], which is not a term at all. 
+    Aliases stay: [TDeclr] is resolved against Ψ, so a goal written [? _foo ?] 
+    needs its binding. *)
+let names_a_term x =
+    String.length x > 0 && x.[0] <> Char.uppercase_ascii x.[0]
+
 let synth nSolutions p d goal =
+    let p = List.filter (fun (x, _) -> names_a_term x) p in
     let p_sessynth = List.map(fun (x, t) -> (x, ty_to_tyF t)) p in
     let d_sessynth = List.map(fun (x, st) -> (x, stype_to_tyS st)) d in
     let synthed_expF = Sessynth.synth nSolutions p_sessynth d_sessynth goal in
-    expF_to_exp synthed_expF
+    expF_to_exp (List.map fst p) synthed_expF

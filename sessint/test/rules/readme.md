@@ -42,6 +42,7 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `fwd_leftover_channel` | fwd | with two input channels, both are consumed before forwarding |
 | `hole_named_inputs` | goal syntax | a hole can take more than one input channel, and each is reachable under its own name |
 | `process_ambient_capture` | process right inversion | a synthesized process value uses only the channels its own type declares, never one the caller happened to be holding |
+| `stype_not_spawnable` | adapter | a session-type declaration is not offered to the search as a process it can spawn |
 | `rec_inline_goal` | goal syntax | a recursive session type can be written directly in a hole, binder and occurrence both |
 | `unbound_recvar_goal` | goal validation | a recursion variable with no enclosing `rec` is named in the error, not left to surface as "no valid expression" |
 | `unbound_recvar_declr` | goal validation | the same holds when the goal is `? name ?`, where the offending type is reached through Ψ rather than written in the hole |
@@ -49,8 +50,9 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `extchoice_right` | &R | every label is offered, and each branch drives the input channel with the matching label |
 
 A test whose input is meant to be *rejected* has no solution block, so `run.sh`
-pins the `Fail("…")` payload instead — never the OCaml backtrace, which carries
-file and line numbers and would churn on every edit.
+pins the `Synthesis error: …` line instead — the message a user actually sees,
+never an OCaml backtrace, which carries file and line numbers and would churn on
+every edit.
 
 `extchoice_right` could not have existed before external choice became a plain
 monadic rule. `&{…}` used to route into `synth_interactive_ext_choice`, which
@@ -111,10 +113,19 @@ close _c0
 ```
 
 where `_x0` is bound inside the process offered on `_c1` and referenced from the
-continuation on `_c0`. Its golden ends in `NoSuchChannelInContext: _c1`, which is
-not this rule's doing: `SessynthAdapter.expP_to_proc` drops the sub-process of a
-`SendS`, so the channel it offers on is never bound. That is planned task 8, and
-this golden will change when it lands.
+continuation on `_c0`. Its golden also pins the ⊗ half of the adapter: `SendChan`
+only forwards a channel already in the linear context, so `SendS` has to desugar
+into a spawn followed by the send. Reverting that desugaring fails this test with
+`NoSuchChannelInContext: _c1`, because the channel the sub-process offers on is
+then never bound.
+
+`stype_not_spawnable` covers the other adapter filter. `stype Stream …;` is
+recorded by the parser as a *term* binding `Stream : {Stream}` so that the name
+resolves later, and `check_program` puts every declaration into the environment
+the adapter hands to Ψ — where it reads as a spawnable process. Without the
+filter, solution 1 is `_c1 <- spawn Stream`, which is not a term at all. Type
+aliases are kept, since `TDeclr` is resolved against Ψ and a goal written
+`? _foo ?` needs its binding.
 
 `process_ambient_capture` needs `wrap : {Stream} -> {Stream}`, because a process
 value only picks up an ambient Δ when it is synthesized somewhere that already

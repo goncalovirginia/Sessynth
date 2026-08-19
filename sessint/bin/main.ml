@@ -21,7 +21,10 @@ let compile program_name prog multisend_struct =
      let prog = Syntax.Prog (decls, e) in
      Compiler.compile_prog prog single_channel multisend_struct !compile_times filename
    with   End_of_file -> ()
-   | Printer.TError ex -> print_endline @@ Printer.string_from_err ex)
+   | Printer.TError ex -> print_endline @@ Printer.string_from_err ex
+   (* a malformed hole or a term the adapter cannot translate is a user error,
+      not a crash, so it reads as one instead of as an OCaml traceback *)
+   | Sessynth.Fail msg -> print_endline ("Synthesis error: " ^ msg))
 
 let compile_with_optimizations program_name prog multisend_struct =
   let filename = getFileName program_name in
@@ -32,7 +35,10 @@ let compile_with_optimizations program_name prog multisend_struct =
      let prog = Preprocessor.optimize_representation (Prog (decls, e)) in
      Compiler.compile_prog prog single_channel multisend_struct !compile_times filename
    with   End_of_file -> ()
-   | Printer.TError ex -> print_endline @@ Printer.string_from_err ex)
+   | Printer.TError ex -> print_endline @@ Printer.string_from_err ex
+   (* a malformed hole or a term the adapter cannot translate is a user error,
+      not a crash, so it reads as one instead of as an OCaml traceback *)
+   | Sessynth.Fail msg -> print_endline ("Synthesis error: " ^ msg))
 
 
 let compute_compile_times prog_name prog use_struct =

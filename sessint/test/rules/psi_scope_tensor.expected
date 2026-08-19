@@ -6,5 +6,3 @@ close _c1
   send _c0 1;
   close _c0
 }
-
-NoSuchChannelInContext: _c1
