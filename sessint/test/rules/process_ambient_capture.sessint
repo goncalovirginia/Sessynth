@@ -1,0 +1,8 @@
+stype Stream rec x. int ^ x;
+wrap : {Stream} -> {Stream}
+fun s -> s end;
+p : {Stream <- t: Stream}
+? p #4 ?;
+;;
+m <- { close m }
+;;

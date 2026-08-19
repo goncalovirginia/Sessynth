@@ -160,13 +160,15 @@ let rec invert_right_F f ctxts goal =
                     | Some xRecFun -> { f with xRecLam = xRecFun }
                     | None -> f
             in
-            let* () = Choice.guard (find_first_duplicate_name (incsl @ ctxts.d) = None) in
-            let ctxts1 = append_bindings_delta ctxts incsl in
+            let* () = Choice.guard (find_first_duplicate_name incsl = None) in
+            (* Δ is swapped out rather than extended since a process type is a
+               functional value that is spawned later against the channels its own
+               declaration names, so the caller's channels are not the body's to consume. *)
+            let ctxts1 = { ctxts with d = incsl } in
             let f, c = fresh_chan f in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
-            let incsl_consumed = List.for_all (fun (c', _) -> List.assoc_opt c' ctxts'.d = None) incsl in
-            let* () = Choice.guard incsl_consumed in
-            Choice.return (f, ctxts', Process(c, e, outs, incsl))
+            let* () = Choice.guard (delta_is_empty ctxts') in
+            Choice.return (f, ctxts, Process(c, e, outs, incsl))
     | TDeclr(x) ->
         let* t = ChoiceUtils.of_option (List.assoc_opt x ctxts.p) in
         invert_right_F f ctxts t

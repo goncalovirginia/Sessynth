@@ -31,6 +31,7 @@ TESTS=(
     "fwd_type_mismatch:25"
     "fwd_leftover_channel:25"
     "hole_named_inputs:20"
+    "process_ambient_capture:30"
     "rec_inline_goal:25"
     "unbound_recvar_goal:15"
     "unbound_recvar_declr:15"

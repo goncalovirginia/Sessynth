@@ -41,6 +41,7 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `fwd_type_mismatch` | fwd | a `bool` stream is never forwarded onto an `int` stream goal; the only forwards are of channels obtained by spawning |
 | `fwd_leftover_channel` | fwd | with two input channels, both are consumed before forwarding |
 | `hole_named_inputs` | goal syntax | a hole can take more than one input channel, and each is reachable under its own name |
+| `process_ambient_capture` | process right inversion | a synthesized process value uses only the channels its own type declares, never one the caller happened to be holding |
 | `rec_inline_goal` | goal syntax | a recursive session type can be written directly in a hole, binder and occurrence both |
 | `unbound_recvar_goal` | goal validation | a recursion variable with no enclosing `rec` is named in the error, not left to surface as "no valid expression" |
 | `unbound_recvar_declr` | goal validation | the same holds when the goal is `? name ?`, where the offending type is reached through Ψ rather than written in the hole |
@@ -114,6 +115,22 @@ continuation on `_c0`. Its golden ends in `NoSuchChannelInContext: _c1`, which i
 not this rule's doing: `SessynthAdapter.expP_to_proc` drops the sub-process of a
 `SendS`, so the channel it offers on is never bound. That is planned task 8, and
 this golden will change when it lands.
+
+`process_ambient_capture` needs `wrap : {Stream} -> {Stream}`, because a process
+value only picks up an ambient Δ when it is synthesized somewhere that already
+holds channels — here, as the argument of a spawned function, inside a process
+that declares `t`. Without the swap, solution 2 is
+
+```
+_c1 <- spawn (wrap) _c2 <- {
+         send _c2 _x0;
+         fwd t _c2
+       };
+```
+
+where the inner process declares no inputs at all yet forwards `t`, which
+belongs to the enclosing one. sessint answers `NoSuchChannelInContext: t`. At
+fuel 30 that accounted for 186 of 200 solutions; with the swap, 0 of 34.
 
 `psi_scope_letrec` exists because the two above both take the plain `TArrow`
 branch of `invert_right_F`: their lambdas return a base type. Only an argument
