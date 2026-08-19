@@ -48,6 +48,13 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `unbound_recvar_declr` | goal validation | the same holds when the goal is `? name ?`, where the offending type is reached through Ψ rather than written in the hole |
 | `duplicate_input_names` | goal validation | two input channels sharing a name are rejected instead of silently hiding one |
 | `extchoice_right` | &R | every label is offered, and each branch drives the input channel with the matching label |
+| `refinement_arg_hypothesis` | refinement R | an argument's predicate is what may be *assumed* of it, not a second thing to prove |
+| `refinement_binder_substring` | refinement R | the goal's binder is substituted at its occurrences, so a longer name containing it is left alone |
+| `refinement_duplicate_binder` | refinement R | two refinements sharing a binder are rejected rather than naming one SyGuS symbol twice |
+
+The three `refinement_*` tests shell out to `cvc5`, so they need it on `PATH`.
+Without it the search sees an empty reply, the branch fails, and they report
+`No valid expression for the provided type`.
 
 A test whose input is meant to be *rejected* has no solution block, so `run.sh`
 pins the `Synthesis error: …` line instead — the message a user actually sees,
@@ -152,6 +159,41 @@ does not survive `Compiler.compile_type`, which is why `run.sh` drops OCaml
 backtraces: a test can synthesize correctly and still trip the Go compiler
 downstream, and that is not what these goldens pin.
 
+The `refinement_*` tests all pin the SyGuS problem the adapter builds, which
+nothing covered before. `refinement_arg_hypothesis` is the reason no refined
+*function* type could be synthesized at all: an argument's predicate was emitted
+as a constraint of its own, and since a `declare-var` is universally quantified,
+
+```
+(declare-var x Int)
+(constraint (> x 0))
+(constraint (> (y x) x))
+```
+
+claims that every integer is positive, so cvc5 answers `infeasible` for any goal
+with a refined argument. It is now an antecedent, `(constraint (=> (> x 0) (> (y
+x) x)))`, and the same goal synthesizes `x -> 1 + x`.
+
+`refinement_binder_substring` covers the substitution of the goal's binder for
+the application of the function being synthesized. That used to be a
+`Str.global_replace` over the *finished* constraint string, so with the binder
+`y` and a `yy` in scope, `(> y yy)` came out as
+
+```
+(constraint (> (y r yy) (y r yy)(y r yy)))
+```
+
+— three applications where one of them should still be a variable. Substituting
+at the `RTVar` occurrence instead cannot see inside a name.
+
+`refinement_duplicate_binder` is the one rejection of the three. `{x:int | x > 0}
+-> {x:int | x > 1}` names the function `x` and its parameter `x`, so the problem
+carries both `(synth-fun x ((x Int) …))` and `(declare-var x)`; cvc5 answers with
+nothing at all, which reaches the search as an unparseable reply and reads as
+"no valid expression". The check is over the binders down the goal's arrow spine
+together with the names already in Ψ, which is exactly the set that becomes SyGuS
+symbols.
+
 `hole_named_inputs` cannot even be expressed against the previous grammar:
 `sessynth_tyS_list` named every input `"_"`, so a hole could carry at most one
 usable input channel — with two, `List.assoc` and `consume_channel` both only
@@ -166,8 +208,8 @@ The `fwd_*` tests cover the two guards `synth_fwd` gained, but not equally:
 - all three fail if the guard is weakened from `tyS_equiv` to `=`, since the
   channel and the goal almost always sit at different unfolding budgets.
 - none of them notice if the `delta_is_empty` guard is dropped, and neither does
-  anything else: dropping it leaves `intqueue.sessint` at exactly 286 complete
-  programs. `synth` already requires an empty Δ of a finished solution, so that
+  anything else: dropping it leaves `intqueue.sessint`'s 516 solutions
+  byte-identical. `synth` already requires an empty Δ of a finished solution, so that
   guard is early pruning and nothing more. (An earlier note here claimed it
   removed five leaking `spawn`-and-forward solutions from `intqueue`. That was
   measured against the old interactive external choice, where the printed

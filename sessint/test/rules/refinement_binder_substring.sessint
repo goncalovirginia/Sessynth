@@ -1,0 +1,9 @@
+yy : int
+5;
+r : int
+? {y:int | y > yy} ?;
+;;
+m <- {
+    close m
+}
+;;

@@ -38,6 +38,9 @@ TESTS=(
     "unbound_recvar_declr:15"
     "duplicate_input_names:15"
     "extchoice_right:30"
+    "refinement_arg_hypothesis:6"
+    "refinement_binder_substring:6"
+    "refinement_duplicate_binder:6"
 )
 
 DIR=sessint/test/rules

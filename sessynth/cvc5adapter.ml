@@ -97,7 +97,13 @@ let parse_sygus_output output =
   	| [List defs] -> List.map parse_sexp defs
   	| _ -> raise (CVC5ParseError "Unexpected output format from CVC5")
 	
-let rec tyR_to_sexp_string tR =
+(** Renders [tR] as an s-expression. [render_var] decides how a variable
+    occurrence is printed, and defaults to its own name; the goal's binder stands
+    for an application of the function being synthesized, and substituting it
+    here rather than over the finished string is what keeps a binder from also
+    being replaced inside a longer name that happens to contain it. *)
+let tyR_to_sexp_string ?(render_var = fun x -> x) tR =
+  	let rec tyR_to_sexp_string tR =
   	match tR with
   	| RTBOp(And, a, b) -> Printf.sprintf "(and %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
   	| RTBOp(Or, a, b) -> Printf.sprintf "(or %s %s)" (tyR_to_sexp_string a) (tyR_to_sexp_string b)
@@ -117,12 +123,13 @@ let rec tyR_to_sexp_string tR =
 		else string_of_int n
   	| RTBool(true) -> "true"
   	| RTBool(false) -> "false"
-  	| RTVar(x) -> x
+  	| RTVar(x) -> render_var x
+  	in tyR_to_sexp_string tR
 
-let tyR_to_sygus_constraint tR =	
-	Printf.sprintf "(constraint %s)" (tyR_to_sexp_string tR)
-
-type parsed_TRefinement = { x : id; tA : id; constr : id }
+(** [constr] is the predicate itself rather than its rendering, so that the goal's
+   can still be substituted into before it is printed. [None] is a predicate that
+   constrains nothing, which needs neither a hypothesis nor a proof obligation *)
+type parsed_TRefinement = { x : id; tA : id; constr : tyR option }
 
 let tyA_to_sygus = function
 	| TInt -> "Int"
@@ -131,11 +138,11 @@ let tyA_to_sygus = function
 
 let parse_tyF x t =
 	match t with
-	| TAtomic(tA) -> Some { x = x; tA = tyA_to_sygus tA; constr = ""}
-	| TRefinement(x, tA, tR) -> 
-		begin match tR with 
-		| RTBool _ -> Some { x = x; tA = tyA_to_sygus tA; constr = ""}
-		| _ -> Some { x = x; tA = tyA_to_sygus tA; constr = tyR_to_sygus_constraint tR }
+	| TAtomic(tA) -> Some { x = x; tA = tyA_to_sygus tA; constr = None }
+	| TRefinement(x, tA, tR) ->
+		begin match tR with
+		| RTBool _ -> Some { x = x; tA = tyA_to_sygus tA; constr = None }
+		| _ -> Some { x = x; tA = tyA_to_sygus tA; constr = Some tR }
 		end
 	| _ -> None
 
@@ -146,10 +153,6 @@ let format_function_to_sygus ps_sygus goal_sygus =
 		| p::ps_sygus'' -> " " ^ p.x ^ append_args ps_sygus'' in
 	let formatted = "(" ^ goal_sygus.x ^ append_args ps_sygus in
 	formatted
-
-let replace_occurences s target replacement =
-	let re = Str.regexp_string target in
-	Str.global_replace re replacement s
 
 let get_TRefinement_tyR t =
 	match t with
@@ -177,14 +180,23 @@ let build_sygus_input ps goal =
 	| [] -> ""
 	| p::ps_sygus'' -> Printf.sprintf "(declare-var %s %s)\n" p.x p.tA ^ append_declare_vars ps_sygus'' in
 	let sygus_input = sygus_input ^ append_declare_vars ps_sygus in
-	let rec append_constraints ps_sygus' =
-	match ps_sygus' with
-	| [] -> ""
-	| p::ps_sygus'' -> (if p.constr = "" then "" else p.constr ^ "\n") ^ append_constraints ps_sygus'' in
-	let sygus_input = sygus_input ^ append_constraints ps_sygus in
+	(* the parameters' predicates are what may be assumed of the arguments, so
+	   they are antecedents of the goal's rather than constraints of their own:
+	   a declare-var is universally quantified, so asserting "a > 0" on its own
+	   claims that every integer is positive and leaves the problem infeasible *)
 	let formatted_function = format_function_to_sygus ps_sygus goal_sygus in
-	let formatted_goal_sygus_constr = replace_occurences goal_sygus.constr goal_sygus.x formatted_function in
-	let sygus_input = sygus_input ^ formatted_goal_sygus_constr ^ sygus_code4 in
+	let render_var x = if x = goal_sygus.x then formatted_function else x in
+	let goal_sygus_constr =
+		match goal_sygus.constr with
+		| None -> ""
+		| Some tR ->
+			let obligation =
+				List.fold_right
+					(fun tR1 acc -> Printf.sprintf "(=> %s %s)" (tyR_to_sexp_string tR1) acc)
+					(List.filter_map (fun p -> p.constr) ps_sygus)
+					(tyR_to_sexp_string ~render_var tR) in
+			Printf.sprintf "(constraint %s)\n" obligation in
+	let sygus_input = sygus_input ^ goal_sygus_constr ^ sygus_code4 in
 	sygus_input
 
 let build_sat_input ps tFocus goal =
@@ -205,17 +217,22 @@ let build_sat_input ps tFocus goal =
 	let sat_input = sat_input ^ "(check-sat)" in
 	sat_input
 
-let solve ps goal =
+(* the solver is called once per refinement goal reached, so its input and reply
+   are traced under the same flag as the rules themselves rather than always *)
+let debug printDebug s =
+	if printDebug then print_endline s
+
+let solve printDebug ps goal =
 	let sygus_input = build_sygus_input ps goal in
-	print_endline sygus_input;
+	debug printDebug sygus_input;
   	let sygus_output = call_sygus sygus_input in
-  	print_endline sygus_output;
+  	debug printDebug sygus_output;
 	List.hd (parse_sygus_output sygus_output)
 
 (* used only for refinement subtyping: inverts R1 => R2 into R1 ∧ ¬R2, if unsatisfiable, then the original predicate holds *)
-let sat ps tFocus goal =
+let sat printDebug ps tFocus goal =
 	let sat_input = build_sat_input ps tFocus goal in
-	print_endline sat_input;
+	debug printDebug sat_input;
 	let sat_output = call_sat sat_input in
 	match sat_output with
 	| "unsat" -> true 

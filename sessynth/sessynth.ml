@@ -175,7 +175,7 @@ let rec invert_right_F f ctxts goal =
     | TRefinement(x, t1, t2) ->
         (* an infeasible or unparseable SyGuS goal fails this branch rather than aborting the whole search *)
         let solution = 
-            try Some (Cvc5adapter.solve ctxts.p goal) 
+            try Some (Cvc5adapter.solve f.printDebug ctxts.p goal)
             with Cvc5adapter.CVC5Infeasible _ | Cvc5adapter.CVC5ParseError _ | Cvc5adapter.CVC5Error _ -> None
         in
         let* solution = ChoiceUtils.of_option solution in
@@ -424,7 +424,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
         if tyF_equiv tFocus goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TRefinement(x, tA, tR) ->
-        if tyF_equiv (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat ctxts.p tFocus goal)
+        if tyF_equiv (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat f.printDebug ctxts.p tFocus goal)
             then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TDeclr x ->
@@ -588,6 +588,15 @@ let synth n_sol p d goal =
     (match goal with
      | TProcess(incsl, _) -> reject_duplicates "the goal's input channels" incsl
      | _ -> ());
+    let binders = refinement_binders goal in
+    let clash =
+        match find_first_duplicate_name (List.map (fun x -> (x, ())) binders) with
+        | Some _ as dup -> dup
+        | None -> List.find_opt (fun x -> List.mem_assoc x p) binders
+    in
+    (match clash with
+     | Some x -> raise (Fail ("refinement variable " ^ x ^ " in the goal is bound more than once"))
+     | None -> ());
     reject_unbound_recvar "the goal" (unbound_recvar_tyF goal);
     List.iter (fun (x, t) -> reject_unbound_recvar ("the type of " ^ x) (unbound_recvar_tyF t)) p;
     List.iter (fun (c, s) -> reject_unbound_recvar ("the type of channel " ^ c) (unbound_recvar_tyS [] s)) d;

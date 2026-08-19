@@ -2,5 +2,5 @@ stype IntCStream rec x. &{next: int^x, stop: @};
 fib : int -> int -> {IntCStream}
 ? fib ?;
 ;;
-? {  } ?
+? {@} ?
 ;;

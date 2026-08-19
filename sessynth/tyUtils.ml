@@ -152,6 +152,19 @@ and unbound_recvar_tyF t =
             match acc with Some _ -> acc | None -> unbound_recvar_tyS [] t')
             None (outs :: List.map snd incsl)
 
+(** The refinement binders [t] introduces down its arrow spine, in order. These
+    are exactly the names the SyGuS encoding turns into symbols: each domain
+    binder becomes a parameter of the function being synthesized (the right
+    inversion of an arrow reuses it as the lambda's own parameter), and the
+    codomain's becomes that function's name. A domain that is not itself a
+    refinement contributes nothing, since its binder never reaches Ψ. *)
+let rec refinement_binders t =
+    match t with
+    | TRefinement(x, _, _) -> [x]
+    | TArrow(TRefinement(x, _, _), t2) -> x :: refinement_binders t2
+    | TArrow(_, t2) -> refinement_binders t2
+    | _ -> []
+
 (* equivalence *)
 
 (** Equivalence of session types.
