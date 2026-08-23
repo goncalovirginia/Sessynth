@@ -1,25 +1,24 @@
-(* Search state threaded through every rule: fresh-name supplies, the fuel
-   budget, and debug output settings. Independent of the types and contexts. *)
+(* Search state threaded through every rule: the fresh-name supplies and how deep
+   into a derivation they are. Independent of the types and contexts. *)
 
-open Language
+let default_max_depth = 100
+let max_depth = ref default_max_depth
+let set_max_depth n = if n > 0 then max_depth := n
+
+let print_debug = ref false
+let set_print_debug b = print_debug := b
 
 type fresh_indices = { id : int; func : int; chan : int; kind : int }
 
 type flags = {
-    xRecLam : id;
     freshIndices : fresh_indices;
-    usedFuel : int;
-    maxFuel : int;
-    printDebug : bool
+    depth : int
 }
 
-let initialize_flags maxFuel printDebug =
+let initialize_flags () =
     {
-        xRecLam = "";
         freshIndices = { id = 0; func = 0; chan = 0; kind = 0 };
-        usedFuel = -1;
-        maxFuel = maxFuel;
-        printDebug = printDebug
+        depth = -1
     }
 
 let fresh_id f =
@@ -42,7 +41,6 @@ let fresh_kind f =
     let f' = { f with freshIndices = { f.freshIndices with kind = curr_kind + 1 } } in
     f', ("_α" ^ string_of_int curr_kind)
 
-(* increments one unit of the search budget, failing the branch once it runs out *)
-let consume_fuel f =
-    if f.usedFuel < f.maxFuel then Choice.return { f with usedFuel = f.usedFuel + 1 }
+let increment_depth f =
+    if f.depth < !max_depth then Choice.return { f with depth = f.depth + 1 }
     else Choice.fail

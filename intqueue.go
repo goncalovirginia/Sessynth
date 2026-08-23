@@ -64,10 +64,10 @@ label := t0.Recv()
 switch label {
 case "some":
 t1 := t0.ls["some"].(*_state_4)
-_x2, t2 := t1.Recv()
+_x1, t2 := t1.Recv()
 _c00.Send("some")
 _c01 := _c00.ls["some"].(*_state_4)
-_c02 := _c01.Send(_x2)
+_c02 := _c01.Send(_x1)
 // FWD _c0 t Start
 for {
 t2_c02 := _c02.Recv()

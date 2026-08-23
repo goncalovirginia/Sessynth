@@ -19,6 +19,10 @@ module Let_syntax = Syntax
 
 open Let_syntax
 
+(* Branches of a choice or a match are alternatives of one derivation, not a
+   sequence: each is given the flags of the point they fork from, so the budget
+   bounds the depth of a branch rather than the total work across them, and the
+   fresh names a branch issues cannot reach its siblings. *)
 let rec map_list f xs =
     match xs with
     | [] -> Choice.return []
@@ -26,14 +30,6 @@ let rec map_list f xs =
         let* y = f x in
         let* ys = map_list f xs' in
         Choice.return (y :: ys)
-
-let rec map_list_state f g xs =
-    match xs with
-    | [] -> Choice.return (f, [])
-    | x :: xs' ->
-        let* (f', y) = g f x in
-        let* (f'', ys) = map_list_state f' g xs' in
-        Choice.return (f'', y :: ys)
 
 (* Bridges a partial operation into the search: [Some x] succeeds with [x],
    [None] fails the branch.

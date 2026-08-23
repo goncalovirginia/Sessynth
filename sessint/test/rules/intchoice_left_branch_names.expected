@@ -1,0 +1,12 @@
+0:
+_c0 <- {
+  case q of
+  a:
+    _x0 <- recv q;
+    wait q;
+    close _c0
+  b:
+    _x0 <- recv q;
+    wait q;
+    close _c0
+} <- [q:⊕{a:int ∧ 1, b:int ∧ 1}]

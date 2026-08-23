@@ -10,11 +10,10 @@ expected output pinned in a `.expected` golden file.
 
 Two things keep these tests usable:
 
-- **Each test pins the fuel budget as the optional 4th argument to `main.exe`.** The default budget of 100 makes most
-  of these intractable, because `focus_left_F` synthesizes a function's
-  arguments *before* checking whether its return type can match the goal, so a
-  focus that is doomed to fail still explores its whole argument space first.
-  A small budget keeps that bounded and the output deterministic.
+- **Each test pins the depth budget as the optional 4th argument to `main.exe`.**
+  The budget bounds how deep one branch of a derivation may go; the default of
+  100 leaves the search space large enough that most of these produce hundreds of
+  solutions, so a small budget keeps the output short and deterministic.
 - **Each test runs in auto mode** (the optional 5th argument), so the
   synthesizer takes the first solution instead of prompting. Interactive mode is
   the default when running by hand.
@@ -120,7 +119,7 @@ that only the preceding lambda binds:
 ```
 
 sessint rejects all three (`NoSuchArg`), so they were never programs — they only
-consumed fuel and solution slots, and had one of them come out first, auto mode
+consumed depth and solution slots, and had one of them come out first, auto mode
 would have failed the whole compile.
 
 `psi_scope_tensor` covers the other route to the same leak, the one that runs
@@ -162,7 +161,7 @@ _c1 <- spawn (wrap) _c2 <- {
 
 where the inner process declares no inputs at all yet forwards `t`, which
 belongs to the enclosing one. sessint answers `NoSuchChannelInContext: t`. At
-fuel 30 that accounted for 186 of 200 solutions; with the swap, 0 of 34.
+depth 30 that accounted for 186 of 200 solutions; with the swap, 0 of 34.
 
 `psi_scope_letrec` exists because the two above both take the plain `TArrow`
 branch of `invert_right_F`: their lambdas return a base type. Only an argument
@@ -223,7 +222,7 @@ synchronous, so focus is kept and the very next rule decomposes it;
 `gamma_input_channel` names a send, which is asynchronous, so the same rule falls
 through to `invert_left_S` — the ordinary release. That fall-through is why the
 rewrite into Δ is not optional: without it the released judgment reads the same
-name out of Δ again and loops back through decide until the fuel runs out, which
+name out of Δ again and loops back through decide until the depth runs out, which
 is what the "delta not rewritten" line below fails on.
 
 `gamma_fwd_declr` is the only one that reaches `tyS_equiv` with a name on one side

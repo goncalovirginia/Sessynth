@@ -4,7 +4,7 @@
 #   ./sessint/test/rules/run.sh           run every test and diff against its golden file
 #   ./sessint/test/rules/run.sh --bless   regenerate the golden files from current output
 #
-# Each test pins the synthesis fuel budget (the optional 4th argument to
+# Each test pins the synthesis depth budget (the optional 4th argument to
 # main.exe) so that the search space is small, fast and deterministic; the
 # default budget of 100 makes most of these intractable.
 # Tests run in auto mode (the 5th argument), so the synthesizer takes the first
@@ -16,7 +16,7 @@ cd "$(dirname "$0")/../../.." || exit 1
 BLESS=0
 [ "${1:-}" = "--bless" ] && BLESS=1
 
-# test name : fuel budget
+# test name : depth budget
 TESTS=(
     "arrow_left_2args:12"
     "arrow_left_3args:16"
@@ -28,6 +28,7 @@ TESTS=(
     "psi_scope_letrec:25"
     "intchoice_left:20"
     "intchoice_left_branches:20"
+    "intchoice_left_branch_names:14"
     "fwd_recursive:25"
     "fwd_type_mismatch:25"
     "fwd_leftover_channel:25"
@@ -39,6 +40,7 @@ TESTS=(
     "unbound_recvar_declr:15"
     "duplicate_input_names:15"
     "extchoice_right:30"
+    "extchoice_branch_depth:8"
     "gamma_goal_named:14"
     "gamma_goal_nested:20"
     "gamma_input_channel:8"
@@ -58,10 +60,10 @@ dune build 2>&1 | head -20
 
 for entry in "${TESTS[@]}"; do
     name="${entry%%:*}"
-    fuel="${entry##*:}"
+    depth="${entry##*:}"
 
     raw=$(timeout 60 \
-             dune exec ./sessint/bin/main.exe "$DIR/$name.sessint" true false "$fuel" auto \
+             dune exec ./sessint/bin/main.exe "$DIR/$name.sessint" true false "$depth" auto \
              </dev/null 2>&1)
 
     # keep only the numbered solution block; drop the interactive tail, and any
@@ -81,7 +83,7 @@ for entry in "${TESTS[@]}"; do
 
     if [ "$BLESS" = "1" ]; then
         printf '%s\n' "$actual" > "$DIR/$name.expected"
-        echo "blessed  $name (fuel $fuel)"
+        echo "blessed  $name (depth $depth)"
         continue
     fi
 
@@ -92,10 +94,10 @@ for entry in "${TESTS[@]}"; do
     fi
 
     if diff -q <(printf '%s\n' "$actual") "$DIR/$name.expected" >/dev/null; then
-        echo "pass     $name (fuel $fuel)"
+        echo "pass     $name (depth $depth)"
         pass=$((pass+1))
     else
-        echo "FAIL     $name (fuel $fuel)"
+        echo "FAIL     $name (depth $depth)"
         diff <(printf '%s\n' "$actual") "$DIR/$name.expected" | sed 's/^/         /'
         fail=$((fail+1))
     fi

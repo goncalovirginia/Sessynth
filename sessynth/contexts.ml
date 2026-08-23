@@ -18,10 +18,11 @@ type contexts = {
     p : bindingsF;      (* Ψ: functional bindings *)
     c : constructors;   (* ADT constructors *)
     d : bindingsS;      (* Δ: linear session-typed channel bindings *)
+    xRecLam : id;       (* the name Ψ binds the current enclosing recursive lambda to, "" outside one *)
 }
 
 let initialize_ctxts =
-    let ctxts : contexts = { g = []; p = []; c = []; d = [] } in
+    let ctxts : contexts = { g = []; p = []; c = []; d = []; xRecLam = "" } in
     ctxts
 
 (* extending a context *)
@@ -37,8 +38,8 @@ let append_bindings_delta ctxts bindings = { ctxts with d = bindings @ ctxts.d }
 
 (** The contexts a rule returns: [outer] is what it was given, [inner] is what its
     subderivation produced. Δ is linear, so what it left unconsumed carries on;
-    Γ, Ψ and the constructors are inputs, and the bindings a rule adds to them
-    belong to its own subterm, not to whatever the caller synthesizes next. *)
+    Γ, Ψ, the constructors and [xRecLam] are inputs, and what a rule adds to them
+    belongs to its own subterm, not to whatever the caller synthesizes next. *)
 let restore_scope outer inner = { outer with d = inner.d }
 
 (* selecting bindings *)

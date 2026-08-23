@@ -146,6 +146,7 @@ and unify_subst_tyS s t =
 
 let unify_subst_ctxts subst ctxts =
     {
+        ctxts with
         g = List.map (fun (x, st) -> (x, unify_subst_tyS subst st)) ctxts.g;
         p = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.p;
         c = List.map (fun (x, t) -> (x, unify_subst_tyF subst t)) ctxts.c;

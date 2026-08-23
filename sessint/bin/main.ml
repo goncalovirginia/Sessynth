@@ -60,11 +60,11 @@ let () =
   let prog = Parser.main Lexer.token lexbuf in
   let use_struct = bool_of_string Sys.argv.(2) in
   compile_times := bool_of_string Sys.argv.(3);
-  (* optional 4th argument: synthesis fuel budget (defaults to 100) *)
+  (* optional 4th argument: synthesis depth budget (defaults to 100) *)
   if Array.length Sys.argv > 4 then
     (match int_of_string_opt Sys.argv.(4) with
-     | Some n -> Sessynth.set_max_fuel n
-     | None -> prerr_endline ("ignoring non-numeric fuel budget: " ^ Sys.argv.(4)));
+     | Some n -> Sessynth.set_max_depth n
+     | None -> prerr_endline ("ignoring non-numeric depth budget: " ^ Sys.argv.(4)));
   (* optional 5th argument: "auto" to take the first solution without prompting, "interactive" (the default) to print them all and pick *)
   if Array.length Sys.argv > 5 then
     (match Sessynth.mode_of_string Sys.argv.(5) with

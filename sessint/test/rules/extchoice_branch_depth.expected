@@ -1,0 +1,20 @@
+0:
+_c0 <- {
+  case _c0 of
+  l1:
+    send _c0 1;
+    send _c0 1;
+    close _c0
+  l2:
+    send _c0 1;
+    send _c0 1;
+    close _c0
+  l3:
+    send _c0 1;
+    send _c0 1;
+    close _c0
+  l4:
+    send _c0 1;
+    send _c0 1;
+    close _c0
+}
