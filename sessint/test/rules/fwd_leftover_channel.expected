@@ -20,7 +20,7 @@ _c0 <- {
 _c0 <- {
   _x0 <- recv u;
   _x1 <- recv t;
-  send _c0 _x1;
+  send _c0 _x0;
   _c1 <- spawn two [t; u];
   fwd _c1 _c0
 } <- [u:𝜇1 x. int ∧ x, t:𝜇1 x. int ∧ x]
@@ -29,7 +29,7 @@ _c0 <- {
 _c0 <- {
   _x0 <- recv u;
   _x1 <- recv t;
-  send _c0 _x1;
+  send _c0 _x0;
   _c1 <- spawn two [u; t];
   fwd _c1 _c0
 } <- [u:𝜇1 x. int ∧ x, t:𝜇1 x. int ∧ x]

@@ -18,5 +18,6 @@ _c0 <- {
   _x0 <- recv t;
   send _c0 _x0;
   _c1 <- spawn p [t];
-  fwd _c1 _c0
+  _c2 <- spawn p [_c1];
+  fwd _c2 _c0
 } <- [t:𝜇1 x. int ∧ x]

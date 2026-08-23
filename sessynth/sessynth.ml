@@ -86,16 +86,6 @@ let get_Spawn_c e =
     | Spawn(c, _, _, _) -> Some c
     | _ -> None
 
-let filter_duplicates expl =
-    let rec filter_duplicates' seen rest =
-        match rest with
-        | [] -> List.rev seen
-        | e::rest' -> 
-            if List.exists (fun e' -> e = e') seen then filter_duplicates' seen rest'
-            else filter_duplicates' (e :: seen) rest'
-    in 
-    filter_duplicates' [] expl
-
 let contains_substring s1 s2 =
     let re = Str.regexp_string s2 in
     try ignore (Str.search_forward re s1 0); true
@@ -571,6 +561,7 @@ let synth n_sol g p d goal =
         (match Sys.getenv_opt "SESSYNTH_DEBUG" with
          | Some ("1" | "true" | "TRUE" | "yes" | "YES") -> true
          | _ -> false);
+    if n_sol < 1 then raise (Fail ("a hole must ask for at least one solution, not " ^ string_of_int n_sol));
     let reject_duplicates where bindings =
         match find_first_duplicate_name bindings with
         | Some x -> raise (Fail ("channel " ^ x ^ " is bound more than once in " ^ where))
@@ -604,14 +595,13 @@ let synth n_sol g p d goal =
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
     let solutions_choice =
-        let* (f', ctxts', expF') = invert_right_F f ctxts goal in
+        let* (_, ctxts', expF') = invert_right_F f ctxts goal in
         let* () = Choice.guard (delta_is_empty ctxts') in
         let* () = Choice.guard (not (has_hole_expF expF')) in
-        Choice.return (f', ctxts', expF')
+        Choice.return expF'
     in
-    let solutions = Choice.run_n n_sol solutions_choice |> List.rev in
-    if List.is_empty solutions then raise (Fail "No valid expression for the provided type") else
-    let expl = List.map (fun (_, _, e) -> e) solutions in
+    let expl = ChoiceUtils.run_n_distinct n_sol solutions_choice in
+    if List.is_empty expl then raise (Fail "No valid expression for the provided type") else
     print_newline ();
     print_solutions expl;
     match !mode with

@@ -35,7 +35,8 @@ _c0 <- {
     _x0 <- recv t;
     send _c0 _x0;
     _c1 <- spawn echo [t];
-    fwd _c1 _c0
+    _c2 <- spawn echo [_c1];
+    fwd _c2 _c0
   bye:
     t.bye;
     wait t;

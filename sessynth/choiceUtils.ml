@@ -31,6 +31,23 @@ let rec map_list f xs =
         let* ys = map_list f xs' in
         Choice.return (y :: ys)
 
+(** The first [n] distinct results of [c], compared structurally. More than one
+    derivation can reach the same result, so filtering a truncated list after the
+    fact would have spent slots on repeats; [Choice.iter] stops as soon as its
+    callback says to, so [c] is only forced as far as [n] distinct results.
+    Structural comparison means the results must be plain data. *)
+let run_n_distinct n c =
+    let seen = Hashtbl.create 100 and acc = ref [] and found = ref 0 in
+    Choice.iter c (fun x ->
+        if Hashtbl.mem seen x then true
+        else begin
+            Hashtbl.add seen x ();
+            acc := x :: !acc;
+            incr found;
+            !found < n
+        end);
+    List.rev !acc
+
 (* Bridges a partial operation into the search: [Some x] succeeds with [x],
    [None] fails the branch.
 
