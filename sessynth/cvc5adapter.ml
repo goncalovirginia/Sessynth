@@ -82,7 +82,7 @@ let rec parse_sexp sexp =
   	| List [Atom "*"; a; b] -> BOp(Mult, parse_sexp a, parse_sexp b)
   	| List [Atom "div"; a; b] -> BOp(Div, parse_sexp a, parse_sexp b)
   	| List [Atom "ite"; c; t; e] -> Ite(parse_sexp c, parse_sexp t, parse_sexp e)
-  	| List [Atom "define-fun"; Atom name; List params; Atom _rtype; body] -> parse_sexp body
+  	| List [Atom "define-fun"; Atom _name; List _params; Atom _rtype; body] -> parse_sexp body
   	| _ -> raise (CVC5ParseError ("Unsupported expression: " ^ Sexp.to_string_hum sexp))
 
 let contains_substring s sub =

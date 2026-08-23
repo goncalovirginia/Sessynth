@@ -43,7 +43,7 @@ let debugS f ctxts goal tFocus curr_fun =
             print_endline (indent ^ "tFocus: " ^ tyS_to_string tFocus)
 
 let get_keys kvl =
-    List.map (fun (k, v) -> k) kvl
+    List.map (fun (k, _) -> k) kvl
 
 (** Substitutes every [Hole] in [exp] with [cont_exp]. *)
 let rec subst_continuation_exp exp cont_exp =
@@ -129,8 +129,7 @@ let rec invert_right_F f ctxts goal =
             | _ -> fresh_id f in 
         let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
         begin match get_return_type t2 with
-        | TProcess(_, outs) when is_STRec (resolve_declr ctxts.g outs)
-                                 && not (List.mem_assoc ctxts.xRecLam ctxts.p) ->
+        | TProcess(_, outs) when is_STRec (resolve_declr ctxts.g outs) && not (List.mem_assoc ctxts.xRecLam ctxts.p) ->
             let f, ctxts2 =
             match find_binding_for_tyF ctxts goal with
             | Some xRecFun ->
@@ -165,7 +164,7 @@ let rec invert_right_F f ctxts goal =
     | TDeclr(x) ->
         let* t = ChoiceUtils.of_option (List.assoc_opt x ctxts.p) in
         invert_right_F f ctxts t
-    | TRefinement(x, t1, t2) ->
+    | TRefinement _ ->
         (* an infeasible or unparseable SyGuS goal fails this branch rather than aborting the whole search *)
         let solution = 
             try Some (Cvc5adapter.solve !print_debug ctxts.p goal)
@@ -173,7 +172,7 @@ let rec invert_right_F f ctxts goal =
         in
         let* solution = ChoiceUtils.of_option solution in
         Choice.return (f, ctxts, solution)
-    | TForAll(xkl, t) ->
+    | TForAll _ ->
         let f, t' = instantiate_tyF f goal in
         invert_right_F f ctxts t'
     | TAtomic _ | TConstructor _ -> invert_left_F f ctxts goal
@@ -241,7 +240,7 @@ and invert_left_F f ctxts goal =
         let ctxts_in = ctxts in
         let ctxts = { ctxts with p = p' } in
         begin match t with
-        | TConstructor(x, args) ->
+        | TConstructor _ ->
             let synth_constructor_branch (x_c, tF) =
                 (* instantiate the scheme and match its result against the scrutinee *)
                 let* (f, ctxts', args', subst) = ChoiceUtils.of_option (instantiate_constructor f ctxts tF t) in
@@ -351,7 +350,7 @@ and focus_right_F f ctxts goal =
             focus_right_F f ctxts' goal'
         in
         ChoiceUtils.map_mplus_list map_unify ground_atomic_types
-    | TConstructor(x, args) ->
+    | TConstructor _ ->
         let synth_constructor_select (x_c, tF) = 
             (* instantiate the scheme and match its result against the goal *)
             let* (f, ctxts', args', _) = ChoiceUtils.of_option (instantiate_constructor f ctxts tF goal) in
@@ -410,7 +409,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
     | TProcess _ | TAtomic _ ->
         if tyF_equiv ctxts.g tFocus goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
-    | TRefinement(x, tA, tR) ->
+    | TRefinement(_, tA, _) ->
         if tyF_equiv ctxts.g (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat !print_debug ctxts.p tFocus goal)
             then Choice.return (f, ctxts, eFocus)
         else Choice.fail
@@ -422,7 +421,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
         in
         if tyF_equiv ctxts.g tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
-    | TForAll(xkl, t) ->
+    | TForAll _ ->
         (* as in focus_right_F: catch around the eager part only *)
         let instantiated =
             try
@@ -491,7 +490,7 @@ and wander_spawn f ctxts c goal =
     focus_left_TProcess f ctxts c goal None
 
 and wander_unfold f ctxts c goal =
-    let recsessl = List.filter (fun (_, t) -> is_STRec t) (get_sync_bindings is_tyS_left_async ctxts.d) in
+    let recsessl = List.filter (fun (_, t) -> is_STRec (resolve_declr ctxts.g t)) (get_sync_bindings is_tyS_left_async ctxts.d) in
     let synth_unfolds (c', t') = focus_left_S f ctxts c' t' c goal in
     ChoiceUtils.map_mplus_list synth_unfolds recsessl
 

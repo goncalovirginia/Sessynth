@@ -10,7 +10,7 @@ exception Fail of string
 
 let rec get_return_type t =
     match t with
-    | TArrow(t1, t2) -> get_return_type t2
+    | TArrow(_, t2) -> get_return_type t2
     | _ -> t
 
 (** Whether left focus on [tFocus] could still end at [goal]. Only a decidable
@@ -32,7 +32,7 @@ let rec flatten_TArrow t =
 
 let get_TProcess_insl t =
     match t with
-    | TProcess(csl, _) -> Some (List.map (fun (c, s) -> s) csl)
+    | TProcess(csl, _) -> Some (List.map (fun (_, s) -> s) csl)
     | _ -> None
 
 let get_TProcess_outs t =

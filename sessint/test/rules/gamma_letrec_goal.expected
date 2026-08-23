@@ -1,0 +1,8 @@
+0:
+let rec _f0 = _x0 -> _c0 <- {
+  send _c0 _x0;
+  _c1 <- spawn (_f0) _x0;
+  fwd _c1 _c0
+}
+
+Synthesis error: synthesized a local recursive function _f0, which sessint cannot express: only top-level declarations may be recursive

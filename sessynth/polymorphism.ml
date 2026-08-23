@@ -83,7 +83,7 @@ let instantiate_tyF f t =
                 raise (Fail "instantiate_tyF: only KBase polymorphism is supported")
         in
         let f, subst =
-            List.fold_left (fun (f', subst') (a, k) ->
+            List.fold_left (fun (f', subst') (a, _) ->
                 let f'', k = fresh_kind f' in
                 f'', (a, TPolyVar(k))::subst'
             ) (f, []) xkl
@@ -175,7 +175,7 @@ let rec occurs a t =
     | TDeclr _ -> false
     | TForAll(xks, t') ->
         if List.mem a (List.map fst xks) then false else occurs a t'
-    | TConstructor(x, args) -> List.exists (fun arg -> occurs a arg) args
+    | TConstructor(_, args) -> List.exists (fun arg -> occurs a arg) args
 
 and occurs_tyS a t =
     match t with

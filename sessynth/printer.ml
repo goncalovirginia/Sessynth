@@ -94,11 +94,11 @@ let rec expF_to_string e depth =
     | BOp(op, e1, e2) -> expF_to_string e1 depth ^ bOp_to_string op ^ expF_to_string e2 depth
     | Var x -> x
     | Let(x, e1, e2) -> "let" ^ x ^ " = " ^ expF_to_string e1 depth ^ " in " ^expF_to_string e2 depth
-    | Lam(x, t, e) -> x ^ " -> " ^ expF_to_string e depth
+    | Lam(x, _, e) -> x ^ " -> " ^ expF_to_string e depth
     | App(e1, e2) -> "(" ^ expF_to_string e1 depth ^ ") " ^ expF_to_string e2 depth
     | Ite(e1, e2, e3) -> "if " ^ expF_to_string e1 depth ^ " then " ^ expF_to_string e2 depth ^ " else " ^ expF_to_string e3 depth
-    | Process(c, eP, tS, xtl) -> c ^ " <- {\n" ^ expP_to_string eP (depth + 1) ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
-    | LetRec(x, t, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF depth
+    | Process(c, eP, _, xtl) -> c ^ " <- {\n" ^ expP_to_string eP (depth + 1) ^ "}" ^ process_input_channels_to_string xtl ^ "\n"
+    | LetRec(x, _, eF) -> "let rec " ^ x ^ " = " ^ expF_to_string eF depth
     | Constructor(x, args) -> x ^ " " ^ expF_args_to_string args
     | Match(e1, cons_exp_list) -> "match " ^ expF_to_string e1 depth ^ " with\n" ^ match_cases_to_string cons_exp_list depth
 
@@ -130,12 +130,12 @@ and expP_to_string e depth =
     indent ^
     match e with 
     | SendF(c, eF, eP) -> "send " ^ c ^ " " ^ expF_to_string eF 0 ^ ";\n" ^ expP_to_string eP depth
-    | RecvF(x, tF, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP depth
+    | RecvF(x, _, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP depth
     | SendS(c1, c2, eP1, eP2) -> "send " ^ c1 ^ " (" ^ c2 ^ " <- " ^ expP_to_string eP1 0 ^ ");\n" ^ expP_to_string eP2 depth
-    | RecvS(x, tS, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP depth
+    | RecvS(x, _, c, eP) -> x ^ " <- recv " ^ c ^ ";\n" ^ expP_to_string eP depth
     | Close(c) -> "close " ^ c ^ "\n"
     | Wait(c, eP) -> "wait " ^ c ^ ";\n" ^ expP_to_string eP depth
-    | Fwd(c1, c2, tS) -> "fwd " ^ c1 ^ " " ^ c2 ^ "\n"
+    | Fwd(c1, c2, _) -> "fwd " ^ c1 ^ " " ^ c2 ^ "\n"
     | Choice(c, labelprocesslist) -> "case " ^ c ^ " of\n" ^ label_process_list_to_string labelprocesslist depth
     | ChoiceSelect(c, l, eP) -> c ^ "." ^ l ^ ";\n" ^ expP_to_string eP depth
     | Spawn(c, eF, cl, eP) -> c ^ " <- spawn " ^ expF_to_string eF 0 ^ spawn_c_list_to_string cl ^ ";\n" ^ expP_to_string eP depth
