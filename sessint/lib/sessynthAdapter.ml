@@ -56,28 +56,33 @@ let tyA_to_ty tyA =
     | Language.TBool -> TBool
     | Language.TPolyVar a -> unsupported ("the type variable " ^ a ^ ", since sessint is not polymorphic")
 
-let rec tyF_to_ty tyF =
-    match tyF with
-    | Language.TAtomic tA -> tyA_to_ty tA
-    | Language.TRefinement(_, tA, _) -> tyA_to_ty tA
-    | Language.TArrow(tF1, tF2) -> TFun(tyF_to_ty tF1, tyF_to_ty  tF2)
-    | Language.TProcess(incsl, outs) -> TProc(tyS_to_stype outs, List.map(fun (c, s) -> (c, tyS_to_stype s)) incsl)
-    | Language.TDeclr(x) -> TVar(x)
-    | Language.TForAll _ -> unsupported "a polymorphic type scheme"
-    | Language.TConstructor(x, _) -> unsupported ("the ADT " ^ x)
+(** The two type conversions back into sessint, closed over Γ. *)
+let ty_converters g =
+    let resolve = Sessynth.resolve_declr g in
+    let rec tyF_to_ty tyF =
+        match tyF with
+        | Language.TAtomic tA -> tyA_to_ty tA
+        | Language.TRefinement(_, tA, _) -> tyA_to_ty tA
+        | Language.TArrow(tF1, tF2) -> TFun(tyF_to_ty tF1, tyF_to_ty tF2)
+        | Language.TProcess(incsl, outs) -> TProc(tyS_to_stype outs, List.map(fun (c, s) -> (c, tyS_to_stype s)) incsl)
+        | Language.TDeclr(x) -> TVar(x)
+        | Language.TForAll _ -> unsupported "a polymorphic type scheme"
+        | Language.TConstructor(x, _) -> unsupported ("the ADT " ^ x)
 
-and tyS_to_stype tyS =
-    match tyS with
-    | Language.STSendF(tF, tS) -> STSend(tyF_to_ty tF, tyS_to_stype tS)
-    | Language.STRecvF(tF, tS) -> STRecv(tyF_to_ty tF, tyS_to_stype tS)
-    | Language.STSendS(tS1, tS2) -> STSendChan(tyS_to_stype tS1, tyS_to_stype tS2)
-    | Language.STRecvS(tS1, tS2) -> STRecvChan(tyS_to_stype tS1, tyS_to_stype tS2)
-    | Language.STUnit -> STEnd
-    | Language.STExtChoice labelsesslist -> STExtChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
-    | Language.STIntChoice labelsesslist -> STIntChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
-    | Language.STRec(_, t, tS) -> STRec(t, tyS_to_stype tS)
-    | Language.STRecVar t -> STVar(t)
-    | Language.STDeclr x -> STUVar(x)
+    and tyS_to_stype tyS =
+        match resolve tyS with
+        | Language.STSendF(tF, tS) -> STSend(tyF_to_ty tF, tyS_to_stype tS)
+        | Language.STRecvF(tF, tS) -> STRecv(tyF_to_ty tF, tyS_to_stype tS)
+        | Language.STSendS(tS1, tS2) -> STSendChan(tyS_to_stype tS1, tyS_to_stype tS2)
+        | Language.STRecvS(tS1, tS2) -> STRecvChan(tyS_to_stype tS1, tyS_to_stype tS2)
+        | Language.STUnit -> STEnd
+        | Language.STExtChoice labelsesslist -> STExtChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
+        | Language.STIntChoice labelsesslist -> STIntChoice(List.map(fun (l, s) -> (l, tyS_to_stype s)) labelsesslist)
+        | Language.STRec(_, t, tS) -> STRec(t, tyS_to_stype tS)
+        | Language.STRecVar t -> STVar(t)
+        | Language.STDeclr x -> STUVar(x)
+    in
+    (tyF_to_ty, tyS_to_stype)
 
 let union l1 l2 = l1 @ List.filter (fun x -> not (List.mem x l1)) l2
 let without x l = List.filter (fun y -> y <> x) l
@@ -133,10 +138,10 @@ and mentions_expP x p =
     | Language.Choice(_, labelproclist) ->
         List.exists (fun (_, p') -> mentions_expP x p') labelproclist
 
-(** Conversion of a synthesized term into sessint, closed over the names
-    sessint already has in scope. Only the [LetRec] case consults them, and it
-    is the whole reason they are carried down. *)
-let expF_to_exp declared =
+(** Conversion of a synthesized term into sessint, closed over the names sessint
+    already has in scope and over Γ. Only the [LetRec] case consults [declared]. *)
+let expF_to_exp declared g =
+    let (tyF_to_ty, tyS_to_stype) = ty_converters g in
     let rec expF_to_exp expF =
         match expF with
         | Language.Int v -> Num v
@@ -194,22 +199,34 @@ let expF_to_exp declared =
 
 (* adapter synth function *)
 
-(** Whether [x] names a term rather than a declared type.
+(** Splits sessint's one environment into the two the synthesizer keeps apart,
+    on the case sessint's grammar already distinguishes: a term declaration is a
+    lowercase VAR, a session type an uppercase S_VAR. [stype S ...] is recorded
+    as a term binding anyway, purely so the name resolves later — but in Ψ that
+    reads as a process to spawn, so it belongs in Γ. Type aliases fall out with
+    it: a goal cannot name one, since TDeclr's production takes a lowercase VAR. *)
+let functional_env_to_gamma_psi env =
+    let names_a_term x = String.length x > 0 && x.[0] <> Char.uppercase_ascii x.[0] in
+    let p = List.filter (fun (x, _) -> names_a_term x) env in
+    let g = List.filter_map (fun (x, t) ->
+        match t with
+        | TProc(st, []) when not (names_a_term x) -> Some (x, stype_to_tyS st)
+        | _ -> None) env
+    in (g, p)
 
-    sessint's grammar spells the difference: an expression declaration is a
-    lowercase VAR, a session type an uppercase S_VAR, a type alias an
-    underscore-leading T_VAR. A session type is recorded as a term binding
-    [V : {S}] anyway (see the STYPE rule in parser.mly), purely so the name
-    resolves later — but in Ψ it reads as a process the search can spawn, and it
-    duly offers something like [spawn Stream], which is not a term at all. 
-    Aliases stay: [TDeclr] is resolved against Ψ, so a goal written [? _foo ?] 
-    needs its binding. *)
-let names_a_term x =
-    String.length x > 0 && x.[0] <> Char.uppercase_ascii x.[0]
-
-let synth nSolutions p d goal =
-    let p = List.filter (fun (x, _) -> names_a_term x) p in
+let synth nSolutions env d goal =
+    let (g, p) = functional_env_to_gamma_psi env in
     let p_sessynth = List.map(fun (x, t) -> (x, ty_to_tyF t)) p in
     let d_sessynth = List.map(fun (x, st) -> (x, stype_to_tyS st)) d in
-    let synthed_expF = Sessynth.synth nSolutions p_sessynth d_sessynth goal in
-    expF_to_exp (List.map fst p) synthed_expF
+    let synthed_expF = Sessynth.synth nSolutions g p_sessynth d_sessynth goal in
+    expF_to_exp (List.map fst p) g synthed_expF
+
+(** The type a synthesized term is re-checked against: a goal naming a
+    declaration resolves to what it declares, through Ψ for [TDeclr] and Γ for a
+    session type, since everything else [check] sees is already expanded. *)
+let goal_to_ty env goal =
+    let (g, _) = functional_env_to_gamma_psi env in
+    let (tyF_to_ty, _) = ty_converters g in
+    match tyF_to_ty goal with
+    | TVar(x) -> List.assoc x env
+    | t -> t

@@ -1,0 +1,5 @@
+0:
+_c0 <- {
+  send _c0 1;
+  fwd t _c0
+} <- [t:Stream]

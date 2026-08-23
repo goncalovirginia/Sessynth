@@ -1,0 +1,8 @@
+stype Fin int ^ @;
+p : {rec x. int ^ Fin}
+? {rec x. int ^ Fin} ?;
+;;
+m <- {
+    close m
+}
+;;

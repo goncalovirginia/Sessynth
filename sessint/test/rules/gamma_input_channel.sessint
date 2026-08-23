@@ -1,0 +1,8 @@
+stype Fin int ^ @;
+q : {@ <- t: Fin}
+? {@ <- t: Fin} ?;
+;;
+m <- {
+    close m
+}
+;;

@@ -9,6 +9,9 @@ open ChoiceUtils.Let_syntax
 
 module Language = Language
 
+let resolve_declr = TyUtils.resolve_declr
+let tyF_to_string = Printer.tyF_to_string
+
 (* re-exported so that Sessynth.Fail keeps naming the same exception *)
 exception Fail = TyUtils.Fail
 
@@ -207,7 +210,7 @@ and invert_right_S f ctxts c goal =
             let agrees_with_previous =
                 match prev_delta with
                 | None -> true
-                | Some prev -> bindingsS_equiv prev ctxts'.d
+                | Some prev -> bindingsS_equiv ctxts' prev ctxts'.d
             in
             let* () = Choice.guard agrees_with_previous in
             Choice.return ((f, Some ctxts'.d), (l, (ctxts', eP)))
@@ -243,9 +246,7 @@ and invert_right_S f ctxts c goal =
             let* tUnfolded = ChoiceUtils.of_option (unfold t (STRec(k-1, x, t)) x) in
             invert_right_S f ctxts c tUnfolded
     | STDeclr(x) ->
-        (* TODO: session-type declarations belong in Γ, not Δ (see planned task 2) *)
-        let* t = ChoiceUtils.of_option (List.assoc_opt x ctxts.d) in
-        invert_right_S f ctxts c t
+        invert_right_S f ctxts c (lookup_declr ctxts.g x)
     | _ -> invert_left_S f ctxts c goal
 
 and invert_left_F f ctxts goal =
@@ -421,19 +422,19 @@ and focus_left_F f ctxts eFocus tFocus goal =
         let* (f, ctxts', e1) = invert_right_F f ctxts t1 in
         focus_left_F f ctxts' (App(eFocus, e1)) t2 goal
     | TProcess _ | TAtomic _ ->
-        if tyF_equiv tFocus goal then Choice.return (f, ctxts, eFocus)
+        if tyF_equiv ctxts.g tFocus goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TRefinement(x, tA, tR) ->
-        if tyF_equiv (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat f.printDebug ctxts.p tFocus goal)
+        if tyF_equiv ctxts.g (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat f.printDebug ctxts.p tFocus goal)
             then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TDeclr x ->
         let declr_matches_goal =
             match List.assoc_opt x ctxts.p with
-            | Some t -> tyF_equiv t goal
+            | Some t -> tyF_equiv ctxts.g t goal
             | None -> false
         in
-        if tyF_equiv tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
+        if tyF_equiv ctxts.g tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TForAll(xkl, t) ->
         (* as in focus_right_F: catch around the eager part only *)
@@ -482,7 +483,14 @@ and focus_left_S f ctxts cFocus tFocus c goal =
             let* (ctxts0, _) = ChoiceUtils.of_option (consume_channel ctxts cFocus) in
             let ctxts1 = append_bindings_delta ctxts0 [(cFocus, tUnfolded)] in
             focus_left_S f ctxts1 cFocus tUnfolded c goal
-    | _ -> invert_left_S f ctxts c goal
+    | STDeclr(x) ->
+        let tDeclr = lookup_declr ctxts.g x in
+        let* (ctxts0, _) = ChoiceUtils.of_option (consume_channel ctxts cFocus) in
+        let ctxts1 = append_bindings_delta ctxts0 [(cFocus, tDeclr)] in
+        focus_left_S f ctxts1 cFocus tDeclr c goal
+    | _ ->
+        let* () = Choice.guard (is_tyS_left_async tFocus) in
+        invert_left_S f ctxts c goal
 
 (* wandering *)
 
@@ -518,7 +526,7 @@ and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
         | None -> true
         | Some filter_t ->
             match get_TProcess_outs tReturn, get_TProcess_outs filter_t with
-            | Some outs, Some filter_outs -> tyS_equiv outs filter_outs
+            | Some outs, Some filter_outs -> tyS_equiv ctxts.g outs filter_outs
             | _ -> false
     in
     let spawnable_proc_list =
@@ -538,7 +546,7 @@ and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
 
 and synth_fwd f ctxts cToFwd c goal =
     let* (ctxts', tToFwd) = ChoiceUtils.of_option (consume_channel ctxts cToFwd) in
-    let* () = Choice.guard (tyS_equiv tToFwd goal) in
+    let* () = Choice.guard (tyS_equiv ctxts.g tToFwd goal) in
     let* () = Choice.guard (delta_is_empty ctxts') in
     Choice.return (f, ctxts', Fwd(cToFwd, c, goal))
 
@@ -568,7 +576,7 @@ let mode_of_string s =
     | "interactive" -> Some Interactive
     | _ -> None
 
-let synth n_sol p d goal =
+let synth n_sol g p d goal =
     let printDebug =
         match Sys.getenv_opt "SESSYNTH_DEBUG" with
         | Some ("1" | "true" | "TRUE" | "yes" | "YES") -> true
@@ -600,7 +608,10 @@ let synth n_sol p d goal =
     reject_unbound_recvar "the goal" (unbound_recvar_tyF goal);
     List.iter (fun (x, t) -> reject_unbound_recvar ("the type of " ^ x) (unbound_recvar_tyF t)) p;
     List.iter (fun (c, s) -> reject_unbound_recvar ("the type of channel " ^ c) (unbound_recvar_tyS [] s)) d;
+    (* a Γ definition has to be closed for [resolve_declr] to be capture-free *)
+    List.iter (fun (x, s) -> reject_unbound_recvar ("the declaration of " ^ x) (unbound_recvar_tyS [] s)) g;
     let f, ctxts = initialize_flags !max_fuel printDebug, initialize_ctxts in
+    let ctxts = append_bindings_gamma ctxts g in
     let ctxts = append_bindings_psi ctxts p in
     let ctxts = append_bindings_delta ctxts d in
     let solutions_choice =
@@ -623,8 +634,6 @@ let synth n_sol p d goal =
             let rec choose_exp () =
                 print_string "Select solution: ";
                 match read_line_opt () with
-                (* end of input is not a bad answer, it means nobody is there to
-                   give one, so fall back rather than looping on the prompt *)
                 | None -> print_endline "\nno input, taking solution 0"; List.hd expl
                 | Some line ->
                     match int_of_string_opt (String.trim line) with

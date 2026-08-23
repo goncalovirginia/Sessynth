@@ -48,9 +48,23 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `unbound_recvar_declr` | goal validation | the same holds when the goal is `? name ?`, where the offending type is reached through Ψ rather than written in the hole |
 | `duplicate_input_names` | goal validation | two input channels sharing a name are rejected instead of silently hiding one |
 | `extchoice_right` | &R | every label is offered, and each branch drives the input channel with the matching label |
+| `gamma_goal_named` | defn R | a goal naming a declared session type resolves it against Γ, and lands on the same program the protocol written out would |
+| `gamma_goal_nested` | defn R | the same when the name sits under a send rather than at the top of the goal |
+| `gamma_input_channel` | defn L | a declared name on an *input channel* is resolved under focus and written back into Δ, so the channel can then be left-inverted |
+| `gamma_under_rec` | defn, μ | a declaration inside a recursive type does not stop the unfolding |
+| `gamma_sync_channel` | defn L, focus | the same when what the name declares is left-*synchronous*, so focus is kept rather than released |
+| `gamma_fwd_declr` | defn, fwd | `fwd` compares a channel's declared name against the goal up to Γ |
+| `gamma_undeclared` | goal validation | a session type no declaration defines is named in the error |
 | `refinement_arg_hypothesis` | refinement R | an argument's predicate is what may be *assumed* of it, not a second thing to prove |
 | `refinement_binder_substring` | refinement R | the goal's binder is substituted at its occurrences, so a longer name containing it is left alone |
 | `refinement_duplicate_binder` | refinement R | two refinements sharing a binder are rejected rather than naming one SyGuS symbol twice |
+
+The `gamma_*` tests are the only ones where a session-type *declaration* reaches
+the synthesizer at all. Everywhere else it cannot: `check_decl` runs
+`expand_custom_type` before checking, so every type in Ψ and Δ arrives with its
+names already expanded, and `expand_custom_exp` leaves `Synth` alone — a hole's
+own goal is the one place a name survives. That is why Γ went unused for so long
+without anything failing.
 
 The three `refinement_*` tests shell out to `cvc5`, so they need it on `PATH`.
 Without it the search sees an empty reply, the branch fails, and they report
@@ -193,6 +207,28 @@ nothing at all, which reaches the search as an unparseable reply and reads as
 "no valid expression". The check is over the binders down the goal's arrow spine
 together with the names already in Ψ, which is exactly the set that becomes SyGuS
 symbols.
+
+Each `gamma_*` test pins one place a declaration has to be looked through, and
+each fails on its own when that one is removed. `gamma_goal_named`,
+`gamma_goal_nested` and `gamma_under_rec` go through the right rule; the last of
+those also needs `unfold` to treat a declaration as a leaf rather than giving up
+on the whole type, which is what it used to do.
+
+`gamma_input_channel` and `gamma_sync_channel` are the two halves of the left
+rule, and they differ in what the name denotes. A declaration is left-synchronous
+in its own right — nothing can be inverted through a name — so both are reached by
+the decide rule, and the left focus rule re-types the channel at what Γ says
+before carrying on. `gamma_sync_channel` names a receive, which is still
+synchronous, so focus is kept and the very next rule decomposes it;
+`gamma_input_channel` names a send, which is asynchronous, so the same rule falls
+through to `invert_left_S` — the ordinary release. That fall-through is why the
+rewrite into Δ is not optional: without it the released judgment reads the same
+name out of Δ again and loops back through decide until the fuel runs out, which
+is what the "delta not rewritten" line below fails on.
+
+`gamma_fwd_declr` is the only one that reaches `tyS_equiv` with a name on one side
+and the protocol on the other. Without Γ being built at all, all six produce
+nothing.
 
 `hole_named_inputs` cannot even be expressed against the previous grammar:
 `sessynth_tyS_list` named every input `"_"`, so a hole could carry at most one

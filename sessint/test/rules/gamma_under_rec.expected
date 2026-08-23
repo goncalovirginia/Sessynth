@@ -1,0 +1,6 @@
+0:
+_c0 <- {
+  send _c0 1;
+  send _c0 1;
+  close _c0
+}

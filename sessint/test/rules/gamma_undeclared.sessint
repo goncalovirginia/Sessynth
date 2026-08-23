@@ -1,0 +1,8 @@
+stype Stream rec x. int ^ x;
+r : int
+? {Nope} ?;
+;;
+m <- {
+    close m
+}
+;;

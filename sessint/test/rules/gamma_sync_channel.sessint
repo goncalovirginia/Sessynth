@@ -1,0 +1,8 @@
+stype Srv int => @;
+q : {@ <- t: Srv}
+? {@ <- t: Srv} ?;
+;;
+m <- {
+    close m
+}
+;;

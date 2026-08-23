@@ -182,9 +182,7 @@ and synth lin_ctxt env e used_vars =
       assert false (* RecFunDef does not happen in  the typechecker fase*)
   | Synth(t, n_sol) -> 
 	  let synthed_exp = SessynthAdapter.synth n_sol env lin_ctxt t in
-	  let synthed_type = match SessynthAdapter.tyF_to_ty t with
-		  | TVar(x) -> List.assoc x env
-		  | t -> t in
+	  let synthed_type = SessynthAdapter.goal_to_ty env t in
 	  check lin_ctxt env synthed_exp synthed_type used_vars
 
 (** This is the process synthesizing function.

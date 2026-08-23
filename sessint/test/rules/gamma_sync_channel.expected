@@ -1,0 +1,6 @@
+0:
+_c0 <- {
+  send t 1;
+  wait t;
+  close _c0
+} <- [t:Srv]

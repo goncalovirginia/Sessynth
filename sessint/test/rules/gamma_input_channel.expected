@@ -1,0 +1,6 @@
+0:
+_c0 <- {
+  _x0 <- recv t;
+  wait t;
+  close _c0
+} <- [t:Fin]

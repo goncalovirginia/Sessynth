@@ -1,0 +1,6 @@
+0:
+_c0 <- {
+  send _c0 1;
+  _c1 <- spawn p;
+  fwd _c1 _c0
+}

@@ -74,11 +74,11 @@ let get_sync_bindings is_left_async ctxt =
     List.filter (fun (_, t) -> not (is_left_async t)) ctxt
 
 let find_binding_for_tyF ctxts tF =
-    Option.map fst (List.find_opt (fun (_, t) -> tyF_equiv t tF) ctxts.p)
+    Option.map fst (List.find_opt (fun (_, t) -> tyF_equiv ctxts.g t tF) ctxts.p)
 
 (* comparing contexts *)
 
-let bindingS_equiv (x1, s1) (x2, s2) = x1 = x2 && tyS_equiv s1 s2
+let bindingS_equiv ctxts (x1, s1) (x2, s2) = x1 = x2 && tyS_equiv ctxts.g s1 s2
 
 (** Multiset equality under [bindingS_equiv].
 
@@ -89,12 +89,12 @@ let bindingS_equiv (x1, s1) (x2, s2) = x1 = x2 && tyS_equiv s1 s2
    Each binding in [l1] is matched against a distinct partner in [l2] rather than
    the two lists being compacted into sets, so repeated bindings stay significant:
    [a:S, b:S] and [a:S, a:S, b:S] are still different contexts. *)
-let bindingsS_equiv l1 l2 =
+let bindingsS_equiv ctxts l1 l2 =
     let rec remove_first b skipped l =
         match l with
         | [] -> None
         | b'::l' ->
-            if bindingS_equiv b b' then Some (List.rev_append skipped l')
+            if bindingS_equiv ctxts b b' then Some (List.rev_append skipped l')
             else remove_first b (b'::skipped) l'
     in
     let rec match_up l1 l2 =
@@ -120,7 +120,7 @@ let deltas_are_equal ctxtsl =
     | [] -> None
     | hdCtxts::tlCtxts ->
         let are_equal = List.for_all (fun currCtxts ->
-            bindingsS_equiv hdCtxts.d currCtxts.d
+            bindingsS_equiv hdCtxts hdCtxts.d currCtxts.d
         ) tlCtxts in
         if are_equal then Some hdCtxts else None
 
@@ -151,7 +151,7 @@ let rec consume_channels_by_tyS ctxts tSl =
     match tSl with
     | [] -> Choice.return (ctxts, [])
     | tS::tSl' ->
-        let csl = List.filter (fun (_, s) -> tyS_equiv s tS) ctxts.d in
+        let csl = List.filter (fun (_, s) -> tyS_equiv ctxts.g s tS) ctxts.d in
         let* (c, _) = Choice.of_list csl in
         let* (ctxts', _) = ChoiceUtils.of_option (consume_channel ctxts c) in
         let* (ctxts'', cl) = consume_channels_by_tyS ctxts' tSl' in

@@ -80,8 +80,7 @@ let rec rename_recvar_in_tyS from_id to_id t =
     | STRecVar x -> if x = from_id then STRecVar to_id else t
     | STDeclr _ -> t
 
-(* S[μt.S / t]; None when an unresolved session-type declaration is reached,
-   since it cannot be unfolded without Γ *)
+(* S[μt.S / t] *)
 let rec unfold tUnfold stRec stRecVar =
     let unfold_both t1 t2 =
         match unfold t1 stRec stRecVar, unfold t2 stRec stRecVar with
@@ -116,7 +115,7 @@ let rec unfold tUnfold stRec stRecVar =
     | STRecVar(x) ->
         if x = stRecVar then Some stRec (* where unfolding happens *)
         else Some tUnfold (* if it's another recursive name t2 != t, simply return t2 *)
-    | STDeclr _ -> None
+    | STDeclr _ -> Some tUnfold (** closed, so no occurrence of [stRecVar] inside *)
 
 (** Returns [Some x] for the first recursion variable of [t] that no enclosing μ
     binds, [None] when [t] is closed. Nothing can unfold such a variable away, so
@@ -165,6 +164,28 @@ let rec refinement_binders t =
     | TArrow(_, t2) -> refinement_binders t2
     | _ -> []
 
+(** The head of [t] with any session-type declaration replaced by what Γ defines
+    it to be, so a definition given in terms of another still lands on a real
+    type. A name Γ does not define is left alone -- only {!lookup_declr}, where a
+    rule actually needs one, treats that as an error; one that leads back to
+    itself stops rather than looping. *)
+let resolve_declr g t =
+    let rec resolve seen t =
+        match t with
+        | STDeclr x when not (List.mem x seen) ->
+            (match List.assoc_opt x g with
+             | Some t' -> resolve (x::seen) t'
+             | None -> t)
+        | _ -> t
+    in resolve [] t
+
+(** What Γ defines [x] to be. A name Γ does not define is a malformed goal rather
+    than a dead branch, so this raises instead of returning an option. *)
+let lookup_declr g x =
+    match List.assoc_opt x g with
+    | Some t -> t
+    | None -> raise (Fail ("session type " ^ x ^ " is not declared"))
+
 (* equivalence *)
 
 (** Equivalence of session types.
@@ -180,44 +201,45 @@ let rec refinement_binders t =
     names of TProcess are all still significant.
 
     This is not equivalence modulo unfolding: μt.S and S[μt.S/t] are still
-    distinguished.
+    distinguished. It *is* equivalence modulo Γ: a declaration and the type it
+    names compare equal.
 
     NOTE: keep in sync with tyS/tyF whenever a constructor is added. *)
-let rec tyS_equiv t1 t2 =
-    match t1, t2 with
+let rec tyS_equiv g t1 t2 =
+    match resolve_declr g t1, resolve_declr g t2 with
     | STUnit, STUnit -> true
     | STSendF(f1, s1), STSendF(f2, s2)
-    | STRecvF(f1, s1), STRecvF(f2, s2) -> tyF_equiv f1 f2 && tyS_equiv s1 s2
+    | STRecvF(f1, s1), STRecvF(f2, s2) -> tyF_equiv g f1 f2 && tyS_equiv g s1 s2
     | STSendS(a1, b1), STSendS(a2, b2)
-    | STRecvS(a1, b1), STRecvS(a2, b2) -> tyS_equiv a1 a2 && tyS_equiv b1 b2
+    | STRecvS(a1, b1), STRecvS(a2, b2) -> tyS_equiv g a1 a2 && tyS_equiv g b1 b2
     | STExtChoice l1, STExtChoice l2
     | STIntChoice l1, STIntChoice l2 ->
         List.length l1 = List.length l2
-        && List.for_all2 (fun (la, sa) (lb, sb) -> la = lb && tyS_equiv sa sb) l1 l2
+        && List.for_all2 (fun (la, sa) (lb, sb) -> la = lb && tyS_equiv g sa sb) l1 l2
     | STRec(_, x1, s1), STRec(_, x2, s2) -> (* budget ignored, binder up to renaming *)
         let s2' = if x1 = x2 then s2 else rename_recvar_in_tyS x2 x1 s2 in
-        tyS_equiv s1 s2'
+        tyS_equiv g s1 s2'
     | STRecVar x1, STRecVar x2 -> x1 = x2
-    | STDeclr x1, STDeclr x2 -> x1 = x2
+    | STDeclr x1, STDeclr x2 -> x1 = x2 (* only reached when Γ defines neither *)
     | _ -> false
 
 (** Equivalence of functional types; see {!tyS_equiv}. Only needed because a
     functional type can carry session types (TProcess, and the value types
     exchanged by STSendF/STRecvF), so a stale (=) on a tyF hides the same
     unfolding-budget problem one level down. *)
-and tyF_equiv t1 t2 =
+and tyF_equiv g t1 t2 =
     match t1, t2 with
     | TAtomic a1, TAtomic a2 -> a1 = a2
     | TRefinement(x1, a1, r1), TRefinement(x2, a2, r2) -> x1 = x2 && a1 = a2 && r1 = r2
-    | TArrow(a1, b1), TArrow(a2, b2) -> tyF_equiv a1 a2 && tyF_equiv b1 b2
+    | TArrow(a1, b1), TArrow(a2, b2) -> tyF_equiv g a1 a2 && tyF_equiv g b1 b2
     | TProcess(incsl1, outs1), TProcess(incsl2, outs2) ->
         List.length incsl1 = List.length incsl2
-        && List.for_all2 (fun (c1, s1) (c2, s2) -> c1 = c2 && tyS_equiv s1 s2) incsl1 incsl2
-        && tyS_equiv outs1 outs2
+        && List.for_all2 (fun (c1, s1) (c2, s2) -> c1 = c2 && tyS_equiv g s1 s2) incsl1 incsl2
+        && tyS_equiv g outs1 outs2
     | TDeclr x1, TDeclr x2 -> x1 = x2
-    | TForAll(xkl1, f1), TForAll(xkl2, f2) -> xkl1 = xkl2 && tyF_equiv f1 f2
+    | TForAll(xkl1, f1), TForAll(xkl2, f2) -> xkl1 = xkl2 && tyF_equiv g f1 f2
     | TConstructor(x1, args1), TConstructor(x2, args2) ->
         x1 = x2
         && List.length args1 = List.length args2
-        && List.for_all2 tyF_equiv args1 args2
+        && List.for_all2 (tyF_equiv g) args1 args2
     | _ -> false
