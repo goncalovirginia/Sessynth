@@ -1,0 +1,9 @@
+lt : int -> int -> bool
+fun x y -> x < y end;
+add : int -> int -> int
+fun x y -> x + y end;
+r : int
+? int #4 ?;
+;;
+m <- { close m }
+;;

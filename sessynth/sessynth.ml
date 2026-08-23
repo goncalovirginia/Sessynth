@@ -419,6 +419,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
     debugF f ctxts goal tFocus "focusLeftF";
     match tFocus with
     | TArrow(t1, t2) ->
+        let* () = Choice.guard (return_type_may_match_goal tFocus goal) in
         let* (f, ctxts', e1) = invert_right_F f ctxts t1 in
         focus_left_F f ctxts' (App(eFocus, e1)) t2 goal
     | TProcess _ | TAtomic _ ->

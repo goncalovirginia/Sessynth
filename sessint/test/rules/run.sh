@@ -21,6 +21,7 @@ TESTS=(
     "arrow_left_2args:12"
     "arrow_left_3args:16"
     "arrow_left_mixed:12"
+    "arrow_left_return_mismatch:12"
     "arrow_right_lambda:12"
     "psi_scope_lambda:16"
     "psi_scope_tensor:20"

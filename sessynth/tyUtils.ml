@@ -13,6 +13,16 @@ let rec get_return_type t =
     | TArrow(t1, t2) -> get_return_type t2
     | _ -> t
 
+(** Whether left focus on [tFocus] could still end at [goal]. Only a decidable
+    mismatch answers [false], so anything uncased passes: a [true] promises
+    nothing, and it is the rule's own terminal comparison that decides. A
+    refinement reads as its base type, which is all its two ways of matching a
+    goal agree on. *)
+let return_type_may_match_goal tFocus goal =
+    match get_return_type tFocus, goal with
+    | (TAtomic a1 | TRefinement(_, a1, _)), (TAtomic a2 | TRefinement(_, a2, _)) -> a1 = a2
+    | _ -> true
+
 let rec flatten_TArrow t =
     match t with
     | TArrow(t1, t2) ->
