@@ -129,7 +129,8 @@ let rec invert_right_F f ctxts goal =
             | _ -> fresh_id f in 
         let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
         begin match get_return_type t2 with
-        | TProcess(_, STRec _) when not (List.mem_assoc ctxts.xRecLam ctxts.p) ->
+        | TProcess(_, outs) when is_STRec (resolve_declr ctxts.g outs)
+                                 && not (List.mem_assoc ctxts.xRecLam ctxts.p) ->
             let f, ctxts2 =
             match find_binding_for_tyF ctxts goal with
             | Some xRecFun ->
@@ -172,10 +173,10 @@ let rec invert_right_F f ctxts goal =
         in
         let* solution = ChoiceUtils.of_option solution in
         Choice.return (f, ctxts, solution)
-    | TForAll(xkl, t) -> 
+    | TForAll(xkl, t) ->
         let f, t' = instantiate_tyF f goal in
-        invert_right_F f ctxts t' 
-    | _ -> invert_left_F f ctxts goal
+        invert_right_F f ctxts t'
+    | TAtomic _ | TConstructor _ -> invert_left_F f ctxts goal
 
 and invert_right_S f ctxts c goal = 
     let* f = increment_depth f in
@@ -391,6 +392,7 @@ and focus_right_S f ctxts c goal =
             Choice.return (f', ctxts', ChoiceSelect(c, l, e1))
         in
         ChoiceUtils.map_mplus_list synth_choice_select labelsesslist
+    | STRecVar _ -> Choice.fail
     | _ -> invert_right_S f ctxts c goal (* goal is not right sync, therefore switch back to inversion phase *)
 
 (** Left focus on the binding whose type is [tFocus].
@@ -432,7 +434,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
         in
         let* (f, t_inst', goal', ctxts') = ChoiceUtils.of_option instantiated in
         focus_left_F f ctxts' eFocus t_inst' goal'
-    | _ -> invert_left_F f ctxts goal
+    | TConstructor _ -> invert_left_F f ctxts goal
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in

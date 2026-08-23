@@ -1,0 +1,7 @@
+apply : (int -> {rec x. int ^ x}) -> int
+fun g -> 1 end;
+r : int
+apply (? int -> {rec x. int ^ x} #1 ?);
+;;
+m <- { close m }
+;;

@@ -26,6 +26,7 @@ TESTS=(
     "psi_scope_lambda:16"
     "psi_scope_tensor:20"
     "psi_scope_letrec:25"
+    "letrec_invented_name:25"
     "intchoice_left:20"
     "intchoice_left_branches:20"
     "intchoice_left_branch_names:14"
