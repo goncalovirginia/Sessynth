@@ -205,7 +205,7 @@ and invert_right_S f ctxts c goal =
         Choice.return (f, restore_scope ctxts ctxts', Choice(c, labelproclist))
     | STRec(k, x, t) ->
         if k <= 0 then
-            let* (f, ctxts, eWander) = wander f ctxts c goal in
+            let* (f, ctxts, eWander) = wander f ctxts c goal None in
             Choice.mplus
                 (
                 (* wander + fwd *)
@@ -326,7 +326,13 @@ and focus_decide_S f ctxts c goal =
     debugS f ctxts goal goal "focusDecideS";
     let left_focuses = List.map (fun (xFoc, tFoc) -> focus_left_S f ctxts xFoc tFoc c goal) (get_sync_bindings is_tyS_left_async ctxts.d) in
     let right_focus = focus_right_S f ctxts c goal in
-    ChoiceUtils.mplus_list (left_focuses @ [right_focus])
+    let wander_focus =
+        let* (f, ctxts', eWander) = wander f ctxts c goal (Some (TProcess([], goal))) in
+        let* (f, ctxts'', eFwd) =
+            ChoiceUtils.map_mplus_list (fun (c', _) -> synth_fwd f ctxts' c' c goal) ctxts'.d in
+        Choice.return (f, ctxts'', subst_continuation_exp eWander eFwd)
+    in
+    ChoiceUtils.mplus_list (left_focuses @ [wander_focus; right_focus])
 
 and focus_right_F f ctxts goal =
     let* f = increment_depth f in
@@ -479,15 +485,16 @@ and focus_left_S f ctxts cFocus tFocus c goal =
 
 (* wandering *)
 
-and wander f ctxts c goal =
+(** Wandering injects alternative expressions which don't directly follow the original
+    type, unlocking more varied solutions.
+    Each produced expression leaves a [Hole] at the continuation, for the caller to plug. 
+    [spawn_filter] bounds what types of TProcesses may be spawned. *)
+and wander f ctxts c goal spawn_filter =
     debugS f ctxts goal goal "wander";
     let skipChoice = Choice.return (f, ctxts, Hole(c, goal)) in
-    let spawnChoice = wander_spawn f ctxts c goal in
+    let spawnChoice = focus_left_TProcess f ctxts c goal spawn_filter in
     let unfoldChoice = wander_unfold f ctxts c goal in
     ChoiceUtils.mplus_list [skipChoice; spawnChoice; unfoldChoice]
-
-and wander_spawn f ctxts c goal =
-    focus_left_TProcess f ctxts c goal None
 
 and wander_unfold f ctxts c goal =
     let recsessl = List.filter (fun (_, t) -> is_STRec (resolve_declr ctxts.g t)) (get_sync_bindings is_tyS_left_async ctxts.d) in
