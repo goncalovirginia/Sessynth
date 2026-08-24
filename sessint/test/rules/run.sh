@@ -25,6 +25,7 @@ TESTS=(
     "arrow_right_lambda:12"
     "psi_scope_lambda:16"
     "psi_scope_tensor:20"
+    "guarded_self_spawn:20"
     "psi_scope_letrec:25"
     "letrec_invented_name:25"
     "gamma_letrec_goal:25"

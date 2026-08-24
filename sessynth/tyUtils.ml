@@ -1,6 +1,6 @@
-(* Operations on the synthesizer's types (tyF / tyS), independent of any context.
-   Anything here may only mention Language; anything that needs a context belongs
-   in Contexts instead. *)
+(* Operations on the synthesizer's types (tyF / tyS) and terms, independent of any
+   context. Anything here may only mention Language; anything that needs a context
+   belongs in Contexts instead. *)
 
 open Language
 
@@ -22,6 +22,13 @@ let return_type_may_match_goal tFocus goal =
     match get_return_type tFocus, goal with
     | (TAtomic a1 | TRefinement(_, a1, _)), (TAtomic a2 | TRefinement(_, a2, _)) -> a1 = a2
     | _ -> true
+
+(* the name an application applies, under however many arguments it is given *)
+let rec get_app_head_id e =
+    match e with
+    | Var x -> Some x
+    | App(e1, _) -> get_app_head_id e1
+    | _ -> None
 
 let rec flatten_TArrow t =
     match t with

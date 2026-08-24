@@ -1,0 +1,7 @@
+greet : {int ^ int ^ @}
+c <- { send c 1; send c 1; close c };
+q : {int ^ int ^ @}
+? {int ^ int ^ @} #2 ?;
+;;
+m <- { close m }
+;;

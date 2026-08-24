@@ -86,6 +86,28 @@ let get_Spawn_c e =
     | Spawn(c, _, _, _) -> Some c
     | _ -> None
 
+(** Whether every recursive occurrence of [xSelf] in [eP] sits behind a
+    communication on [c] (the channel offered). An unguarded one spawns copies of
+    itself forever without the conversation advancing. [""] recurs on nothing. *)
+let degenerate_recursion_is_guarded xSelf c eP =
+    let rec guarded eP =
+        match eP with
+        (* progress on the offered channel: whatever follows is guarded *)
+        | SendF(c', _, _) | RecvF(_, _, c', _) | RecvS(_, _, c', _)
+        | Wait(c', _) | ChoiceSelect(c', _, _) when c' = c -> true
+        | SendS(c', _, _, _) when c' = c -> true
+        | Choice(c', branches) when c' = c -> List.for_all (fun (_, e) -> guarded e) branches
+        | Close _ | Fwd _ | Hole _ -> true
+        (* the recursive occurrence itself, reached before any such progress *)
+        | Spawn(_, eApp, _, _) when get_app_head_id eApp = Some xSelf -> false
+        (* anything else acts on some other channel and carries on *)
+        | SendF(_, _, eP') | RecvF(_, _, _, eP') | RecvS(_, _, _, eP')
+        | Wait(_, eP') | ChoiceSelect(_, _, eP') | Spawn(_, _, _, eP') -> guarded eP'
+        | SendS(_, _, eP1, eP2) -> guarded eP1 && guarded eP2
+        | Choice(_, branches) -> List.for_all (fun (_, e) -> guarded e) branches
+    in
+    xSelf = "" || guarded eP
+
 let contains_substring s1 s2 =
     let re = Str.regexp_string s2 in
     try ignore (Str.search_forward re s1 0); true
@@ -160,6 +182,7 @@ let rec invert_right_F f ctxts goal =
             let f, c = fresh_chan f in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
             let* () = Choice.guard (delta_is_empty ctxts') in
+            let* () = Choice.guard (degenerate_recursion_is_guarded ctxts.xRecLam c e) in
             Choice.return (f, ctxts, Process(c, e, outs, incsl))
     | TDeclr(x) ->
         let* t = ChoiceUtils.of_option (List.assoc_opt x ctxts.p) in
