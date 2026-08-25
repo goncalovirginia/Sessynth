@@ -134,7 +134,7 @@ type parsed_TRefinement = { x : id; tA : id; constr : tyR option }
 let tyA_to_sygus = function
 	| TInt -> "Int"
 	| TBool -> "Bool"
-	| TPolyVar _ -> assert false
+	| TPolyVar _ | TRigidVar _ -> assert false
 
 let parse_tyF x t =
 	match t with

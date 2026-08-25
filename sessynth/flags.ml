@@ -8,7 +8,7 @@ let set_max_depth n = if n > 0 then max_depth := n
 let print_debug = ref false
 let set_print_debug b = print_debug := b
 
-type fresh_indices = { id : int; func : int; chan : int; kind : int }
+type fresh_indices = { id : int; func : int; chan : int; kind : int; rigid : int }
 
 type flags = {
     freshIndices : fresh_indices;
@@ -17,7 +17,7 @@ type flags = {
 
 let initialize_flags () =
     {
-        freshIndices = { id = 0; func = 0; chan = 0; kind = 0 };
+        freshIndices = { id = 0; func = 0; chan = 0; kind = 0; rigid = 0 };
         depth = -1
     }
 
@@ -40,6 +40,11 @@ let fresh_kind f =
     let curr_kind = f.freshIndices.kind in
     let f' = { f with freshIndices = { f.freshIndices with kind = curr_kind + 1 } } in
     f', ("_α" ^ string_of_int curr_kind)
+
+let fresh_rigid f =
+    let curr_rigid = f.freshIndices.rigid in
+    let f' = { f with freshIndices = { f.freshIndices with rigid = curr_rigid + 1 } } in
+    f', ("_ρ" ^ string_of_int curr_rigid)
 
 let increment_depth f =
     if f.depth < !max_depth then Choice.return { f with depth = f.depth + 1 }

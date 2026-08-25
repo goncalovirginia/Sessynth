@@ -14,8 +14,10 @@ module S = Set.Make(String)
 
 (* free type variables *)
 
+(** a rigid variable stands for a type already chosen, so it is as much a constant
+   here as an int is: not free, never guessed by [!ground_substitutions] *)
 let ftv_tyA = function
-    | TInt | TBool -> S.empty
+    | TInt | TBool | TRigidVar _ -> S.empty
     | TPolyVar a -> S.singleton a
 
 let rec ftv_tyR = function
@@ -53,8 +55,8 @@ let ftv_env ctxts =
 (* the types a variable may be guessed at when unification doesn't determine it *)
 let ground_atomic_types = [TInt; TBool]
 
-(** Returns every combination of ground type sbustitutions for each free variable of [t] (i.e. a list of substitution lists). 
-    A [t] that has none returns an empty substitutions list, leaving a caller that never had a variable exactly as it was. *)
+(** Returns every combination of ground type substitutions for each free variable of [t] (i.e. a list of substitution lists). 
+    A [t] that has none returns a list containing a single empty substitution list, leaving a caller that never had a variable exactly as it was. *)
 let ground_substitutions t =
     List.fold_left (fun substs a ->
         List.concat_map (fun s ->
@@ -66,8 +68,7 @@ let ground_substitutions t =
 
 let instantiate_subst_tyA subst t =
     match t with
-    | TInt -> TInt
-    | TBool -> TBool
+    | TInt | TBool | TRigidVar _ -> t
     | TPolyVar a -> try List.assoc a subst with Not_found -> TPolyVar a
 
 let rec instantiate_subst_tyF subst t =
@@ -99,22 +100,34 @@ and instantiate_subst_tyS subst t =
     | STRecVar _ -> t
     | STDeclr _ -> t
 
-(* ∀ᾱ. F → F[β̄/ᾱ] *)
-let instantiate_tyF f t =
+(** ∀ᾱ. F → F[β̄/ᾱ], with [fresh_var] deciding which sort of variable the bound
+   names are replaced by *)
+let open_scheme fresh_var f t =
     match t with
     | TForAll (xkl, tF) ->
         let () =
             if List.exists (fun (_, k) -> k <> KBase) xkl then
-                raise (Fail "instantiate_tyF: only KBase polymorphism is supported")
+                raise (Fail "open_scheme: only KBase polymorphism is supported")
         in
         let f, subst =
             List.fold_left (fun (f', subst') (a, _) ->
-                let f'', k = fresh_kind f' in
-                f'', (a, TPolyVar(k))::subst'
+                let f'', v = fresh_var f' in
+                f'', (a, v)::subst'
             ) (f, []) xkl
         in
         f, instantiate_subst_tyF subst tF
     | _ -> f, t
+
+(** Opens a scheme being *used*: the variables are holes this derivation may fill,
+    since it is the one choosing what the scheme is applied at. *)
+let instantiate_tyF f t =
+    open_scheme (fun f -> let f, k = fresh_kind f in f, TPolyVar k) f t
+
+(** Opens a scheme being *offered*: the variables stand for types whoever calls
+    has already chosen, so the body has to work without knowing them and nothing
+    here may bind or guess one. *)
+let skolemize_tyF f t =
+    open_scheme (fun f -> let f, r = fresh_rigid f in f, TRigidVar r) f t
 
 (* F → ∀ᾱ.F *)
 let generalize ctxts t =
@@ -128,7 +141,7 @@ let generalize ctxts t =
 
 let unify_subst_tyA s a =
     match a with
-    | TInt | TBool -> a
+    | TInt | TBool | TRigidVar _ -> a
     | TPolyVar v ->
         match List.assoc_opt v s with
         | Some (TAtomic a') -> a'
@@ -218,6 +231,9 @@ let rec unify t1 t2 =
     match t1, t2 with
     | TAtomic(TInt), TAtomic(TInt) -> []
     | TAtomic(TBool), TAtomic(TBool) -> []
+    (* two rigids unify only with themselves: each stands for a type someone else
+       chose, and nothing here knows whether two such choices agree *)
+    | TAtomic(TRigidVar(x)), TAtomic(TRigidVar(y)) -> if x = y then [] else raise (Fail "Cannot unify.")
     | TAtomic(TPolyVar(a)), t | t, TAtomic(TPolyVar(a)) ->
         let t' =
             match t with
@@ -226,7 +242,9 @@ let rec unify t1 t2 =
         in
         begin
         match t' with
-        | TAtomic(TInt) | TAtomic(TBool) | TAtomic(TPolyVar _) ->
+        (* the rigid case is what lets a scheme be used at an abstract type: the
+           flexible side is the one being bound, which is always sound *)
+        | TAtomic(TInt) | TAtomic(TBool) | TAtomic(TPolyVar _) | TAtomic(TRigidVar _) ->
             if t' = TAtomic(TPolyVar(a)) then []
             else if occurs a t' then raise (Fail "Occurs check failed.")
             else [(a, t')]

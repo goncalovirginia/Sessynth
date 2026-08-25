@@ -23,7 +23,7 @@ let tyA_to_string t =
     match t with
     | TInt -> "int"
     | TBool -> "bool"
-    | TPolyVar a -> a
+    | TPolyVar a | TRigidVar a -> a
 
 let tyK_to_string t =
     match t with

@@ -54,7 +54,8 @@ let tyA_to_ty tyA =
     match tyA with
     | Language.TInt -> TNum
     | Language.TBool -> TBool
-    | Language.TPolyVar a -> unsupported ("the type variable " ^ a ^ ", since sessint is not polymorphic")
+    | Language.TPolyVar a | Language.TRigidVar a ->
+        unsupported ("the type variable " ^ a ^ ", since sessint is not polymorphic")
 
 (** The two type conversions back into sessint, closed over Γ. *)
 let ty_converters g =

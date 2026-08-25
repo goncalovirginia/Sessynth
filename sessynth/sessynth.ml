@@ -197,7 +197,11 @@ let rec invert_right_F f ctxts goal =
         let* solution = ChoiceUtils.of_option solution in
         Choice.return (f, ctxts, solution)
     | TForAll _ ->
-        let f, t' = instantiate_tyF f goal in
+        (* offering a scheme, so its variables stand for types whoever calls has
+           already chosen: the body has to serve all of them at once, which it can
+           only do by passing a value of that type through. Instantiating here
+           instead would let the body pick, answering ∀a. a -> a with _x0 -> 1. *)
+        let f, t' = skolemize_tyF f goal in
         invert_right_F f ctxts t'
     | TAtomic _ | TConstructor _ -> invert_left_F f ctxts goal
 
@@ -364,6 +368,9 @@ and focus_right_F f ctxts goal =
     match goal with
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
     | TAtomic(TBool) -> Choice.return (f, ctxts, Bool(true))
+    (* nothing builds a value of a type chosen elsewhere -- one can only come
+       from Δ or Ψ, which is left focus's business, not right's *)
+    | TAtomic(TRigidVar _) -> Choice.fail
     | TAtomic(TPolyVar(_)) ->
         let map_unify = fun tA ->
             (* the try covers only the eager unification; the recursive call is

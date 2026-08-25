@@ -9,7 +9,8 @@ type bOp = And | Or | Eq | Gr | Lt | GrE | LtE | Sum | Sub | Mult | Div
 type tyA = (* atomic types (A) *)
     | TInt (* int *)
     | TBool (* bool *)
-    | TPolyVar of id (* α *)
+    | TPolyVar of id (* α, flexible: a hole unification is free to fill *)
+    | TRigidVar of id (* the type a ∀ was opened at on the right: already chosen by whoever calls, so nothing may bind or guess it *)
 
 type tyK = (* polymorphic kinds (K) *)
     | KBase (* base kind *)
