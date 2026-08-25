@@ -17,9 +17,18 @@ let scheme vars t = TForAll(List.map (fun a -> (a, KBase)) vars, t)
    with the goal grounds the whole spine *)
 let id_scheme = scheme ["a"] (TArrow(poly "a", poly "a"))
 
-(* len : ∀a. a -> int -- the return type mentions none, so 'a' is still free
-   when the argument is searched *)
+(* len : ∀a. a -> int -- the return type mentions none, so 'a' is only settled
+   by the choice made at the head *)
 let len_scheme = scheme ["a"] (TArrow(poly "a", TAtomic TInt))
+
+(* use : ∀a. a -> (a -> int) -> int -- 'a' reaches two argument positions, one of
+   them under a binder whose annotation records it *)
+let use_scheme =
+    scheme ["a"] (TArrow(poly "a", TArrow(TArrow(poly "a", TAtomic TInt), TAtomic TInt)))
+
+(* app : ∀a b. (a -> b) -> a -> b -- 'b' is settled by the goal, 'a' is not *)
+let app_scheme =
+    scheme ["a"; "b"] (TArrow(TArrow(poly "a", poly "b"), TArrow(poly "a", poly "b")))
 
 (* name, depth budget, Ψ, goal, the solution the search must reach first.
 
@@ -30,9 +39,14 @@ let cases = [
     ("id at int", 7, [("id", id_scheme)], TAtomic TInt, App(Var "id", Int 1));
     (* one binding answering a second goal is what a scheme buys over an arrow *)
     ("id at bool", 7, [("id", id_scheme)], TAtomic TBool, App(Var "id", Bool true));
-    (* room to spare for (len) 1: the focus is refused on its type, not its
-       depth, so the search falls back on building the goal itself *)
-    ("len at int", 9, [("len", len_scheme)], TAtomic TInt, Int 1);
+    (* nothing determines 'a', so the head picks the first ground type for it *)
+    ("len at int", 9, [("len", len_scheme)], TAtomic TInt, App(Var "len", Int 1));
+    (* the lambda's annotation is the witness: it reads int, not the variable the
+       spine started with, because the choice was made before the spine was walked *)
+    ("use at int", 12, [("use", use_scheme)], TAtomic TInt,
+        App(App(Var "use", Int 1), Lam("_x0", TAtomic TInt, Var "_x0")));
+    ("app at int", 12, [("app", app_scheme)], TAtomic TInt,
+        App(App(Var "app", Lam("_x0", TAtomic TInt, Var "_x0")), Int 1));
 ]
 
 let () =

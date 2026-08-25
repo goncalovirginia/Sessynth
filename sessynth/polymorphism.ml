@@ -50,8 +50,17 @@ and ftv_tyS = function
 let ftv_env ctxts =
     List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty ctxts.p
 
-(** Whether nothing in [t] is still waiting to be determined. *)
-let is_ground t = S.is_empty (ftv_tyF t)
+(* the types a variable may be guessed at when unification doesn't determine it *)
+let ground_atomic_types = [TInt; TBool]
+
+(** Returns every combination of ground type sbustitutions for each free variable of [t] (i.e. a list of substitution lists). 
+    A [t] that has none returns an empty substitutions list, leaving a caller that never had a variable exactly as it was. *)
+let ground_substitutions t =
+    List.fold_left (fun substs a ->
+        List.concat_map (fun s ->
+            List.map (fun tA -> (a, TAtomic tA)::s) ground_atomic_types
+        ) substs
+    ) [[]] (S.elements (ftv_tyF t))
 
 (* instantiation *)
 

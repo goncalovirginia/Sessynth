@@ -365,7 +365,6 @@ and focus_right_F f ctxts goal =
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
     | TAtomic(TBool) -> Choice.return (f, ctxts, Bool(true))
     | TAtomic(TPolyVar(_)) ->
-        let ground_atomic_types = [TInt; TBool] in
         let map_unify = fun tA ->
             (* the try covers only the eager unification; the recursive call is
                bound outside it, since a try around a let* would not protect it *)
@@ -452,10 +451,11 @@ and focus_left_F f ctxts eFocus tFocus goal =
         if tyF_equiv ctxts.g tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TForAll _ ->
-        (* Unifying the return type, rather than the whole scheme, is what leaves
-           an ordinary monomorphic focus behind: the arguments are then searched
-           at types the goal has already determined. As in focus_right_F, the
-           catch covers only the eager part. *)
+        (* The return type is where the goal reaches the scheme, so unifying it
+           settles every variable the goal determines before an argument is
+           searched at one; unifying the whole scheme would compare an arrow
+           against the goal and never match. As in focus_right_F, the catch
+           covers only the eager part. *)
         let instantiated =
             try
                 let f, t_inst = instantiate_tyF f tFocus in
@@ -465,12 +465,12 @@ and focus_left_F f ctxts eFocus tFocus goal =
             with Fail _ -> None
         in
         let* (f, t_inst', goal', ctxts') = ChoiceUtils.of_option instantiated in
-        (* A variable the return type never mentioned is still free, and an
-           argument synthesized at one would ground it in the context alone -- not
-           in the rest of the spine, which may mention it too. Refused until a
-           substitution is threaded back out of a subderivation. *)
-        let* () = Choice.guard (is_ground t_inst') in
-        focus_left_F f ctxts' eFocus t_inst' goal'
+        (* What the return type left undetermined is chosen here rather than
+           where it is used, so one substitution reaches the whole spine:
+           two argument positions sharing a variable are searched at the same type, 
+           and so a mismatched pair is never built, rather than built and rejected. *)
+        let* subst = Choice.of_list (ground_substitutions t_inst') in
+        focus_left_F f (unify_subst_ctxts subst ctxts') eFocus (unify_subst_tyF subst t_inst') (unify_subst_tyF subst goal')
     | TConstructor _ -> invert_left_F f ctxts goal
 
 and focus_left_S f ctxts cFocus tFocus c goal =
