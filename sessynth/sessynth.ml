@@ -11,6 +11,7 @@ module Language = Language
 
 let resolve_declr = TyUtils.resolve_declr
 let tyF_to_string = Printer.tyF_to_string
+let expF_to_string = Printer.expF_to_string
 let set_max_depth = Flags.set_max_depth
 
 (* re-exported so that Sessynth.Fail keeps naming the same exception *)
@@ -451,16 +452,24 @@ and focus_left_F f ctxts eFocus tFocus goal =
         if tyF_equiv ctxts.g tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TForAll _ ->
-        (* as in focus_right_F: catch around the eager part only *)
+        (* Unifying the return type, rather than the whole scheme, is what leaves
+           an ordinary monomorphic focus behind: the arguments are then searched
+           at types the goal has already determined. As in focus_right_F, the
+           catch covers only the eager part. *)
         let instantiated =
             try
                 let f, t_inst = instantiate_tyF f tFocus in
-                let subst = unify t_inst goal in
+                let subst = unify (get_return_type t_inst) goal in
                 Some (f, unify_subst_tyF subst t_inst, unify_subst_tyF subst goal,
                       unify_subst_ctxts subst ctxts)
             with Fail _ -> None
         in
         let* (f, t_inst', goal', ctxts') = ChoiceUtils.of_option instantiated in
+        (* A variable the return type never mentioned is still free, and an
+           argument synthesized at one would ground it in the context alone -- not
+           in the rest of the spine, which may mention it too. Refused until a
+           substitution is threaded back out of a subderivation. *)
+        let* () = Choice.guard (is_ground t_inst') in
         focus_left_F f ctxts' eFocus t_inst' goal'
     | TConstructor _ -> invert_left_F f ctxts goal
 

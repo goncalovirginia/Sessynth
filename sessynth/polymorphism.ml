@@ -27,15 +27,31 @@ let rec ftv_tyF = function
     | TAtomic a -> ftv_tyA a
     | TRefinement(_, a, r) -> S.union (ftv_tyA a) (ftv_tyR r)
     | TArrow(t1, t2) -> S.union (ftv_tyF t1) (ftv_tyF t2)
-    | TProcess(_, _) | TDeclr _ -> S.empty
+    | TProcess(incsl, outs) ->
+        List.fold_left (fun s (_, st) -> S.union s (ftv_tyS st)) (ftv_tyS outs) incsl
+    | TDeclr _ -> S.empty
     | TForAll(xkl, t) ->
         let vars_set = List.fold_left (fun s (x, _) -> S.add x s) S.empty xkl in
         S.diff (ftv_tyF t) vars_set
     | TConstructor(_, args) ->
         List.fold_left (fun s t -> S.union s (ftv_tyF t)) S.empty args
 
+(* a recursion variable is not a type variable, so only the functional types a
+   session type carries can contribute one. {!occurs_tyS} already descended here;
+   this is the half that did not. *)
+and ftv_tyS = function
+    | STUnit | STRecVar _ | STDeclr _ -> S.empty
+    | STSendF(t, s) | STRecvF(t, s) -> S.union (ftv_tyF t) (ftv_tyS s)
+    | STSendS(s1, s2) | STRecvS(s1, s2) -> S.union (ftv_tyS s1) (ftv_tyS s2)
+    | STExtChoice l | STIntChoice l ->
+        List.fold_left (fun s (_, st) -> S.union s (ftv_tyS st)) S.empty l
+    | STRec(_, _, s) -> ftv_tyS s
+
 let ftv_env ctxts =
     List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty ctxts.p
+
+(** Whether nothing in [t] is still waiting to be determined. *)
+let is_ground t = S.is_empty (ftv_tyF t)
 
 (* instantiation *)
 
