@@ -75,11 +75,11 @@ let get_sync_bindings is_left_async ctxt =
     List.filter (fun (_, t) -> not (is_left_async t)) ctxt
 
 let find_binding_for_tyF ctxts tF =
-    Option.map fst (List.find_opt (fun (_, t) -> tyF_equiv ctxts.g t tF) ctxts.p)
+    Option.map fst (List.find_opt (fun (_, t) -> tyF_equiv ctxts.g [] t tF) ctxts.p)
 
 (* comparing contexts *)
 
-let bindingS_equiv ctxts (x1, s1) (x2, s2) = x1 = x2 && tyS_equiv ctxts.g s1 s2
+let bindingS_equiv ctxts (x1, s1) (x2, s2) = x1 = x2 && tyS_equiv ctxts.g [] s1 s2
 
 (** Multiset equality under [bindingS_equiv].
 
@@ -152,7 +152,7 @@ let rec consume_channels_by_tyS ctxts tSl =
     match tSl with
     | [] -> Choice.return (ctxts, [])
     | tS::tSl' ->
-        let csl = List.filter (fun (_, s) -> tyS_equiv ctxts.g s tS) ctxts.d in
+        let csl = List.filter (fun (_, s) -> tyS_equiv ctxts.g [] s tS) ctxts.d in
         let* (c, _) = Choice.of_list csl in
         let* (ctxts', _) = ChoiceUtils.of_option (consume_channel ctxts c) in
         let* (ctxts'', cl) = consume_channels_by_tyS ctxts' tSl' in

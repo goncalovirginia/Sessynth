@@ -32,6 +32,13 @@ let app_scheme =
 
 let rigid r = TAtomic(TRigidVar r)
 
+(* the same two schemes spelled with a different binder, for the renaming cases *)
+let id_scheme_b = scheme ["b"] (TArrow(poly "b", poly "b"))
+let len_scheme_b = scheme ["b"] (TArrow(poly "b", TAtomic TInt))
+
+(* a session that sends one value of [t] and closes *)
+let sends t = STSendF(t, STUnit)
+
 (* int ^ 1 -- send an int, then close *)
 let int_then_close = STSendF(TAtomic TInt, STUnit)
 
@@ -86,6 +93,22 @@ let cases = [
         TProcess([], fun_then_close),
         Some (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", fun_then_close)),
                       fun_then_close, [])));
+
+    (* ∀b. b -> b is ∀a. a -> a, so a process offering one answers a goal asking
+       the other. p is arrow-typed on purpose: a binding of exactly the goal's
+       type becomes xRecLam, and spawning that is the degenerate self-spawn *)
+    ("spawn at an α-equivalent payload", 18,
+        [("p", TArrow(TAtomic TInt, TProcess([], sends id_scheme_b)))],
+        TProcess([], sends id_scheme),
+        Some (Process("_c0",
+                Spawn("_c1", App(Var "p", Int 1), [], Fwd("_c1", "_c0", sends id_scheme)),
+                sends id_scheme, [])));
+    (* and renaming a binder is still not the same as changing the body *)
+    ("no spawn at a payload that only looks alike", 18,
+        [("p", TArrow(TAtomic TInt, TProcess([], sends len_scheme_b)))],
+        TProcess([], sends id_scheme),
+        Some (Process("_c0", SendF("_c0", Lam("_x0", rigid "_ρ0", Var "_x0"), Close "_c0"),
+                      sends id_scheme, [])));
 ]
 
 let () =

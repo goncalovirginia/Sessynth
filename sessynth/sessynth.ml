@@ -443,19 +443,19 @@ and focus_left_F f ctxts eFocus tFocus goal =
         let* (f, ctxts', e1) = invert_right_F f ctxts t1 in
         focus_left_F f ctxts' (App(eFocus, e1)) t2 goal
     | TProcess _ | TAtomic _ ->
-        if tyF_equiv ctxts.g tFocus goal then Choice.return (f, ctxts, eFocus)
+        if tyF_equiv ctxts.g [] tFocus goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TRefinement(_, tA, _) ->
-        if tyF_equiv ctxts.g (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat !print_debug ctxts.p tFocus goal)
+        if tyF_equiv ctxts.g [] (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat !print_debug ctxts.p tFocus goal)
             then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TDeclr x ->
         let declr_matches_goal =
             match List.assoc_opt x ctxts.p with
-            | Some t -> tyF_equiv ctxts.g t goal
+            | Some t -> tyF_equiv ctxts.g [] t goal
             | None -> false
         in
-        if tyF_equiv ctxts.g tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
+        if tyF_equiv ctxts.g [] tFocus goal || declr_matches_goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TForAll _ ->
         (* The return type is where the goal reaches the scheme, so unifying it
@@ -557,7 +557,7 @@ and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
         | None -> true
         | Some filter_t ->
             match get_TProcess_outs tReturn, get_TProcess_outs filter_t with
-            | Some outs, Some filter_outs -> tyS_equiv ctxts.g outs filter_outs
+            | Some outs, Some filter_outs -> tyS_equiv ctxts.g [] outs filter_outs
             | _ -> false
     in
     (* A scheme is instantiated, matched against the filter, and its leftovers grounded,
@@ -597,7 +597,7 @@ and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
 
 and synth_fwd f ctxts cToFwd c goal =
     let* (ctxts', tToFwd) = ChoiceUtils.of_option (consume_channel ctxts cToFwd) in
-    let* () = Choice.guard (tyS_equiv ctxts.g tToFwd goal) in
+    let* () = Choice.guard (tyS_equiv ctxts.g [] tToFwd goal) in
     let* () = Choice.guard (delta_is_empty ctxts') in
     Choice.return (f, ctxts', Fwd(cToFwd, c, goal))
 
