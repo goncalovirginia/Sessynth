@@ -378,7 +378,7 @@ and focus_right_F f ctxts goal =
             let unified =
                 try
                     let candidate = TAtomic(tA) in
-                    let subst = unify goal candidate in
+                    let subst = unify ctxts.g goal candidate in
                     Some (unify_subst_ctxts subst ctxts, unify_subst_tyF subst goal)
                 with Fail _ -> None
             in
@@ -466,7 +466,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
         let instantiated =
             try
                 let f, t_inst = instantiate_tyF f tFocus in
-                let subst = unify (get_return_type t_inst) goal in
+                let subst = unify ctxts.g (get_return_type t_inst) goal in
                 Some (f, unify_subst_tyF subst t_inst, unify_subst_tyF subst goal,
                       unify_subst_ctxts subst ctxts)
             with Fail _ -> None
@@ -571,7 +571,7 @@ and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
                     let f, tInst = instantiate_tyF f t in
                     let subst =
                         match get_TProcess_outs (get_return_type tInst), Option.bind goal_tProcess_filter get_TProcess_outs with
-                        | Some outs, Some filter_outs -> unify_tyS outs filter_outs
+                        | Some outs, Some filter_outs -> unify_tyS ctxts.g outs filter_outs
                         | _ -> []
                     in
                     Some (f, unify_subst_tyF subst tInst)
@@ -657,6 +657,11 @@ let synth n_sol g p d goal =
     List.iter (fun (c, s) -> reject_unbound_recvar ("the type of channel " ^ c) (unbound_recvar_tyS [] s)) d;
     (* a Γ definition has to be closed for [resolve_declr] to be capture-free *)
     List.iter (fun (x, s) -> reject_unbound_recvar ("the declaration of " ^ x) (unbound_recvar_tyS [] s)) g;
+    (match cyclic_declr g with
+     | Some x -> raise (Fail ("session type " ^ x ^ " is defined in terms of itself; use rec instead"))
+     | None -> ());
+
+
     let f, ctxts = initialize_flags (), initialize_ctxts in
     let ctxts = append_bindings_gamma ctxts g in
     let ctxts = append_bindings_psi ctxts p in

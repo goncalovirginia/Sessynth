@@ -192,6 +192,40 @@ let resolve_declr g t =
         | _ -> t
     in resolve [] t
 
+(** The first name in [g] whose definition can reach itself, [None] when none can.
+    Such a definition denotes no finite type -- recursion belongs in μ -- and both
+    equivalence and unification resolve until they loop on one. *)
+let cyclic_declr g =
+    let rec names_tyS acc t =
+        match t with
+        | STDeclr x -> x::acc
+        | STUnit | STRecVar _ -> acc
+        | STSendF(f, t') | STRecvF(f, t') -> names_tyS (names_tyF acc f) t'
+        | STSendS(t1, t2) | STRecvS(t1, t2) -> names_tyS (names_tyS acc t1) t2
+        | STExtChoice l | STIntChoice l -> List.fold_left (fun a (_, t') -> names_tyS a t') acc l
+        | STRec(_, _, t') -> names_tyS acc t'
+    and names_tyF acc t =
+        match t with
+        | TAtomic _ | TRefinement _ | TDeclr _ -> acc
+        | TArrow(t1, t2) -> names_tyF (names_tyF acc t1) t2
+        | TForAll(_, t') -> names_tyF acc t'
+        | TConstructor(_, args) -> List.fold_left names_tyF acc args
+        | TProcess(incsl, outs) ->
+            List.fold_left (fun a (_, t') -> names_tyS a t') (names_tyS acc outs) incsl
+    in
+    (* whether [x] is named anywhere [t] leads, [seen] stopping the walk at a name
+       already followed so an unrelated cycle does not spin *)
+    let rec reaches seen x t =
+        List.exists (fun y ->
+            y = x
+            || (not (List.mem y seen)
+                && match List.assoc_opt y g with
+                   | Some t' -> reaches (y::seen) x t'
+                   | None -> false))
+            (names_tyS [] t)
+    in
+    List.find_map (fun (x, t) -> if reaches [x] x t then Some x else None) g
+
 (** What Γ defines [x] to be. An undefined name is a malformed goal rather than
     a dead branch, hence the raise. *)
 let lookup_declr g x =

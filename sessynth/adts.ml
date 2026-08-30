@@ -11,6 +11,7 @@
 
 open Language
 open TyUtils
+open Contexts
 open Polymorphism
 
 (* the constructors of the datatype that [c_T] is headed by, i.e. those bindings
@@ -50,7 +51,7 @@ let instantiate_constructor f ctxts scheme target =
     try
         let f, ty_inst = instantiate_tyF f scheme in
         let args, res = flatten_TArrow ty_inst in
-        let subst = unify res target in
+        let subst = unify ctxts.g res target in
         let args' = List.map (unify_subst_tyF subst) args in
         let ctxts' = unify_subst_ctxts subst ctxts in
         Some (f, ctxts', args', subst)

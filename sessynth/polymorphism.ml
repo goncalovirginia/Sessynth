@@ -227,7 +227,7 @@ and occurs_tyS a t =
     | STDeclr _ -> false
 
 (* unify(t1​, t2​) = θ *)
-let rec unify t1 t2 =
+let rec unify g t1 t2 =
     match t1, t2 with
     | TAtomic(TInt), TAtomic(TInt) -> []
     | TAtomic(TBool), TAtomic(TBool) -> []
@@ -248,48 +248,49 @@ let rec unify t1 t2 =
             else if occurs a t' then raise (Fail "Occurs check failed.")
             else [(a, t')]
         end
-    | TRefinement(_, a1, _), TRefinement(_, a2, _) -> unify (TAtomic a1) (TAtomic a2)
-    | TRefinement(_, a, _), t | t, TRefinement(_, a, _) -> unify (TAtomic a) t
+    | TRefinement(_, a1, _), TRefinement(_, a2, _) -> unify g (TAtomic a1) (TAtomic a2)
+    | TRefinement(_, a, _), t | t, TRefinement(_, a, _) -> unify g (TAtomic a) t
     | TArrow(a1, b1), TArrow(a2, b2) ->
-        let s1 = unify a1 a2 in
-        let s2 = unify (unify_subst_tyF s1 b1) (unify_subst_tyF s1 b2) in
+        let s1 = unify g a1 a2 in
+        let s2 = unify g (unify_subst_tyF s1 b1) (unify_subst_tyF s1 b2) in
         unify_compose_subst s2 s1
     | TProcess(cs1, outs1), TProcess(cs2, outs2) ->
         if List.length cs1 <> List.length cs2 then raise (Fail "Cannot unify.")
         else
-            let subst0 = unify_tyS outs1 outs2 in
+            let subst0 = unify_tyS g outs1 outs2 in
             List.fold_left2
                 (fun subst_acc (_, s1) (_, s2) ->
                     let s1' = unify_subst_tyS subst_acc s1 in
                     let s2' = unify_subst_tyS subst_acc s2 in
-                    unify_compose_subst (unify_tyS s1' s2') subst_acc
+                    unify_compose_subst (unify_tyS g s1' s2') subst_acc
                 ) subst0 cs1 cs2
     | TConstructor(x1, args1), TConstructor(x2, args2) when x1 = x2 && List.length args1 = List.length args2 ->
         List.fold_left2 (fun s a1 a2 ->
             let a1' = unify_subst_tyF s a1 in
             let a2' = unify_subst_tyF s a2 in
-            unify_compose_subst (unify a1' a2') s
+            unify_compose_subst (unify g a1' a2') s
         ) [] args1 args2
     (* nothing outside a ∀ may be substituted for what it binds, so two schemes
-       unify only when they already are the same type -- which {!tyF_equiv} decides
-       up to renaming. Γ is empty because unify has none to pass, so a payload
-       naming a declaration will not resolve *)
-    | TForAll _, TForAll _ -> if tyF_equiv [] [] t1 t2 then [] else raise (Fail "Cannot unify.")
+       unify only when they already are the same type, which {!tyF_equiv} decides
+       up to renaming *)
+    | TForAll _, TForAll _ -> if tyF_equiv g [] t1 t2 then [] else raise (Fail "Cannot unify.")
     | TDeclr x1, TDeclr x2 when x1 = x2 -> []
     | _ -> raise (Fail "Cannot unify.")
 
-and unify_tyS s1 s2 =
-    match s1, s2 with
+(* resolved through Γ first, as {!tyS_equiv} is, so a session named by a
+   declaration still unifies with the one it names *)
+and unify_tyS g s1 s2 =
+    match resolve_declr g s1, resolve_declr g s2 with
     | STUnit, STUnit -> []
     | STSendF(t1a, t2a), STSendF(t1b, t2b)
     | STRecvF(t1a, t2a), STRecvF(t1b, t2b) ->
-        let subst1 = unify t1a t1b in
-        let subst2 = unify_tyS (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
+        let subst1 = unify g t1a t1b in
+        let subst2 = unify_tyS g (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
         unify_compose_subst subst2 subst1
     | STSendS(t1a, t2a), STSendS(t1b, t2b)
     | STRecvS(t1a, t2a), STRecvS(t1b, t2b) ->
-        let subst1 = unify_tyS t1a t1b in
-        let subst2 = unify_tyS (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
+        let subst1 = unify_tyS g t1a t1b in
+        let subst2 = unify_tyS g (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
         unify_compose_subst subst2 subst1
     | STExtChoice ls1, STExtChoice ls2
     | STIntChoice ls1, STIntChoice ls2 ->
@@ -299,11 +300,11 @@ and unify_tyS s1 s2 =
                 (fun subst_acc (_, st1) (_, st2) ->
                     let st1' = unify_subst_tyS subst_acc st1 in
                     let st2' = unify_subst_tyS subst_acc st2 in
-                    unify_compose_subst (unify_tyS st1' st2') subst_acc
+                    unify_compose_subst (unify_tyS g st1' st2') subst_acc
                 ) [] ls1 ls2
     | STRec(_, x1, st1), STRec(_, x2, st2) ->
         let st2' = if x1 = x2 then st2 else rename_recvar_in_tyS x2 x1 st2 in
-        unify_tyS st1 st2'
+        unify_tyS g st1 st2'
     | STRecVar x1, STRecVar x2 when x1 = x2 -> []
-    | STDeclr x1, STDeclr x2 when x1 = x2 -> []
+    | STDeclr x1, STDeclr x2 when x1 = x2 -> [] (* only reached when Γ defines neither *)
     | _ -> raise (Fail "Cannot unify.")
