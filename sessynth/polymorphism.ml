@@ -34,9 +34,7 @@ let rec ftv_tyF = function
     | TProcess(incsl, outs) ->
         List.fold_left (fun s (_, st) -> S.union s (ftv_tyS st)) (ftv_tyS outs) incsl
     | TDeclr _ -> S.empty
-    | TForAll(xkl, t) ->
-        let vars_set = List.fold_left (fun s (x, _) -> S.add x s) S.empty xkl in
-        S.diff (ftv_tyF t) vars_set
+    | TForAll(xl, t) -> S.diff (ftv_tyF t) (S.of_list xl)
     | TConstructor(_, args) ->
         List.fold_left (fun s t -> S.union s (ftv_tyF t)) S.empty args
 
@@ -83,10 +81,10 @@ let rec instantiate_subst_tyF subst t =
     | TArrow (t1, t2) -> TArrow (instantiate_subst_tyF subst t1, instantiate_subst_tyF subst t2)
     | TProcess (incsl, outs) -> TProcess (List.map (fun (c, s) -> (c, instantiate_subst_tyS subst s)) incsl, instantiate_subst_tyS subst outs)
     | TDeclr x -> TDeclr x
-    | TForAll (xkl, tF) ->
+    | TForAll (xl, tF) ->
         (* avoid capture: ignore substitution for re-bound vars *)
-        let subst' = List.filter (fun (a, _) -> not (List.exists (fun (v, _) -> v = a) xkl)) subst in
-        TForAll (xkl, instantiate_subst_tyF subst' tF)
+        let subst' = List.filter (fun (a, _) -> not (List.mem a xl)) subst in
+        TForAll (xl, instantiate_subst_tyF subst' tF)
     | TConstructor(x, args) ->
         TConstructor(x, List.map (fun arg -> instantiate_subst_tyF subst arg) args)
 
@@ -109,16 +107,12 @@ and instantiate_subst_tyS subst t =
    names are replaced by *)
 let open_scheme fresh_var f t =
     match t with
-    | TForAll (xkl, tF) ->
-        let () =
-            if List.exists (fun (_, k) -> k <> KBase) xkl then
-                raise (Fail "open_scheme: only KBase polymorphism is supported")
-        in
+    | TForAll (xl, tF) ->
         let f, subst =
-            List.fold_left (fun (f', subst') (a, _) ->
+            List.fold_left (fun (f', subst') a ->
                 let f'', v = fresh_var f' in
                 f'', (a, v)::subst'
-            ) (f, []) xkl
+            ) (f, []) xl
         in
         f, instantiate_subst_tyF subst tF
     | _ -> f, t
@@ -143,7 +137,7 @@ let unify_subst_tyA s a =
         match List.assoc_opt v s with
         | Some (TAtomic a') -> a'
         | Some (TRefinement(_, a', _)) -> a'
-        | Some _ -> raise (Fail "unify_subst: KBase polyvar substituted with non-base type")
+        | Some _ -> raise (Fail "unify_subst: a refinement's base type can only be a base type")
         | None -> a
 
 let rec unify_subst_tyF s t =
@@ -158,10 +152,9 @@ let rec unify_subst_tyF s t =
     | TRefinement(x, a, r) -> TRefinement (x, unify_subst_tyA s a, r)
     | TProcess(cs, s') -> TProcess (List.map (fun (c, st) -> (c, unify_subst_tyS s st)) cs, unify_subst_tyS s s')
     | TDeclr(x) -> TDeclr x
-    | TForAll(xks, t') ->
-        let bound = List.map fst xks in
-        let s' = List.filter (fun (a, _) -> not (List.mem a bound)) s in
-        TForAll (xks, unify_subst_tyF s' t')
+    | TForAll(xl, t') ->
+        let s' = List.filter (fun (a, _) -> not (List.mem a xl)) s in
+        TForAll (xl, unify_subst_tyF s' t')
     | TConstructor(x, args) -> TConstructor(x, List.map (fun arg -> unify_subst_tyF s arg) args)
 
 and unify_subst_tyS s t =
@@ -208,8 +201,7 @@ let rec occurs a t =
     | TProcess(cs, s') ->
         List.exists (fun (_, st) -> occurs_tyS a st) cs || occurs_tyS a s'
     | TDeclr _ -> false
-    | TForAll(xks, t') ->
-        if List.mem a (List.map fst xks) then false else occurs a t'
+    | TForAll(xl, t') -> if List.mem a xl then false else occurs a t'
     | TConstructor(_, args) -> List.exists (fun arg -> occurs a arg) args
 
 and occurs_tyS a t =
@@ -239,7 +231,7 @@ let rec unify g t1 t2 =
         in
         begin
         match t' with
-        | TForAll _ -> raise (Fail "Cannot unify: KBase polyvar with a type scheme")
+        | TForAll _ -> raise (Fail "Cannot unify: a type variable may not stand for a scheme")
         | _ ->
             if t' = TAtomic(TPolyVar(a)) then []
             else if occurs a t' then raise (Fail "Occurs check failed.")

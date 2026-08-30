@@ -12,10 +12,6 @@ type tyA = (* atomic types (A) *)
     | TPolyVar of id (* α, flexible: a hole unification is free to fill *)
     | TRigidVar of id (* the type a ∀ was opened at on the right: already chosen by whoever calls, so nothing may bind or guess it *)
 
-type tyK = (* polymorphic kinds (K) *)
-    | KBase (* base kind *)
-    | KArrow (* arrow kind *)
-    
 type tyR = (* refinement types (R) *)
     | RTInt of int
     | RTBool of bool
@@ -29,7 +25,7 @@ and tyF = (* functional types (F) *)
     | TArrow of tyF * tyF (* F1 -> F2 *)
     | TProcess of (id * tyS) list * tyS (* { c1:S1, ..., cn:Sn |- S } *)
     | TDeclr of id (* variable bound to a previously defined functional type declaration *)
-    | TForAll of (id * tyK) list * tyF (* ∀ᾱ. F *)
+    | TForAll of id list * tyF (* ∀ᾱ. F *)
     | TConstructor of id * tyF list (* T F1 ... Fn *)
 
 and tyS = (* channel/session types (S) *)

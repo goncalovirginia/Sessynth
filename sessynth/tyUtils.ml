@@ -285,11 +285,10 @@ and tyF_equiv g env t1 t2 =
         && List.for_all2 (fun (c1, s1) (c2, s2) -> c1 = c2 && tyS_equiv g env s1 s2) incsl1 incsl2
         && tyS_equiv g env outs1 outs2
     | TDeclr x1, TDeclr x2 -> x1 = x2
-    | TForAll(xkl1, f1), TForAll(xkl2, f2) ->
+    | TForAll(xl1, f1), TForAll(xl2, f2) ->
         (* the new pairs go in front, so an inner scheme shadows an outer one *)
-        List.length xkl1 = List.length xkl2
-        && List.for_all2 (fun (_, k1) (_, k2) -> k1 = k2) xkl1 xkl2
-        && tyF_equiv g (List.map2 (fun (a1, _) (a2, _) -> (a1, a2)) xkl1 xkl2 @ env) f1 f2
+        List.length xl1 = List.length xl2
+        && tyF_equiv g (List.combine xl1 xl2 @ env) f1 f2
     | TConstructor(x1, args1), TConstructor(x2, args2) ->
         x1 = x2
         && List.length args1 = List.length args2

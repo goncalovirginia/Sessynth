@@ -11,7 +11,7 @@ open Sessynth
 open Sessynth.Language
 
 let poly a = TAtomic(TPolyVar a)
-let scheme vars t = TForAll(List.map (fun a -> (a, KBase)) vars, t)
+let scheme vars t = TForAll(vars, t)
 
 (* id : ∀a. a -> a -- the return type mentions every variable, so unifying it
    with the goal grounds the whole spine *)

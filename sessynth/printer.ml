@@ -25,11 +25,6 @@ let tyA_to_string t =
     | TBool -> "bool"
     | TPolyVar a | TRigidVar a -> a
 
-let tyK_to_string t =
-    match t with
-    | KBase -> "*"
-    | KArrow -> "* -> *"
-
 let rec tyR_to_string t =
     match t with
     | RTUOp(op, t) -> uOp_to_string op ^ tyR_to_string t
@@ -46,7 +41,7 @@ and tyF_to_string t =
     | TArrow(t1, t2) -> tyF_to_string t1 ^ " -> " ^ tyF_to_string t2
     | TProcess(incsl, outs) -> "{" ^ cs_list_to_string incsl ^ " |- " ^ tyS_to_string outs ^ "}"
     | TDeclr(x) -> x
-    | TForAll(xkl, t) -> "∀" ^ id_kind_list_to_string xkl ^ ". " ^ tyF_to_string t
+    | TForAll(xl, t) -> "∀" ^ String.concat ", " xl ^ ". " ^ tyF_to_string t
     | TConstructor(x, args) -> x ^ " " ^ tyF_args_to_string args
 
 and tyF_args_to_string args =
@@ -78,13 +73,7 @@ and label_tyS_list_to_string xtl =
     match xtl with
     | [] -> ""
     | [(l, t)] -> l ^ ":" ^ tyS_to_string t
-    | (l, t)::xtl' -> l ^ ":" ^ tyS_to_string t ^ ", " ^ label_tyS_list_to_string xtl' 
-	
-and id_kind_list_to_string xkl =
-    match xkl with
-    | [] -> ""
-    | [(x, k)] -> x ^ ":" ^ tyK_to_string k
-    | (x, k)::xkl' -> x ^ ":" ^ tyK_to_string k ^ ", " ^ id_kind_list_to_string xkl'
+    | (l, t)::xtl' -> l ^ ":" ^ tyS_to_string t ^ ", " ^ label_tyS_list_to_string xtl'
 
 let rec expF_to_string e depth =
     match e with 

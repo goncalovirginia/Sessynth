@@ -40,8 +40,7 @@ let constructors_of constructors c_T =
     and the substitution itself — the caller still needs it to rewrite whatever
     else it is carrying (the goal, in the case-analysis rule).
 
-    [None] when the scheme's result type does not unify with [target], or when
-    the scheme uses a kind other than KBase.
+    [None] when the scheme's result type does not unify with [target].
 
     This is the boundary at which the exceptions raised by {!Polymorphism} are
     turned into a value: the whole body is eager, so catching here is sound,
