@@ -50,12 +50,8 @@ let is_TProcess t =
     | TProcess _ -> true
     | _ -> false
 
-let rec offers_TProcess t =
-    match t with
-    | TForAll(_, t') -> offers_TProcess t'
-    | TArrow(_, t2) -> offers_TProcess t2
-    | TProcess _ -> true
-    | _ -> false
+let offers_TProcess t =
+    is_TProcess (get_return_type (match t with TForAll(_, t') -> t' | _ -> t))
 
 let is_STRec t =
     match t with
@@ -237,12 +233,13 @@ let lookup_declr g x =
 
 (** Equivalence of session types; use this instead of (=) on any tyS.
 
-    Modulo Γ, and modulo the binders of STRec and TForAll, whose names [env]
-    pairs up as it descends (callers outside a scheme pass [[]]). The unfolding
-    budget of STRec is search bookkeeping, not meaning, so it is ignored.
+    Modulo Γ, and modulo binders, each in its own way: a ∀'s names [env] pairs up
+    as it descends (callers outside a scheme pass [[]]), a μ's are renamed apart,
+    and a process type's input channel names are ignored outright. The unfolding
+    budget of STRec is search bookkeeping, not meaning, so it is ignored too.
 
     Not modulo unfolding: μt.S and S[μt.S/t] stay distinct. Everything else is
-    structural, refinement predicates and TProcess input names included.
+    structural, refinement predicates included.
 
     NOTE: keep in sync with tyS/tyF whenever a constructor is added. *)
 let rec tyS_equiv g env t1 t2 =
@@ -280,9 +277,11 @@ and tyF_equiv g env t1 t2 =
     | TAtomic a1, TAtomic a2 -> a1 = a2
     | TRefinement(x1, a1, r1), TRefinement(x2, a2, r2) -> x1 = x2 && a1 = a2 && r1 = r2
     | TArrow(a1, b1), TArrow(a2, b2) -> tyF_equiv g env a1 a2 && tyF_equiv g env b1 b2
+    (* an input channel name is a binder -- the body reads it as Δ and the spawn
+       site supplies an actual channel positionally -- so only the types count *)
     | TProcess(incsl1, outs1), TProcess(incsl2, outs2) ->
         List.length incsl1 = List.length incsl2
-        && List.for_all2 (fun (c1, s1) (c2, s2) -> c1 = c2 && tyS_equiv g env s1 s2) incsl1 incsl2
+        && List.for_all2 (fun (_, s1) (_, s2) -> tyS_equiv g env s1 s2) incsl1 incsl2
         && tyS_equiv g env outs1 outs2
     | TDeclr x1, TDeclr x2 -> x1 = x2
     | TForAll(xl1, f1), TForAll(xl2, f2) ->

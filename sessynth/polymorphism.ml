@@ -55,6 +55,56 @@ and ftv_tyS = function
 let unbound_polyvar_tyF t = S.min_elt_opt (ftv_tyF t)
 let unbound_polyvar_tyS t = S.min_elt_opt (ftv_tyS t)
 
+(** How [t] is malformed as far as ∀ is concerned, as a clause naming the offender,
+    [None] when it is not.
+
+    A ∀ binding one name twice reads two ways -- [!open_scheme] substitutes only the
+    last repeat, [!TyUtils.tyF_equiv] pairs up the first -- and a rigid variable is
+    one only [!skolemize_tyF] makes, standing for a type whoever calls has chosen,
+    so in input there is no caller to have chosen it. Neither reaches here from a
+    .sessint file, whose grammar has no schemes; both reach here from the API. *)
+let rec ill_formed_scheme_tyF t =
+    let first_of tl =
+        List.fold_left (fun acc t' ->
+            match acc with Some _ -> acc | None -> ill_formed_scheme_tyF t') None tl
+    in
+    match t with
+    | TAtomic(TRigidVar r) | TRefinement(_, TRigidVar r, _) ->
+        Some ("the internal rigid variable " ^ r)
+    | TAtomic _ | TRefinement _ | TDeclr _ -> None
+    | TArrow(t1, t2) -> first_of [t1; t2]
+    | TConstructor(_, args) -> first_of args
+    | TProcess(incsl, outs) ->
+        List.fold_left (fun acc s ->
+            match acc with Some _ -> acc | None -> ill_formed_scheme_tyS s)
+            None (outs :: List.map snd incsl)
+    | TForAll(xl, t') ->
+        let rec repeated seen xs =
+            match xs with
+            | [] -> None
+            | a::xs' ->
+                if List.mem a seen then Some ("a forall binding " ^ a ^ " twice")
+                else repeated (a::seen) xs'
+        in
+        (match repeated [] xl with
+         | Some _ as d -> d
+         | None -> ill_formed_scheme_tyF t')
+
+and ill_formed_scheme_tyS t =
+    let first_of tl =
+        List.fold_left (fun acc t' ->
+            match acc with Some _ -> acc | None -> ill_formed_scheme_tyS t') None tl
+    in
+    match t with
+    | STUnit | STRecVar _ | STDeclr _ -> None
+    | STSendF(f, s) | STRecvF(f, s) ->
+        (match ill_formed_scheme_tyF f with
+         | Some _ as d -> d
+         | None -> ill_formed_scheme_tyS s)
+    | STSendS(s1, s2) | STRecvS(s1, s2) -> first_of [s1; s2]
+    | STExtChoice l | STIntChoice l -> first_of (List.map snd l)
+    | STRec(_, _, s) -> ill_formed_scheme_tyS s
+
 (* the types a variable may be guessed at when unification doesn't determine it *)
 let ground_atomic_types = [TInt; TBool]
 

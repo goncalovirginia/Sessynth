@@ -36,6 +36,14 @@ let rigid r = TAtomic(TRigidVar r)
 let id_scheme_b = scheme ["b"] (TArrow(poly "b", poly "b"))
 let len_scheme_b = scheme ["b"] (TArrow(poly "b", TAtomic TInt))
 
+(* ∀a. a -> ∀a. a -> a -- the inner binder shadows the outer one, so the body
+   returns the inner variable. The next two spell the same shape differently *)
+let nested_shadow = scheme ["a"] (TArrow(poly "a", scheme ["a"] (TArrow(poly "a", poly "a"))))
+(* ...renamed apart, and so the same type *)
+let nested_renamed = scheme ["b"] (TArrow(poly "b", scheme ["c"] (TArrow(poly "c", poly "c"))))
+(* ...and returning the outer variable instead, and so a different one *)
+let nested_other = scheme ["b"] (TArrow(poly "b", scheme ["c"] (TArrow(poly "c", poly "b"))))
+
 (* a session that sends one value of [t] and closes *)
 let sends t = STSendF(t, STUnit)
 
@@ -84,6 +92,28 @@ let cases = [
     ("goal ∀a. (int -> a) -> a", 12, [], [],
         scheme ["a"] (TArrow(TArrow(TAtomic TInt, poly "a"), poly "a")),
         Some (Lam("_x0", TArrow(TAtomic TInt, rigid "_ρ0"), App(Var "_x0", Int 1))));
+    (* rank-2: a ∀ in argument position. The argument is a goal like any other, so
+       it is offered rather than used and the lambda is built at a rigid *)
+    ("rank-2 scheme argument", 12, [], [("f", TArrow(id_scheme, TAtomic TInt))],
+        TAtomic TInt,
+        Some (App(Var "f", Lam("_x0", rigid "_ρ0", Var "_x0"))));
+    (* the rigid the goal opened reaches the return type of a scheme in Ψ, so
+       unification compares two rigids rather than a rigid and a variable. Its
+       accepting them is what this rests on: made to fail, the branch dies here *)
+    ("goal ∀a. (∀b. b -> a) -> a", 14, [], [],
+        scheme ["a"] (TArrow(scheme ["b"] (TArrow(poly "b", poly "a")), poly "a")),
+        Some (Lam("_x0", scheme ["b"] (TArrow(poly "b", rigid "_ρ0")), App(Var "_x0", Int 1))));
+    (* two rigids that are not the same one never agree, and no ground type may be
+       guessed for one either, so nothing answers 'b'. What rejects it is the
+       terminal comparison rather than unify, whose own rigid check only prunes *)
+    ("goal ∀a b. (∀c. c -> a) -> b", 14, [], [],
+        scheme ["a"; "b"] (TArrow(scheme ["c"] (TArrow(poly "c", poly "a")), poly "b")), None);
+    (* the ground types are the only ones a variable the goal leaves undetermined is
+       guessed at, and a rigid is not among them -- so (len) _x0 is out of reach and
+       the search settles the argument at int instead. A deliberate cap, pinned here *)
+    ("a scheme is never instantiated at a rigid", 12, [], [("len", len_scheme)],
+        scheme ["a"] (TArrow(poly "a", TAtomic TInt)),
+        Some (Lam("_x0", rigid "_ρ0", App(Var "len", Int 1))));
 
     (* spawning a process whose protocol is a scheme: the binding has to be opened
        before it can be asked what it offers, and the goal is what settles the 'a'.
@@ -126,6 +156,35 @@ let cases = [
         Some (Process("_c0",
                 Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_scheme id_scheme)),
                 int_then_scheme id_scheme, [])));
+    (* predicative: a variable stands for a type, never for a scheme, so p offers
+       no session the goal asks for however 'a' is chosen and the send is built
+       inline. This is the one place a variable meets a scheme head-on *)
+    ("no spawn where a variable would have to stand for a scheme", 16, [],
+        [("p", scheme ["a"] (TProcess([], sends (poly "a"))))],
+        TProcess([], sends id_scheme),
+        Some (Process("_c0", SendF("_c0", Lam("_x0", rigid "_ρ0", Var "_x0"), Close "_c0"),
+                      sends id_scheme, [])));
+
+    (* nested schemes: the inner binder shadows the outer, so ∀a. a -> ∀a. a -> a
+       is the type whose inner body returns the inner variable, and renaming the
+       two apart spells the same type *)
+    ("spawn where nested binders shadow", 18, [],
+        [("p", scheme ["x"] (TProcess([], STSendF(poly "x", sends nested_shadow))))],
+        TProcess([], int_then_scheme nested_renamed),
+        Some (Process("_c0",
+                Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_scheme nested_renamed)),
+                int_then_scheme nested_renamed, [])));
+    (* the same shape whose inner body returns the *outer* variable is a different
+       type, so the spawn is refused and both binders are built as rigids *)
+    ("no spawn where the inner body returns the outer variable", 22, [],
+        [("p", scheme ["x"] (TProcess([], STSendF(poly "x", sends nested_shadow))))],
+        TProcess([], int_then_scheme nested_other),
+        Some (Process("_c0",
+                SendF("_c0", Int 1,
+                    SendF("_c0", Lam("_x0", rigid "_ρ0", Lam("_x1", rigid "_ρ1", Var "_x0")),
+                          Close "_c0")),
+                int_then_scheme nested_other, [])));
+
     (* and two schemes still only unify when they are the same type *)
     ("no spawn where the scheme payloads differ", 18, [],
         [("p", scheme ["a"] (TProcess([], STSendF(poly "a", sends id_scheme_b))))],
@@ -153,6 +212,13 @@ let cases = [
     (* a variable no ∀ binds is nothing the search could determine. right focus
        used to guess a ground type for one, answering a goal it should refuse *)
     ("a type variable no forall binds is rejected", 8, [], [], poly "a", None);
+    (* opening this substitutes only the second 'a' where equivalence pairs up the
+       first, so the two read the same scheme differently. Unchecked it answers (f) 1 *)
+    ("a forall binding one name twice is rejected", 8, [],
+        [("f", scheme ["a"; "a"] (TArrow(poly "a", poly "a")))], TAtomic TInt, None);
+    (* a rigid stands for a type whoever calls has chosen, and input has no caller.
+       Unchecked the goal and the binding match and the answer is x *)
+    ("a rigid variable in input is rejected", 8, [], [("x", rigid "_ρ0")], rigid "_ρ0", None);
 ]
 
 let () =

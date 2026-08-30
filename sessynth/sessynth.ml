@@ -655,6 +655,15 @@ let synth n_sol g p d goal =
     List.iter (fun (x, t) -> reject_unbound_polyvar ("the type of " ^ x) (unbound_polyvar_tyF t)) p;
     List.iter (fun (c, s) -> reject_unbound_polyvar ("the type of channel " ^ c) (unbound_polyvar_tyS s)) d;
     List.iter (fun (x, s) -> reject_unbound_polyvar ("the declaration of " ^ x) (unbound_polyvar_tyS s)) g;
+    let reject_ill_formed where defect =
+        match defect with
+        | Some d -> raise (Fail ("malformed type: " ^ d ^ " in " ^ where))
+        | None -> ()
+    in
+    reject_ill_formed "the goal" (ill_formed_scheme_tyF goal);
+    List.iter (fun (x, t) -> reject_ill_formed ("the type of " ^ x) (ill_formed_scheme_tyF t)) p;
+    List.iter (fun (c, s) -> reject_ill_formed ("the type of channel " ^ c) (ill_formed_scheme_tyS s)) d;
+    List.iter (fun (x, s) -> reject_ill_formed ("the declaration of " ^ x) (ill_formed_scheme_tyS s)) g;
     (match cyclic_declr g with
      | Some x -> raise (Fail ("session type " ^ x ^ " is defined in terms of itself; use rec instead"))
      | None -> ());
