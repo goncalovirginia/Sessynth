@@ -270,6 +270,12 @@ let rec unify t1 t2 =
             let a2' = unify_subst_tyF s a2 in
             unify_compose_subst (unify a1' a2') s
         ) [] args1 args2
+    (* nothing outside a ∀ may be substituted for what it binds, so two schemes
+       unify only when they already are the same type -- which {!tyF_equiv} decides
+       up to renaming. Γ is empty because unify has none to pass, so a payload
+       naming a declaration will not resolve *)
+    | TForAll _, TForAll _ -> if tyF_equiv [] [] t1 t2 then [] else raise (Fail "Cannot unify.")
+    | TDeclr x1, TDeclr x2 when x1 = x2 -> []
     | _ -> raise (Fail "Cannot unify.")
 
 and unify_tyS s1 s2 =

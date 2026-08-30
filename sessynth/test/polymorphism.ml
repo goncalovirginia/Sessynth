@@ -39,6 +39,9 @@ let len_scheme_b = scheme ["b"] (TArrow(poly "b", TAtomic TInt))
 (* a session that sends one value of [t] and closes *)
 let sends t = STSendF(t, STUnit)
 
+(* int ^ t ^ 1 -- puts [t] where both sides of a unification can carry a scheme *)
+let int_then_scheme t = STSendF(TAtomic TInt, sends t)
+
 (* int ^ 1 -- send an int, then close *)
 let int_then_close = STSendF(TAtomic TInt, STUnit)
 
@@ -109,6 +112,23 @@ let cases = [
         TProcess([], sends id_scheme),
         Some (Process("_c0", SendF("_c0", Lam("_x0", rigid "_ρ0", Var "_x0"), Close "_c0"),
                       sends id_scheme, [])));
+
+    (* two schemes meeting head-on, which only happens where both sides carry one
+       in the same payload. unify had no case for them at all and raised *)
+    ("spawn where the payloads are both schemes", 18,
+        [("p", scheme ["a"] (TProcess([], STSendF(poly "a", sends id_scheme_b))))],
+        TProcess([], int_then_scheme id_scheme),
+        Some (Process("_c0",
+                Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_scheme id_scheme)),
+                int_then_scheme id_scheme, [])));
+    (* and two schemes still only unify when they are the same type *)
+    ("no spawn where the scheme payloads differ", 18,
+        [("p", scheme ["a"] (TProcess([], STSendF(poly "a", sends id_scheme_b))))],
+        TProcess([], int_then_scheme len_scheme),
+        Some (Process("_c0",
+                SendF("_c0", Int 1,
+                    SendF("_c0", Lam("_x0", rigid "_ρ0", Int 1), Close "_c0")),
+                int_then_scheme len_scheme, [])));
 ]
 
 let () =
