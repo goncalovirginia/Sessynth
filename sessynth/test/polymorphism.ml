@@ -150,6 +150,9 @@ let cases = [
     ("a Γ defined in terms of itself is rejected", 10,
         [("S", STSendF(TAtomic TInt, STDeclr "S"))], [],
         TProcess([("c1", STDeclr "S")], STDeclr "S"), None);
+    (* a variable no ∀ binds is nothing the search could determine. right focus
+       used to guess a ground type for one, answering a goal it should refuse *)
+    ("a type variable no forall binds is rejected", 8, [], [], poly "a", None);
 ]
 
 let () =

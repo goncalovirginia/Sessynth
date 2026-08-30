@@ -1,9 +1,11 @@
-(* Parametric polymorphism: free type variables, instantiation, generalization
-   and first-order unification.
+(* Parametric polymorphism: free type variables, opening a scheme flexibly or
+   rigidly, and first-order unification.
 
-   WORK IN PROGRESS. Only KBase (base-kind) polymorphism is supported;
-   instantiate_tyF rejects anything else. See the known gaps around left focus
-   on a polymorphic function type. *)
+   Rank-N and predicative -- a ∀ may sit wherever a type may, but no variable
+   stands for one. A variable the goal determines is unrestricted; one it leaves
+   undetermined is guessed from the ground types instead, so that one can only be
+   int or bool. Higher kinds are absent by construction: TPolyVar is a tyA, so
+   there is nowhere to write the type constructor they would quantify over. *)
 
 open Language
 open TyUtils
@@ -49,8 +51,11 @@ and ftv_tyS = function
         List.fold_left (fun s (_, st) -> S.union s (ftv_tyS st)) S.empty l
     | STRec(_, _, s) -> ftv_tyS s
 
-let ftv_env ctxts =
-    List.fold_left (fun s (_, t) -> S.union s (ftv_tyF t)) S.empty ctxts.p
+(** The first type variable of [t] that no ∀ binds, [None] when it is closed.
+    Nothing determines such a variable, so unchecked it reaches the rules as a
+    goal they cannot answer. *)
+let unbound_polyvar_tyF t = S.min_elt_opt (ftv_tyF t)
+let unbound_polyvar_tyS t = S.min_elt_opt (ftv_tyS t)
 
 (* the types a variable may be guessed at when unification doesn't determine it *)
 let ground_atomic_types = [TInt; TBool]
@@ -128,14 +133,6 @@ let instantiate_tyF f t =
     here may bind or guess one. *)
 let skolemize_tyF f t =
     open_scheme (fun f -> let f, r = fresh_rigid f in f, TRigidVar r) f t
-
-(* F → ∀ᾱ.F *)
-let generalize ctxts t =
-    let ftv_t = ftv_tyF t in
-    let ftv_env = ftv_env ctxts in
-    let vars = S.elements (S.diff ftv_t ftv_env) in
-    if vars = [] then t
-    else TForAll (List.map (fun a -> (a, KBase)) vars, t)
 
 (* applying a unifying substitution *)
 

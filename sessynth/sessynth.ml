@@ -371,21 +371,9 @@ and focus_right_F f ctxts goal =
     (* nothing builds a value of a type chosen elsewhere -- one can only come
        from Δ or Ψ, which is left focus's business, not right's *)
     | TAtomic(TRigidVar _) -> Choice.fail
-    | TAtomic(TPolyVar(_)) ->
-        let map_unify = fun tA ->
-            (* the try covers only the eager unification; the recursive call is
-               bound outside it, since a try around a let* would not protect it *)
-            let unified =
-                try
-                    let candidate = TAtomic(tA) in
-                    let subst = unify ctxts.g goal candidate in
-                    Some (unify_subst_ctxts subst ctxts, unify_subst_tyF subst goal)
-                with Fail _ -> None
-            in
-            let* (ctxts', goal') = ChoiceUtils.of_option unified in
-            focus_right_F f ctxts' goal'
-        in
-        ChoiceUtils.map_mplus_list map_unify ground_atomic_types
+    (* synth refuses a free one, and the head of a spine settles the rest before
+       any argument is searched, so neither sort of variable reaches this *)
+    | TAtomic(TPolyVar _) -> Choice.fail
     | TConstructor _ ->
         let synth_constructor_select (x_c, tF) = 
             (* instantiate the scheme and match its result against the goal *)
@@ -657,6 +645,16 @@ let synth n_sol g p d goal =
     List.iter (fun (c, s) -> reject_unbound_recvar ("the type of channel " ^ c) (unbound_recvar_tyS [] s)) d;
     (* a Γ definition has to be closed for [resolve_declr] to be capture-free *)
     List.iter (fun (x, s) -> reject_unbound_recvar ("the declaration of " ^ x) (unbound_recvar_tyS [] s)) g;
+    let reject_unbound_polyvar where unbound =
+        match unbound with
+        | Some a -> raise (Fail ("type variable " ^ a ^ " in " ^ where ^ " is not bound by any forall"))
+        | None -> ()
+    in
+
+    reject_unbound_polyvar "the goal" (unbound_polyvar_tyF goal);
+    List.iter (fun (x, t) -> reject_unbound_polyvar ("the type of " ^ x) (unbound_polyvar_tyF t)) p;
+    List.iter (fun (c, s) -> reject_unbound_polyvar ("the type of channel " ^ c) (unbound_polyvar_tyS s)) d;
+    List.iter (fun (x, s) -> reject_unbound_polyvar ("the declaration of " ^ x) (unbound_polyvar_tyS s)) g;
     (match cyclic_declr g with
      | Some x -> raise (Fail ("session type " ^ x ^ " is defined in terms of itself; use rec instead"))
      | None -> ());
