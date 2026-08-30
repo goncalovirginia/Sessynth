@@ -14,6 +14,33 @@ open TyUtils
 open Contexts
 open Polymorphism
 
+(** How the constructor binding [(x_c, t)] is malformed, as a clause naming the
+    defect, [None] when it is not.
+
+    The shape both rules flatten is a scheme whose arrow spine ends at the
+    datatype it builds; anything else reaches {!constructors_of} as a raise in
+    the middle of the search, where nothing catches it.
+
+    Every name the scheme binds has to occur in that result type, since
+    {!instantiate_constructor} settles them by unifying it against the target. One
+    the result leaves out is an existential -- [Foo : ∀a. a -> T] -- and would reach
+    the argument search as a variable nothing determines. *)
+let ill_formed_constructor (x_c, t) =
+    let clause d = Some ("the constructor " ^ x_c ^ " " ^ d) in
+    match t with
+    | TForAll(xl, t') ->
+        let _, res = flatten_TArrow t' in
+        begin
+        match res with
+        | TConstructor _ ->
+            let determined = ftv_tyF res in
+            (match List.find_opt (fun a -> not (S.mem a determined)) xl with
+             | Some a -> clause ("binds " ^ a ^ ", which its result type does not determine")
+             | None -> None)
+        | _ -> clause "does not end at a datatype"
+        end
+    | _ -> clause "is not a type scheme"
+
 (* the constructors of the datatype that [c_T] is headed by, i.e. those bindings
    whose scheme returns the same datatype name *)
 let constructors_of constructors c_T =

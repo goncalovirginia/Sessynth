@@ -32,6 +32,7 @@ let initialize_ctxts =
    [bindings] is preserved. *)
 let append_bindings_gamma ctxts bindings = { ctxts with g = bindings @ ctxts.g }
 let append_bindings_psi ctxts bindings = { ctxts with p = bindings @ ctxts.p }
+let append_bindings_constructors ctxts bindings = { ctxts with c = bindings @ ctxts.c }
 let append_bindings_delta ctxts bindings = { ctxts with d = bindings @ ctxts.d }
 
 (* handing a context back *)

@@ -277,7 +277,7 @@ let () =
     set_mode Auto;
     let run (name, depth, g, p, goal, expected) =
         set_max_depth depth;
-        let actual = try Some (synth 1 g p [] goal) with Fail _ -> None in
+        let actual = try Some (synth 1 g p [] [] goal) with Fail _ -> None in
         if actual = expected then None
         else
             let show = function

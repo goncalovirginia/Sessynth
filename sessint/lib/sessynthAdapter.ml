@@ -219,7 +219,7 @@ let synth nSolutions env d goal =
     let (g, p) = functional_env_to_gamma_psi env in
     let p_sessynth = List.map(fun (x, t) -> (x, ty_to_tyF t)) p in
     let d_sessynth = List.map(fun (x, st) -> (x, stype_to_tyS st)) d in
-    let synthed_expF = Sessynth.synth nSolutions g p_sessynth d_sessynth goal in
+    let synthed_expF = Sessynth.synth nSolutions g p_sessynth [] d_sessynth goal in
     expF_to_exp (List.map fst p) g synthed_expF
 
 (** The type a synthesized term is re-checked against: a goal naming a

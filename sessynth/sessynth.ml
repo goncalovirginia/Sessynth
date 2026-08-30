@@ -611,7 +611,7 @@ let mode_of_string s =
     | "interactive" -> Some Interactive
     | _ -> None
 
-let synth n_sol g p d goal =
+let synth n_sol g p c d goal =
     set_print_debug
         (match Sys.getenv_opt "SESSYNTH_DEBUG" with
          | Some ("1" | "true" | "TRUE" | "yes" | "YES") -> true
@@ -628,6 +628,13 @@ let synth n_sol g p d goal =
         | None -> ()
     in
     reject_duplicates "the linear context" d;
+    (match find_first_duplicate_name c with
+     | Some x -> raise (Fail ("constructor " ^ x ^ " is declared more than once"))
+     | None -> ());
+    List.iter (fun binding ->
+        match ill_formed_constructor binding with
+        | Some d -> raise (Fail ("malformed constructor: " ^ d))
+        | None -> ()) c;
     (match goal with
      | TProcess(incsl, _) -> reject_duplicates "the goal's input channels" incsl
      | _ -> ());
@@ -642,6 +649,7 @@ let synth n_sol g p d goal =
      | None -> ());
     reject_unbound_recvar "the goal" (unbound_recvar_tyF goal);
     List.iter (fun (x, t) -> reject_unbound_recvar ("the type of " ^ x) (unbound_recvar_tyF t)) p;
+    List.iter (fun (x, t) -> reject_unbound_recvar ("the constructor " ^ x) (unbound_recvar_tyF t)) c;
     List.iter (fun (c, s) -> reject_unbound_recvar ("the type of channel " ^ c) (unbound_recvar_tyS [] s)) d;
     (* a Γ definition has to be closed for [resolve_declr] to be capture-free *)
     List.iter (fun (x, s) -> reject_unbound_recvar ("the declaration of " ^ x) (unbound_recvar_tyS [] s)) g;
@@ -653,6 +661,7 @@ let synth n_sol g p d goal =
 
     reject_unbound_polyvar "the goal" (unbound_polyvar_tyF goal);
     List.iter (fun (x, t) -> reject_unbound_polyvar ("the type of " ^ x) (unbound_polyvar_tyF t)) p;
+    List.iter (fun (x, t) -> reject_unbound_polyvar ("the constructor " ^ x) (unbound_polyvar_tyF t)) c;
     List.iter (fun (c, s) -> reject_unbound_polyvar ("the type of channel " ^ c) (unbound_polyvar_tyS s)) d;
     List.iter (fun (x, s) -> reject_unbound_polyvar ("the declaration of " ^ x) (unbound_polyvar_tyS s)) g;
     let reject_ill_formed where defect =
@@ -662,6 +671,7 @@ let synth n_sol g p d goal =
     in
     reject_ill_formed "the goal" (ill_formed_scheme_tyF goal);
     List.iter (fun (x, t) -> reject_ill_formed ("the type of " ^ x) (ill_formed_scheme_tyF t)) p;
+    List.iter (fun (x, t) -> reject_ill_formed ("the constructor " ^ x) (ill_formed_scheme_tyF t)) c;
     List.iter (fun (c, s) -> reject_ill_formed ("the type of channel " ^ c) (ill_formed_scheme_tyS s)) d;
     List.iter (fun (x, s) -> reject_ill_formed ("the declaration of " ^ x) (ill_formed_scheme_tyS s)) g;
     (match cyclic_declr g with
@@ -672,6 +682,7 @@ let synth n_sol g p d goal =
     let f, ctxts = initialize_flags (), initialize_ctxts in
     let ctxts = append_bindings_gamma ctxts g in
     let ctxts = append_bindings_psi ctxts p in
+    let ctxts = append_bindings_constructors ctxts c in
     let ctxts = append_bindings_delta ctxts d in
     let solutions_choice =
         let* (_, ctxts', expF') = invert_right_F f ctxts goal in
