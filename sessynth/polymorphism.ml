@@ -79,14 +79,20 @@ let rec ill_formed_scheme_tyF t =
             match acc with Some _ -> acc | None -> ill_formed_scheme_tyS s)
             None (outs :: List.map snd incsl)
     | TForAll(xl, t') ->
-        let rec repeated seen xs =
+        (* substitution protects a rebound name but not the type substituted in, so
+           a binder spelled like a fresh variable captures it: opening
+           ∀a. (∀_α0. _α0 -> a) -> int at _α0 turns the argument into the identity.
+           Reserving the prefix is what makes the convention an invariant *)
+        let reserved a = String.length a > 0 && a.[0] = '_' in
+        let rec offender seen xs =
             match xs with
             | [] -> None
             | a::xs' ->
-                if List.mem a seen then Some ("a forall binding " ^ a ^ " twice")
-                else repeated (a::seen) xs'
+                if reserved a then Some ("a forall binding the reserved name " ^ a)
+                else if List.mem a seen then Some ("a forall binding " ^ a ^ " twice")
+                else offender (a::seen) xs'
         in
-        (match repeated [] xl with
+        (match offender [] xl with
          | Some _ as d -> d
          | None -> ill_formed_scheme_tyF t')
 
@@ -318,18 +324,23 @@ let rec unify g t1 t2 =
 
 (* resolved through Γ first, as {!tyS_equiv} is, so a session named by a
    declaration still unifies with the one it names *)
-and unify_tyS g s1 s2 =
+and unify_tyS g s1 s2 = unify_tyS_rec g [] s1 s2
+
+(* [renv] pairs up the μ binders, as {!TyUtils.tyS_equiv} does, rather than
+   renaming one side onto the other -- a rename stops at a binder that would
+   capture it, leaving the occurrences below unrenamed and so unmatchable *)
+and unify_tyS_rec g renv s1 s2 =
     match resolve_declr g s1, resolve_declr g s2 with
     | STUnit, STUnit -> []
     | STSendF(t1a, t2a), STSendF(t1b, t2b)
     | STRecvF(t1a, t2a), STRecvF(t1b, t2b) ->
         let subst1 = unify g t1a t1b in
-        let subst2 = unify_tyS g (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
+        let subst2 = unify_tyS_rec g renv (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
         unify_compose_subst subst2 subst1
     | STSendS(t1a, t2a), STSendS(t1b, t2b)
     | STRecvS(t1a, t2a), STRecvS(t1b, t2b) ->
-        let subst1 = unify_tyS g t1a t1b in
-        let subst2 = unify_tyS g (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
+        let subst1 = unify_tyS_rec g renv t1a t1b in
+        let subst2 = unify_tyS_rec g renv (unify_subst_tyS subst1 t2a) (unify_subst_tyS subst1 t2b) in
         unify_compose_subst subst2 subst1
     | STExtChoice ls1, STExtChoice ls2
     | STIntChoice ls1, STIntChoice ls2 ->
@@ -339,11 +350,9 @@ and unify_tyS g s1 s2 =
                 (fun subst_acc (_, st1) (_, st2) ->
                     let st1' = unify_subst_tyS subst_acc st1 in
                     let st2' = unify_subst_tyS subst_acc st2 in
-                    unify_compose_subst (unify_tyS g st1' st2') subst_acc
+                    unify_compose_subst (unify_tyS_rec g renv st1' st2') subst_acc
                 ) [] ls1 ls2
-    | STRec(_, x1, st1), STRec(_, x2, st2) ->
-        let st2' = if x1 = x2 then st2 else rename_recvar_in_tyS x2 x1 st2 in
-        unify_tyS g st1 st2'
-    | STRecVar x1, STRecVar x2 when x1 = x2 -> []
+    | STRec(_, x1, st1), STRec(_, x2, st2) -> unify_tyS_rec g ((x1, x2)::renv) st1 st2
+    | STRecVar x1, STRecVar x2 when paired renv x1 x2 -> []
     | STDeclr x1, STDeclr x2 when x1 = x2 -> [] (* only reached when Γ defines neither *)
     | _ -> raise (Fail "Cannot unify.")

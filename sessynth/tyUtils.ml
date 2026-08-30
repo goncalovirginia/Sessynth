@@ -76,25 +76,6 @@ let is_tyS_left_async t =
 
 (* recursion *)
 
-(* renames [from_id] to [to_id] throughout [t], stopping at a binder that would
-   capture it *)
-let rec rename_recvar_in_tyS from_id to_id t =
-    match t with
-    | STSendF(t1, t2) -> STSendF(t1, rename_recvar_in_tyS from_id to_id t2)
-    | STRecvF(t1, t2) -> STRecvF(t1, rename_recvar_in_tyS from_id to_id t2)
-    | STSendS(t1, t2) -> STSendS(rename_recvar_in_tyS from_id to_id t1, rename_recvar_in_tyS from_id to_id t2)
-    | STRecvS(t1, t2) -> STRecvS(rename_recvar_in_tyS from_id to_id t1, rename_recvar_in_tyS from_id to_id t2)
-    | STUnit -> STUnit
-    | STExtChoice labelsesslist ->
-        STExtChoice (List.map (fun (l, s) -> (l, rename_recvar_in_tyS from_id to_id s)) labelsesslist)
-    | STIntChoice labelsesslist ->
-        STIntChoice (List.map (fun (l, s) -> (l, rename_recvar_in_tyS from_id to_id s)) labelsesslist)
-    | STRec(k, x, s) ->
-        if x = from_id || x = to_id then STRec(k, x, s)
-        else STRec(k, x, rename_recvar_in_tyS from_id to_id s)
-    | STRecVar x -> if x = from_id then STRecVar to_id else t
-    | STDeclr _ -> t
-
 (* S[μt.S / t] *)
 let rec unfold tUnfold stRec stRecVar =
     let unfold_both t1 t2 =
@@ -231,6 +212,27 @@ let lookup_declr g x =
 
 (* equivalence *)
 
+(** Whether [x1] and [x2] name the same binder under the pairing [env]: the one
+    [env] pairs [x1] with, or -- when neither side binds it -- the same free name.
+    The second half is what tells ∀x. a from ∀a. a. *)
+let paired env x1 x2 =
+    match List.assoc_opt x1 env with
+    | Some x2' -> x2' = x2
+    | None -> x1 = x2 && not (List.exists (fun (_, y) -> y = x2) env)
+
+(** Equivalence of refinement predicates, where [x1] and [x2] are the binders the
+    two refinements introduce. Any other name is free -- bound further up the arrow
+    spine -- and has to be spelled the same. *)
+let rec tyR_equiv x1 x2 r1 r2 =
+    match r1, r2 with
+    | RTInt v1, RTInt v2 -> v1 = v2
+    | RTBool v1, RTBool v2 -> v1 = v2
+    | RTVar y1, RTVar y2 -> if y1 = x1 || y2 = x2 then y1 = x1 && y2 = x2 else y1 = y2
+    | RTUOp(o1, t1), RTUOp(o2, t2) -> o1 = o2 && tyR_equiv x1 x2 t1 t2
+    | RTBOp(o1, a1, b1), RTBOp(o2, a2, b2) ->
+        o1 = o2 && tyR_equiv x1 x2 a1 a2 && tyR_equiv x1 x2 b1 b2
+    | _ -> false
+
 (** Equivalence of session types; use this instead of (=) on any tyS.
 
     Modulo Γ, and modulo binders, each in its own way: a ∀'s names [env] pairs up
@@ -242,21 +244,27 @@ let lookup_declr g x =
     structural, refinement predicates included.
 
     NOTE: keep in sync with tyS/tyF whenever a constructor is added. *)
-let rec tyS_equiv g env t1 t2 =
+let rec tyS_equiv g env t1 t2 = tyS_equiv_rec g env [] t1 t2
+
+(* [renv] pairs up the μ binders, as [env] does the ∀ ones. It is not merged with
+   [env] because the two are separate namespaces that may collide on a name, and
+   it needs no threading through tyF_equiv: no tyF mentions a recursion variable
+   except inside a TProcess, which is a scope of its own. *)
+and tyS_equiv_rec g env renv t1 t2 =
     match resolve_declr g t1, resolve_declr g t2 with
     | STUnit, STUnit -> true
     | STSendF(f1, s1), STSendF(f2, s2)
-    | STRecvF(f1, s1), STRecvF(f2, s2) -> tyF_equiv g env f1 f2 && tyS_equiv g env s1 s2
+    | STRecvF(f1, s1), STRecvF(f2, s2) -> tyF_equiv g env f1 f2 && tyS_equiv_rec g env renv s1 s2
     | STSendS(a1, b1), STSendS(a2, b2)
-    | STRecvS(a1, b1), STRecvS(a2, b2) -> tyS_equiv g env a1 a2 && tyS_equiv g env b1 b2
+    | STRecvS(a1, b1), STRecvS(a2, b2) ->
+        tyS_equiv_rec g env renv a1 a2 && tyS_equiv_rec g env renv b1 b2
     | STExtChoice l1, STExtChoice l2
     | STIntChoice l1, STIntChoice l2 ->
         List.length l1 = List.length l2
-        && List.for_all2 (fun (la, sa) (lb, sb) -> la = lb && tyS_equiv g env sa sb) l1 l2
-    | STRec(_, x1, s1), STRec(_, x2, s2) -> (* budget ignored, binder up to renaming *)
-        let s2' = if x1 = x2 then s2 else rename_recvar_in_tyS x2 x1 s2 in
-        tyS_equiv g env s1 s2'
-    | STRecVar x1, STRecVar x2 -> x1 = x2
+        && List.for_all2 (fun (la, sa) (lb, sb) -> la = lb && tyS_equiv_rec g env renv sa sb) l1 l2
+    | STRec(_, x1, s1), STRec(_, x2, s2) -> (* budget ignored, binders paired up *)
+        tyS_equiv_rec g env ((x1, x2)::renv) s1 s2
+    | STRecVar x1, STRecVar x2 -> paired renv x1 x2
     | STDeclr x1, STDeclr x2 -> x1 = x2 (* only reached when Γ defines neither *)
     | _ -> false
 
@@ -268,14 +276,14 @@ and tyF_equiv g env t1 t2 =
     match t1, t2 with
     (* the one place [env] is read: a bound variable stands for the position its
        scheme bound it at, so it matches whatever sits at that position on the
-       other side. A free one still has to be spelled the same -- and must not be
-       bound on the other side, which is what tells ∀x. a from ∀a. a *)
-    | TAtomic(TPolyVar a1), TAtomic(TPolyVar a2) ->
-        (match List.assoc_opt a1 env with
-         | Some a2' -> a2' = a2
-         | None -> a1 = a2 && not (List.exists (fun (_, b) -> b = a2) env))
+       other side *)
+    | TAtomic(TPolyVar a1), TAtomic(TPolyVar a2) -> paired env a1 a2
     | TAtomic a1, TAtomic a2 -> a1 = a2
-    | TRefinement(x1, a1, r1), TRefinement(x2, a2, r2) -> x1 = x2 && a1 = a2 && r1 = r2
+    (* a refinement's own binder scopes over its predicate, so the two are compared
+       up to it -- a rename of one side would capture a binder from further up the
+       arrow spine, which {x:int | x>0} -> {y:int | y>x} has the predicate mention *)
+    | TRefinement(x1, a1, r1), TRefinement(x2, a2, r2) ->
+        a1 = a2 && tyR_equiv x1 x2 r1 r2
     | TArrow(a1, b1), TArrow(a2, b2) -> tyF_equiv g env a1 a2 && tyF_equiv g env b1 b2
     (* an input channel name is a binder -- the body reads it as Δ and the spawn
        site supplies an actual channel positionally -- so only the types count *)

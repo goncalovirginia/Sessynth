@@ -57,6 +57,17 @@ let int_then_close = STSendF(TAtomic TInt, STUnit)
    one, so it is where a variable has to stand for something other than a base *)
 let fun_then_close = STSendF(TArrow(TAtomic TInt, TAtomic TInt), STUnit)
 
+(* the same session spelled with its two μ binders swapped -- the inner scope
+   refers to the outer variable, which is where renaming one side onto the other
+   used to stop at the binder that would capture it and leave them unmatchable *)
+let mu_a = STRec(1, "t", STSendF(TAtomic TInt, STRec(1, "q", STSendF(TAtomic TInt, STRecVar "t"))))
+let mu_b k = STRec(k, "u", STSendF(TAtomic TInt, STRec(1, "t", STSendF(TAtomic TInt, STRecVar "u"))))
+
+(* {x:int | x>0} and {y:int | y>0} are one type, {y:int | y<0} another *)
+let refx = TRefinement("x", TInt, RTBOp(Gr, RTVar "x", RTInt 0))
+let refy = TRefinement("y", TInt, RTBOp(Gr, RTVar "y", RTInt 0))
+let refz = TRefinement("y", TInt, RTBOp(Lt, RTVar "y", RTInt 0))
+
 (* two named sessions, one of them the tail of the other *)
 let sess_gamma =
     [("Sess", STSendF(TAtomic TInt, STUnit));
@@ -219,6 +230,47 @@ let cases = [
     (* a rigid stands for a type whoever calls has chosen, and input has no caller.
        Unchecked the goal and the binding match and the answer is x *)
     ("a rigid variable in input is rejected", 8, [], [("x", rigid "_ρ0")], rigid "_ρ0", None);
+    (* substitution protects a rebound name but not the type substituted in, so a
+       binder spelled like a fresh variable swallows it: opening 'a' at _α0 turned
+       the argument from ∀_α0. _α0 -> a into the identity, and (g) _x0 -> _x0
+       answered a goal whose argument type no identity inhabits *)
+    ("a forall binding a reserved name is rejected", 8, [],
+        [("g", scheme ["a"] (TArrow(scheme ["_α0"] (TArrow(poly "_α0", poly "a")), TAtomic TInt)))],
+        TAtomic TInt, None);
+
+    (* μ binders are matched up like ∀ ones now. Renaming one side onto the other
+       stopped at a binder that would capture it, which left the occurrences below
+       unrenamed, so a session spelled with its binders swapped was not its own *)
+    ("nested μ binders are matched up, not renamed", 16, [],
+        [("p", TProcess([], mu_a))], TProcess([], mu_b 1),
+        Some (Process("_c0",
+                SendF("_c0", Int 1,
+                    SendF("_c0", Int 1,
+                        Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", mu_b 0)))),
+                mu_b 1, [])));
+    (* a scheme spawning at a nested μ goal, where the payload variable is settled
+       by the session and the binders are still swapped. The μ comparison that
+       decides it is equivalence's -- unify_tyS's own STRec case is not reached by
+       anything here, and no witness for it turned up *)
+    ("a scheme spawns at a nested μ goal", 16, [],
+        [("p", scheme ["a"] (TProcess([], STRec(1, "t",
+            STSendF(poly "a", STRec(1, "q", STSendF(TAtomic TInt, STRecVar "t")))))))],
+        TProcess([], mu_b 1),
+        Some (Process("_c0",
+                SendF("_c0", Int 1,
+                    SendF("_c0", Int 1,
+                        Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", mu_b 0)))),
+                mu_b 1, [])));
+    (* a refinement's binder scopes over its predicate, so the two are compared up
+       to it. p is arrow-typed to keep it out of xRecLam and the self-spawn guard *)
+    ("a refinement is compared up to its own binder", 16, [],
+        [("p", TArrow(TAtomic TInt, TProcess([], sends refx)))], TProcess([], sends refy),
+        Some (Process("_c0",
+                Spawn("_c1", App(Var "p", Int 1), [], Fwd("_c1", "_c0", sends refy)),
+                sends refy, [])));
+    (* and a predicate that genuinely differs is still a different type *)
+    ("no spawn where the refinement predicate differs", 16, [],
+        [("p", TArrow(TAtomic TInt, TProcess([], sends refx)))], TProcess([], sends refz), None);
 ]
 
 let () =
