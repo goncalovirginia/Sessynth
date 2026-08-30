@@ -207,7 +207,7 @@ let rec occurs a t =
     | TAtomic(TPolyVar b) -> a = b
     | TAtomic _ -> false
     | TArrow(t1, t2) -> occurs a t1 || occurs a t2
-    | TRefinement(_, _, _) -> false
+    | TRefinement(_, tA, _) -> tA = TPolyVar a
     | TProcess(cs, s') ->
         List.exists (fun (_, st) -> occurs_tyS a st) cs || occurs_tyS a s'
     | TDeclr _ -> false
@@ -242,13 +242,11 @@ let rec unify t1 t2 =
         in
         begin
         match t' with
-        (* the rigid case is what lets a scheme be used at an abstract type: the
-           flexible side is the one being bound, which is always sound *)
-        | TAtomic(TInt) | TAtomic(TBool) | TAtomic(TPolyVar _) | TAtomic(TRigidVar _) ->
+        | TForAll _ -> raise (Fail "Cannot unify: KBase polyvar with a type scheme")
+        | _ ->
             if t' = TAtomic(TPolyVar(a)) then []
             else if occurs a t' then raise (Fail "Occurs check failed.")
             else [(a, t')]
-        | _ -> raise (Fail "Cannot unify: KBase polyvar with non-base type")
         end
     | TRefinement(_, a1, _), TRefinement(_, a2, _) -> unify (TAtomic a1) (TAtomic a2)
     | TRefinement(_, a, _), t | t, TRefinement(_, a, _) -> unify (TAtomic a) t

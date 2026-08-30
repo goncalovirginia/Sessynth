@@ -35,6 +35,10 @@ let rigid r = TAtomic(TRigidVar r)
 (* int ^ 1 -- send an int, then close *)
 let int_then_close = STSendF(TAtomic TInt, STUnit)
 
+(* (int -> int) ^ 1 -- the payload is where a session type carries a functional
+   one, so it is where a variable has to stand for something other than a base *)
+let fun_then_close = STSendF(TArrow(TAtomic TInt, TAtomic TInt), STUnit)
+
 (* name, depth budget, Ψ, goal, the solution the search must reach first --
    [None] where the goal must have none at all.
 
@@ -74,6 +78,14 @@ let cases = [
         TProcess([], int_then_close),
         Some (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_close)),
                       int_then_close, [])));
+    (* the same spawn where 'a' has to become a function type. unification refusing
+       anything but a base type left p out of the running, and the search built the
+       send inline instead *)
+    ("spawn p : ∀a. {a ^ 1} at a function payload", 16,
+        [("p", scheme ["a"] (TProcess([], STSendF(poly "a", STUnit))))],
+        TProcess([], fun_then_close),
+        Some (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", fun_then_close)),
+                      fun_then_close, [])));
 ]
 
 let () =
