@@ -32,6 +32,9 @@ let app_scheme =
 
 let rigid r = TAtomic(TRigidVar r)
 
+(* int ^ 1 -- send an int, then close *)
+let int_then_close = STSendF(TAtomic TInt, STUnit)
+
 (* name, depth budget, Ψ, goal, the solution the search must reach first --
    [None] where the goal must have none at all.
 
@@ -62,6 +65,15 @@ let cases = [
     ("goal ∀a. (int -> a) -> a", 12, [],
         scheme ["a"] (TArrow(TArrow(TAtomic TInt, poly "a"), poly "a")),
         Some (Lam("_x0", TArrow(TAtomic TInt, rigid "_ρ0"), App(Var "_x0", Int 1))));
+
+    (* spawning a process whose protocol is a scheme: the binding has to be opened
+       before it can be asked what it offers, and the goal is what settles the 'a'.
+       Left unopened the search cannot see it at all and builds the session inline *)
+    ("spawn p : ∀a. {a ^ 1}", 14,
+        [("p", scheme ["a"] (TProcess([], STSendF(poly "a", STUnit))))],
+        TProcess([], int_then_close),
+        Some (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_close)),
+                      int_then_close, [])));
 ]
 
 let () =

@@ -52,6 +52,13 @@ let is_TProcess t =
     | TProcess _ -> true
     | _ -> false
 
+let rec offers_TProcess t =
+    match t with
+    | TForAll(_, t') -> offers_TProcess t'
+    | TArrow(_, t2) -> offers_TProcess t2
+    | TProcess _ -> true
+    | _ -> false
+
 let is_STRec t =
     match t with
     | STRec _ -> true

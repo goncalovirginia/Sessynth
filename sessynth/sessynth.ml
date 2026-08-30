@@ -550,8 +550,8 @@ synthesizes possible spawn expressions which output a desired session-type, cont
 and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
     let* f = increment_depth f in
     let f, cSpawn = fresh_chan f in
-    (* a binding is spawnable when its return type is a process type, and when 
-       that process offers an equivalent session (when a filter is given) *)
+    (* an opened binding is spawnable when the process it ends at offers an
+       equivalent session (when a filter is given) *)
     let offers_goal_session tReturn =
         match goal_tProcess_filter with
         | None -> true
@@ -560,14 +560,34 @@ and focus_left_TProcess f ctxts c goal goal_tProcess_filter =
             | Some outs, Some filter_outs -> tyS_equiv ctxts.g outs filter_outs
             | _ -> false
     in
-    let spawnable_proc_list =
-        List.filter (fun (_, t) ->
-            let tReturn = get_return_type t in
-            is_TProcess tReturn && offers_goal_session tReturn
-        ) (get_sync_bindings is_tyF_left_async ctxts.p)
+    (* A scheme is instantiated, matched against the filter, and its leftovers grounded,
+       in the order left focus on a scheme uses. What comes back is a concrete monomorphic 
+       instantiation, which can be used like any other existing spawnable type *)
+    let instantiate_binding (x, t) =
+        match t with
+        | TForAll _ ->
+            let matched =
+                try
+                    let f, tInst = instantiate_tyF f t in
+                    let subst =
+                        match get_TProcess_outs (get_return_type tInst), Option.bind goal_tProcess_filter get_TProcess_outs with
+                        | Some outs, Some filter_outs -> unify_tyS outs filter_outs
+                        | _ -> []
+                    in
+                    Some (f, unify_subst_tyF subst tInst)
+                with Fail _ -> None
+            in
+            let* (f, tInst) = ChoiceUtils.of_option matched in
+            let* subst = Choice.of_list (ground_substitutions tInst) in
+            Choice.return (f, x, unify_subst_tyF subst tInst)
+        | _ -> Choice.return (f, x, t)
     in
-    let* (x, t) = Choice.of_list spawnable_proc_list in
+    let spawnable_proc_list =
+        List.filter (fun (_, t) -> offers_TProcess t) (get_sync_bindings is_tyF_left_async ctxts.p)
+    in
+    let* (f, x, t) = ChoiceUtils.map_mplus_list instantiate_binding spawnable_proc_list in
     let tProcess = get_return_type t in
+    let* () = Choice.guard (offers_goal_session tProcess) in
     let* insl = ChoiceUtils.of_option (get_TProcess_insl tProcess) in
     let* outs = ChoiceUtils.of_option (get_TProcess_outs tProcess) in
     let* (f, ctxts', eApp) = focus_left_F f ctxts (Var x) t tProcess in
