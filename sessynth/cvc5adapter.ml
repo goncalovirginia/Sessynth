@@ -32,6 +32,7 @@ let sygus_code4 = {|
 |}
 
 let call_sygus sygus_code =
+	incr Flags.solver_calls;
   	let command = "cvc5 --lang=sygus2" in
   	let (in_ch, out_ch, err_ch) = Unix.open_process_full command (Unix.environment ()) in
   	output_string out_ch sygus_code;
@@ -50,6 +51,7 @@ let call_sygus sygus_code =
   	Buffer.contents buf
 
 let call_sat sat_code =
+	incr Flags.solver_calls;
 	let command = "cvc5 --lang=smt2" in
   	let (in_ch, out_ch, err_ch) = Unix.open_process_full command (Unix.environment ()) in
   	output_string out_ch sat_code;

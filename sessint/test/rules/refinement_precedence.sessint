@@ -1,0 +1,7 @@
+incr : int -> int
+? {x:int | x > 0} -> {y:int | y > x and y < x + 5} ?;
+;;
+m <- {
+    close m
+}
+;;

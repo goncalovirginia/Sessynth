@@ -22,10 +22,10 @@
 %token V_BAR HASH
 %token EOF
 
-%left EQUALS
+%left OR
+%left AND
+%left EQUALS GREATER LESSER
 %left PLUS MINUS
-%left AND OR
-%left GREATER LESSER
 %left MULT DIV
 
 %right RIGHT_ARROW

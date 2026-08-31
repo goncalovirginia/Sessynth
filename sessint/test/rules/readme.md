@@ -18,6 +18,12 @@ Two things keep these tests usable:
   synthesizer takes the first solution instead of prompting. Interactive mode is
   the default when running by hand.
 
+`SESSYNTH_STATS=1` makes each hole report, on stderr, how many rule applications
+the search entered, how many branches the depth bound cut off, and how many
+solver round trips it made. That is what to compare when isolating a change:
+solution counts alone cannot tell a rule that removes candidates apart from one
+that removes wasted exploration.
+
 Note that the declaration being synthesized is in scope for its own hole
 (`check_decl` adds it to the environment before checking the body), which is
 what lets a recursive process refer to itself. At a base type that shows up as
@@ -57,6 +63,7 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `refinement_arg_hypothesis` | refinement R | an argument's predicate is what may be *assumed* of it, not a second thing to prove |
 | `refinement_binder_substring` | refinement R | the goal's binder is substituted at its occurrences, so a longer name containing it is left alone |
 | `refinement_duplicate_binder` | refinement R | two refinements sharing a binder are rejected rather than naming one SyGuS symbol twice |
+| `refinement_precedence` | grammar | a predicate mixing a connective, a comparison and arithmetic groups the way it reads |
 
 The `gamma_*` tests are the only ones where a session-type *declaration* reaches
 the synthesizer at all. Everywhere else it cannot: `check_decl` runs
@@ -65,7 +72,7 @@ names already expanded, and `expand_custom_exp` leaves `Synth` alone — a hole'
 own goal is the one place a name survives. That is why Γ went unused for so long
 without anything failing.
 
-The three `refinement_*` tests shell out to `cvc5`, so they need it on `PATH`.
+The four `refinement_*` tests shell out to `cvc5`, so they need it on `PATH`.
 Without it the search sees an empty reply, the branch fails, and they report
 `No valid expression for the provided type`.
 
@@ -160,8 +167,10 @@ _c1 <- spawn (wrap) _c2 <- {
 ```
 
 where the inner process declares no inputs at all yet forwards `t`, which
-belongs to the enclosing one. sessint answers `NoSuchChannelInContext: t`. At
-depth 30 that accounted for 186 of 200 solutions; with the swap, 0 of 34.
+belongs to the enclosing one. sessint answers `NoSuchChannelInContext: t`.
+Asking for 200 solutions at depth 30, the swap takes the specification from 80
+solutions to 9, and from 9420 steps to 2905 — most of the search was spent on
+bodies reaching for a channel that was never theirs.
 
 `psi_scope_letrec` exists because the two above both take the plain `TArrow`
 branch of `invert_right_F`: their lambdas return a base type. Only an argument
@@ -199,7 +208,23 @@ the application of the function being synthesized. That used to be a
 — three applications where one of them should still be a variable. Substituting
 at the `RTVar` occurrence instead cannot see inside a name.
 
-`refinement_duplicate_binder` is the one rejection of the three. `{x:int | x > 0}
+`refinement_precedence` is about the grammar rather than a rule. The operator
+precedences are declared once for the whole parser, and they used to order
+comparisons *tighter* than the connectives and those tighter than arithmetic, so
+`y > x and y < x + 5` grouped as `((y > x) and (y < x)) + 5` and reached cvc5 as
+
+```
+(constraint (=> (> x 0) (+ (and (> (y x) x) (< (y x) x)) 5)))
+```
+
+— `+` applied to a Bool. cvc5 rejects the problem, the branch fails, and the user
+is told "no valid expression", which points at the specification's inhabitants
+rather than at its syntax. There are no parentheses in `sessynth_simple_tyR` to
+work around it. The same declarations govern ordinary sessint expressions, where
+`fun x -> x < x + 1 end` was rejected with `UnexpectedType: got bool, expected
+int` for the same reason.
+
+`refinement_duplicate_binder` is the one rejection of the four. `{x:int | x > 0}
 -> {x:int | x > 1}` names the function `x` and its parameter `x`, so the problem
 carries both `(synth-fun x ((x Int) …))` and `(declare-var x)`; cvc5 answers with
 nothing at all, which reaches the search as an unparseable reply and reads as
@@ -243,7 +268,7 @@ The `fwd_*` tests cover the two guards `synth_fwd` gained, but not equally:
 - all three fail if the guard is weakened from `tyS_equiv` to `=`, since the
   channel and the goal almost always sit at different unfolding budgets.
 - none of them notice if the `delta_is_empty` guard is dropped, and neither does
-  anything else: dropping it leaves `intqueue.sessint`'s 516 solutions
+  anything else: dropping it leaves `intqueue.sessint`'s 509 solutions
   byte-identical. `synth` already requires an empty Δ of a finished solution, so that
   guard is early pruning and nothing more. (An earlier note here claimed it
   removed five leaking `spawn`-and-forward solutions from `intqueue`. That was

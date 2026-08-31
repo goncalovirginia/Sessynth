@@ -635,11 +635,21 @@ let mode_of_string s =
     | "interactive" -> Some Interactive
     | _ -> None
 
+let env_flag name =
+    match Sys.getenv_opt name with
+    | None | Some ("0" | "false" | "FALSE" | "no" | "NO") -> false
+    | Some _ -> true
+
+(** What the search spent, on stderr so it stays out of the solution output the
+    golden harness pins. Reported per hole, since [synth] is called once per hole. *)
+let print_stats () =
+    Printf.eprintf "sessynth stats: steps=%d depth_cutoffs=%d solver_calls=%d\n%!"
+        !Flags.steps !Flags.depth_cutoffs !Flags.solver_calls
+
 let synth n_sol g p c d goal =
-    set_print_debug
-        (match Sys.getenv_opt "SESSYNTH_DEBUG" with
-         | Some ("1" | "true" | "TRUE" | "yes" | "YES") -> true
-         | _ -> false);
+    set_print_debug (env_flag "SESSYNTH_DEBUG");
+    let stats = env_flag "SESSYNTH_STATS" in
+    Flags.reset_stats ();
     if n_sol < 1 then raise (Fail ("a hole must ask for at least one solution, not " ^ string_of_int n_sol));
     let reject_duplicates where bindings =
         match find_first_duplicate_name bindings with
@@ -729,6 +739,8 @@ let synth n_sol g p c d goal =
         Choice.return expF'
     in
     let expl = ChoiceUtils.run_n_distinct n_sol solutions_choice in
+    (* before the empty check, since an exhausted search is the interesting one to measure *)
+    if stats then print_stats ();
     if List.is_empty expl then raise (Fail "No valid expression for the provided type") else
     print_newline ();
     print_solutions expl;

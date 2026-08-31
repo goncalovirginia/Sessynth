@@ -8,6 +8,16 @@ let set_max_depth n = if n > 0 then max_depth := n
 let print_debug = ref false
 let set_print_debug b = print_debug := b
 
+(* Counters over the work one call to [synth] actually does. They are globals
+   rather than fields of {!flags} because flags are copied per branch, so a
+   threaded counter would measure one path instead of the whole search. Only
+   read when stats are asked for, and reset at the start of each hole. *)
+let steps = ref 0          (* rule applications entered *)
+let depth_cutoffs = ref 0  (* branches abandoned at the depth bound *)
+let solver_calls = ref 0   (* round trips to the external solver *)
+
+let reset_stats () = steps := 0; depth_cutoffs := 0; solver_calls := 0
+
 type fresh_indices = { id : int; func : int; chan : int; kind : int; rigid : int }
 
 type flags = {
@@ -47,5 +57,8 @@ let fresh_rigid f =
     f', ("_ρ" ^ string_of_int curr_rigid)
 
 let increment_depth f =
-    if f.depth < !max_depth then Choice.return { f with depth = f.depth + 1 }
-    else Choice.fail
+    if f.depth < !max_depth then begin
+        incr steps;
+        Choice.return { f with depth = f.depth + 1 }
+    end
+    else begin incr depth_cutoffs; Choice.fail end

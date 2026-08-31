@@ -52,6 +52,7 @@ TESTS=(
     "gamma_fwd_declr:10"
     "gamma_undeclared:6"
     "refinement_arg_hypothesis:6"
+    "refinement_precedence:6"
     "refinement_binder_substring:6"
     "refinement_duplicate_binder:6"
 )
