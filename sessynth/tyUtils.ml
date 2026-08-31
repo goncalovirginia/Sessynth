@@ -64,10 +64,27 @@ let is_TRefinement t =
     | _ -> false
 
 
+(* a datatype awaits a match until its budget runs out, and is then inert *)
 let is_tyF_left_async t =
     match t with
-    | TConstructor _ -> true
+    | TConstructor(k, _, _) -> k > 0
     | _ -> false
+
+(* what [t] may still spend, 0 for anything that is not a datatype *)
+let budget_of t =
+    match t with
+    | TConstructor(k, _, _) -> k
+    | _ -> 0
+
+(** Every datatype in [t] rebudgeted to [k]. Session types are left alone, so a
+    datatype behind a process type keeps the budget it was written with: finite,
+    but not derived from the target as the rest are. *)
+let rec set_budget_tyF k t =
+    match t with
+    | TConstructor(_, x, args) -> TConstructor(k, x, List.map (set_budget_tyF k) args)
+    | TArrow(t1, t2) -> TArrow(set_budget_tyF k t1, set_budget_tyF k t2)
+    | TForAll(xl, t') -> TForAll(xl, set_budget_tyF k t')
+    | TAtomic _ | TRefinement _ | TDeclr _ | TProcess _ -> t
 
 let is_tyS_left_async t =
     match t with
@@ -138,7 +155,7 @@ and unbound_recvar_tyF t =
     | TAtomic _ | TRefinement _ | TDeclr _ -> None
     | TArrow(t1, t2) -> first_of [t1; t2]
     | TForAll(_, t') -> unbound_recvar_tyF t'
-    | TConstructor(_, args) -> first_of args
+    | TConstructor(_, _, args) -> first_of args
     | TProcess(incsl, outs) ->
         List.fold_left (fun acc t' ->
             match acc with Some _ -> acc | None -> unbound_recvar_tyS [] t')
@@ -186,7 +203,7 @@ let cyclic_declr g =
         | TAtomic _ | TRefinement _ | TDeclr _ -> acc
         | TArrow(t1, t2) -> names_tyF (names_tyF acc t1) t2
         | TForAll(_, t') -> names_tyF acc t'
-        | TConstructor(_, args) -> List.fold_left names_tyF acc args
+        | TConstructor(_, _, args) -> List.fold_left names_tyF acc args
         | TProcess(incsl, outs) ->
             List.fold_left (fun a (_, t') -> names_tyS a t') (names_tyS acc outs) incsl
     in
@@ -296,7 +313,8 @@ and tyF_equiv g env t1 t2 =
         (* the new pairs go in front, so an inner scheme shadows an outer one *)
         List.length xl1 = List.length xl2
         && tyF_equiv g (List.combine xl1 xl2 @ env) f1 f2
-    | TConstructor(x1, args1), TConstructor(x2, args2) ->
+    | TConstructor(_, x1, args1), TConstructor(_, x2, args2) ->
+        (* budget ignored, as 𝜇's is: it is search bookkeeping, not meaning *)
         x1 = x2
         && List.length args1 = List.length args2
         && List.for_all2 (tyF_equiv g env) args1 args2

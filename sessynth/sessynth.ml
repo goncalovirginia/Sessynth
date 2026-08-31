@@ -273,20 +273,16 @@ and invert_left_F f ctxts goal =
                 (* instantiate the scheme and match its result against the scrutinee *)
                 let* (f, ctxts', args', subst) = ChoiceUtils.of_option (instantiate_constructor f ctxts tF t) in
                 let goal' = unify_subst_tyF subst goal in
-                (* introduce fresh bindings for constructor args *)
-                let rec fresh_args f acc_ids acc_tys args =
-                    match args with
-                    | [] -> (f, List.rev acc_ids, List.rev acc_tys)
-                    | a::as' ->
-                        let f, xi = fresh_id f in
-                        fresh_args f (xi::acc_ids) (a::acc_tys) as'
+                (* the pattern variables, one per instantiated argument *)
+                let f, rev_x_args =
+                    List.fold_left (fun (f, acc) _ ->
+                        let f, xi = fresh_id f in (f, xi::acc)) (f, []) args'
                 in
-                let f, x_args, t_args = fresh_args f [] [] args' in
-                (* extend psi *)
-                let bindings = List.combine x_args t_args in
-                let ctxts'' = append_bindings_psi ctxts' bindings in
-                (* synthesize branch body *)
-                let* (_, ctxts''', e_branch) = focus_right_F f ctxts'' goal' in
+                let x_args = List.rev rev_x_args in
+                let ctxts'' = append_bindings_psi ctxts' (List.combine x_args args') in
+                (* inversion continues, so a nested datatype argument is matched in
+                   turn and decide sees the pattern variables *)
+                let* (_, ctxts''', e_branch) = invert_left_F f ctxts'' goal' in
                 Choice.return (ctxts''', x_c, x_args, e_branch)
             in
             let x_constructors = constructors_of ctxts.c t in
@@ -378,19 +374,21 @@ and focus_right_F f ctxts goal =
         let synth_constructor_select (x_c, tF) = 
             (* instantiate the scheme and match its result against the goal *)
             let* (f, ctxts', args', _) = ChoiceUtils.of_option (instantiate_constructor f ctxts tF goal) in
-            (* synthesize constructor arguments *)
+            (* each argument is its own subgoal, so it is decided rather than kept
+               in right focus, which only a literal could answer *)
             let rec synth_args f ctxts acc args =
                 match args with
                 | [] -> Choice.return (f, ctxts, List.rev acc)
                 | a::args' ->
-                    let* (f, ctxts, e) = focus_right_F f ctxts a in
+                    let* (f, ctxts, e) = focus_decide_F f ctxts a in
                     synth_args f ctxts (e::acc) args'
             in
             let* (f, ctxts, e_args) = synth_args f ctxts' [] args' in
             Choice.return (f, ctxts, Constructor(x_c, e_args))
         in
-        let x_constructors = constructors_of ctxts.c goal in
-        ChoiceUtils.map_mplus_list synth_constructor_select x_constructors
+        (* a spent budget leaves the datatype with no values at all *)
+        if budget_of goal <= 0 then Choice.fail
+        else ChoiceUtils.map_mplus_list synth_constructor_select (constructors_of ctxts.c goal)
     | _ -> invert_right_F f ctxts goal
 
 and focus_right_S f ctxts c goal =
@@ -431,8 +429,34 @@ and focus_left_F f ctxts eFocus tFocus goal =
         let* (f, ctxts', e1) = invert_right_F f ctxts t1 in
         focus_left_F f ctxts' (App(eFocus, e1)) t2 goal
     | TProcess _ | TAtomic _ ->
+        (* the spine is finished, and answers the goal when it already is the goal *)
         if tyF_equiv ctxts.g [] tFocus goal then Choice.return (f, ctxts, eFocus)
         else Choice.fail
+    | TConstructor _ ->
+        (* a datatype either ends the spine like any other positive type, or --
+           being positive -- releases: the spine is bound into Ψ for inversion to
+           case-analyse. Both are offered. The record of what has been released
+           travels out with the contexts rather than being scoped, since a released
+           datatype answers the same goal its own spine was focused at and decide
+           would otherwise reach that spine again in every argument it searches,
+           nesting releases without a bound; the price is that one release rules
+           out its siblings. An inert datatype is skipped, having no branches to
+           open. *)
+        let terminal =
+            if tyF_equiv ctxts.g [] tFocus goal then Choice.return (f, ctxts, eFocus)
+            else Choice.fail
+        in
+        let release =
+            let released_already = List.exists (tyF_equiv ctxts.g [] tFocus) ctxts.released in
+            if not (is_tyF_left_async tFocus) || released_already then Choice.fail
+            else
+                let f, x = fresh_id f in
+                let ctxts' = append_bindings_psi ctxts [(x, tFocus)] in
+                let ctxts' = { ctxts' with released = tFocus :: ctxts'.released } in
+                let* (f, ctxts'', e) = invert_left_F f ctxts' goal in
+                Choice.return (f, ctxts'', Let(x, eFocus, e))
+        in
+        Choice.mplus terminal release
     | TRefinement(_, tA, _) ->
         if tyF_equiv ctxts.g [] (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat !print_debug ctxts.p tFocus goal)
             then Choice.return (f, ctxts, eFocus)
@@ -466,7 +490,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
            and so a mismatched pair is never built, rather than built and rejected. *)
         let* subst = Choice.of_list (ground_substitutions t_inst') in
         focus_left_F f (unify_subst_ctxts subst ctxts') eFocus (unify_subst_tyF subst t_inst') (unify_subst_tyF subst goal')
-    | TConstructor _ -> invert_left_F f ctxts goal
+
 
 and focus_left_S f ctxts cFocus tFocus c goal =
     let* f = increment_depth f in
@@ -674,6 +698,20 @@ let synth n_sol g p c d goal =
     List.iter (fun (x, t) -> reject_ill_formed ("the constructor " ^ x) (ill_formed_scheme_tyF t)) c;
     List.iter (fun (c, s) -> reject_ill_formed ("the type of channel " ^ c) (ill_formed_scheme_tyS s)) d;
     List.iter (fun (x, s) -> reject_ill_formed ("the declaration of " ^ x) (ill_formed_scheme_tyS s)) g;
+    (* after the shape checks above, so constructors_of has the bindings it expects *)
+    (match constructor_arity_disagreement c with
+     | Some d -> raise (Fail d)
+     | None -> ());
+    let reject_use where defect =
+        match defect with
+        | Some d -> raise (Fail (d ^ ", in " ^ where))
+        | None -> ()
+    in
+    reject_use "the goal" (datatype_use_defect_tyF c goal);
+    List.iter (fun (x, t) -> reject_use ("the type of " ^ x) (datatype_use_defect_tyF c t)) p;
+    List.iter (fun (x, t) -> reject_use ("the constructor " ^ x) (datatype_use_defect_tyF c t)) c;
+    List.iter (fun (x, s) -> reject_use ("the type of channel " ^ x) (datatype_use_defect_tyS c s)) d;
+    List.iter (fun (x, s) -> reject_use ("the declaration of " ^ x) (datatype_use_defect_tyS c s)) g;
     (match cyclic_declr g with
      | Some x -> raise (Fail ("session type " ^ x ^ " is defined in terms of itself; use rec instead"))
      | None -> ());

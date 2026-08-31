@@ -35,7 +35,7 @@ let rec ftv_tyF = function
         List.fold_left (fun s (_, st) -> S.union s (ftv_tyS st)) (ftv_tyS outs) incsl
     | TDeclr _ -> S.empty
     | TForAll(xl, t) -> S.diff (ftv_tyF t) (S.of_list xl)
-    | TConstructor(_, args) ->
+    | TConstructor(_, _, args) ->
         List.fold_left (fun s t -> S.union s (ftv_tyF t)) S.empty args
 
 (* a recursion variable is not a type variable, so only the functional types a
@@ -73,7 +73,7 @@ let rec ill_formed_scheme_tyF t =
         Some ("the internal rigid variable " ^ r)
     | TAtomic _ | TRefinement _ | TDeclr _ -> None
     | TArrow(t1, t2) -> first_of [t1; t2]
-    | TConstructor(_, args) -> first_of args
+    | TConstructor(_, _, args) -> first_of args
     | TProcess(incsl, outs) ->
         List.fold_left (fun acc s ->
             match acc with Some _ -> acc | None -> ill_formed_scheme_tyS s)
@@ -141,8 +141,8 @@ let rec instantiate_subst_tyF subst t =
         (* avoid capture: ignore substitution for re-bound vars *)
         let subst' = List.filter (fun (a, _) -> not (List.mem a xl)) subst in
         TForAll (xl, instantiate_subst_tyF subst' tF)
-    | TConstructor(x, args) ->
-        TConstructor(x, List.map (fun arg -> instantiate_subst_tyF subst arg) args)
+    | TConstructor(k, x, args) ->
+        TConstructor(k, x, List.map (fun arg -> instantiate_subst_tyF subst arg) args)
 
 and instantiate_subst_tyS subst t =
     match t with
@@ -211,7 +211,7 @@ let rec unify_subst_tyF s t =
     | TForAll(xl, t') ->
         let s' = List.filter (fun (a, _) -> not (List.mem a xl)) s in
         TForAll (xl, unify_subst_tyF s' t')
-    | TConstructor(x, args) -> TConstructor(x, List.map (fun arg -> unify_subst_tyF s arg) args)
+    | TConstructor(k, x, args) -> TConstructor(k, x, List.map (fun arg -> unify_subst_tyF s arg) args)
 
 and unify_subst_tyS s t =
     match t with
@@ -258,7 +258,7 @@ let rec occurs a t =
         List.exists (fun (_, st) -> occurs_tyS a st) cs || occurs_tyS a s'
     | TDeclr _ -> false
     | TForAll(xl, t') -> if List.mem a xl then false else occurs a t'
-    | TConstructor(_, args) -> List.exists (fun arg -> occurs a arg) args
+    | TConstructor(_, _, args) -> List.exists (fun arg -> occurs a arg) args
 
 and occurs_tyS a t =
     match t with
@@ -309,7 +309,8 @@ let rec unify g t1 t2 =
                     let s2' = unify_subst_tyS subst_acc s2 in
                     unify_compose_subst (unify_tyS g s1' s2') subst_acc
                 ) subst0 cs1 cs2
-    | TConstructor(x1, args1), TConstructor(x2, args2) when x1 = x2 && List.length args1 = List.length args2 ->
+    | TConstructor(_, x1, args1), TConstructor(_, x2, args2) when x1 = x2 && List.length args1 = List.length args2 ->
+        (* budget ignored, as {!TyUtils.tyF_equiv} does *)
         List.fold_left2 (fun s a1 a2 ->
             let a1' = unify_subst_tyF s a1 in
             let a2' = unify_subst_tyF s a2 in

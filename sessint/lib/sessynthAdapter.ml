@@ -68,7 +68,7 @@ let ty_converters g =
         | Language.TProcess(incsl, outs) -> TProc(tyS_to_stype outs, List.map(fun (c, s) -> (c, tyS_to_stype s)) incsl)
         | Language.TDeclr(x) -> TVar(x)
         | Language.TForAll _ -> unsupported "a polymorphic type scheme"
-        | Language.TConstructor(x, _) -> unsupported ("the ADT " ^ x)
+        | Language.TConstructor(_, x, _) -> unsupported ("the ADT " ^ x)
 
     and tyS_to_stype tyS =
         match resolve tyS with

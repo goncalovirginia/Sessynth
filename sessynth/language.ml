@@ -26,7 +26,7 @@ and tyF = (* functional types (F) *)
     | TProcess of (id * tyS) list * tyS (* { c1:S1, ..., cn:Sn |- S } *)
     | TDeclr of id (* variable bound to a previously defined functional type declaration *)
     | TForAll of id list * tyF (* ∀ᾱ. F *)
-    | TConstructor of id * tyF list (* T F1 ... Fn *)
+    | TConstructor of int * id * tyF list (* T^k F1 ... Fn (k bounds how deep a value of it may nest constructors, as 𝜇k does unfoldings) *)
 
 and tyS = (* channel/session types (S) *)
     | STSendF of tyF * tyS (* F ∧ S *)
