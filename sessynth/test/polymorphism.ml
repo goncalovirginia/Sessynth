@@ -73,58 +73,91 @@ let sess_gamma =
     [("Sess", STSendF(TAtomic TInt, STUnit));
      ("Sess2", STSendF(TAtomic TInt, STSendF(TAtomic TInt, STUnit)))]
 
+(* queue A = 𝜇k x. &{ enq: A ⊃ x, deq: ⊕{ none: 1, some: A ∧ x } } -- the running
+   example of Chapter "Wandering", as a scheme rather than at a fixed payload *)
+let queue k a =
+    STRec(k, "x", STExtChoice [
+        ("enq", STRecvF(a, STRecVar "x"));
+        ("deq", STIntChoice [("none", STUnit); ("some", STSendF(a, STRecVar "x"))])
+    ])
+
+let empty_at a = TProcess([], queue 1 a)
+let elem_at a = TArrow(a, TProcess([("t", queue 1 a)], queue 1 a))
+let empty_scheme = scheme ["a"] (empty_at (poly "a"))
+let elem_scheme = scheme ["a"] (elem_at (poly "a"))
+
+(* the empty queue: answer deq with none, and on enq hand the channel to another
+   provider. The payload type is the only thing that changes between int and bool *)
+let empty_program = {|
+_c0 <- {
+  case _c0 of
+  enq:
+    _x0 <- recv _c0;
+    _c1 <- spawn empty;
+    fwd _c1 _c0
+  deq:
+    _c0.none;
+    close _c0
+}|}
+
+(** What a case expects of the first solution. [Printed] compares the term as the
+    printer renders it, for process-shaped solutions whose session annotations
+    make an inline literal unreadable; every name and every action still appears,
+    so it pins the program just as tightly. *)
+type expected = Sol of expF | Printed of string | NoSol
+
 (* name, depth budget, Γ, Ψ, goal, the solution the search must reach first --
-   [None] where the goal must have none at all.
+   [NoSol] where the goal must have none at all.
 
    The budget is what stops a scheme from being applied to itself over and over,
    so it is pinned per case: one that is a step too tight would reject a term for
    running out of room rather than for the reason the case is about. *)
 let cases = [
-    ("id at int", 7, [], [("id", id_scheme)], TAtomic TInt, Some (App(Var "id", Int 1)));
+    ("id at int", 7, [], [("id", id_scheme)], TAtomic TInt, Sol (App(Var "id", Int 1)));
     (* one binding answering a second goal is what a scheme buys over an arrow *)
-    ("id at bool", 7, [], [("id", id_scheme)], TAtomic TBool, Some (App(Var "id", Bool true)));
+    ("id at bool", 7, [], [("id", id_scheme)], TAtomic TBool, Sol (App(Var "id", Bool true)));
     (* nothing determines 'a', so the head picks the first ground type for it *)
-    ("len at int", 9, [], [("len", len_scheme)], TAtomic TInt, Some (App(Var "len", Int 1)));
+    ("len at int", 9, [], [("len", len_scheme)], TAtomic TInt, Sol (App(Var "len", Int 1)));
     (* the lambda's annotation is the witness: it reads int, not the variable the
        spine started with, because the choice was made before the spine was walked *)
     ("use at int", 12, [], [("use", use_scheme)], TAtomic TInt,
-        Some (App(App(Var "use", Int 1), Lam("_x0", TAtomic TInt, Var "_x0"))));
+        Sol (App(App(Var "use", Int 1), Lam("_x0", TAtomic TInt, Var "_x0"))));
     ("app at int", 12, [], [("app", app_scheme)], TAtomic TInt,
-        Some (App(App(Var "app", Lam("_x0", TAtomic TInt, Var "_x0")), Int 1)));
+        Sol (App(App(Var "app", Lam("_x0", TAtomic TInt, Var "_x0")), Int 1)));
 
     (* offering a scheme rather than using one: 'a' is whatever the caller picked,
        so the argument is the only thing that can supply one *)
     ("goal ∀a. a -> a", 10, [], [], scheme ["a"] (TArrow(poly "a", poly "a")),
-        Some (Lam("_x0", rigid "_ρ0", Var "_x0")));
+        Sol (Lam("_x0", rigid "_ρ0", Var "_x0")));
     (* uninhabited -- no int becomes a type nobody has named yet. flexibly opened
        this answers _x0 -> 1, a function claiming every 'a' that only serves int *)
-    ("goal ∀a. int -> a", 10, [], [], scheme ["a"] (TArrow(TAtomic TInt, poly "a")), None);
+    ("goal ∀a. int -> a", 10, [], [], scheme ["a"] (TArrow(TAtomic TInt, poly "a")), NoSol);
     (* a rigid goal is still reachable, just only by passing a value of it through *)
     ("goal ∀a. (int -> a) -> a", 12, [], [],
         scheme ["a"] (TArrow(TArrow(TAtomic TInt, poly "a"), poly "a")),
-        Some (Lam("_x0", TArrow(TAtomic TInt, rigid "_ρ0"), App(Var "_x0", Int 1))));
+        Sol (Lam("_x0", TArrow(TAtomic TInt, rigid "_ρ0"), App(Var "_x0", Int 1))));
     (* rank-2: a ∀ in argument position. The argument is a goal like any other, so
        it is offered rather than used and the lambda is built at a rigid *)
     ("rank-2 scheme argument", 12, [], [("f", TArrow(id_scheme, TAtomic TInt))],
         TAtomic TInt,
-        Some (App(Var "f", Lam("_x0", rigid "_ρ0", Var "_x0"))));
+        Sol (App(Var "f", Lam("_x0", rigid "_ρ0", Var "_x0"))));
     (* the rigid the goal opened reaches the return type of a scheme in Ψ, so
        unification compares two rigids rather than a rigid and a variable. Its
        accepting them is what this rests on: made to fail, the branch dies here *)
     ("goal ∀a. (∀b. b -> a) -> a", 14, [], [],
         scheme ["a"] (TArrow(scheme ["b"] (TArrow(poly "b", poly "a")), poly "a")),
-        Some (Lam("_x0", scheme ["b"] (TArrow(poly "b", rigid "_ρ0")), App(Var "_x0", Int 1))));
+        Sol (Lam("_x0", scheme ["b"] (TArrow(poly "b", rigid "_ρ0")), App(Var "_x0", Int 1))));
     (* two rigids that are not the same one never agree, and no ground type may be
        guessed for one either, so nothing answers 'b'. What rejects it is the
        terminal comparison rather than unify, whose own rigid check only prunes *)
     ("goal ∀a b. (∀c. c -> a) -> b", 14, [], [],
-        scheme ["a"; "b"] (TArrow(scheme ["c"] (TArrow(poly "c", poly "a")), poly "b")), None);
+        scheme ["a"; "b"] (TArrow(scheme ["c"] (TArrow(poly "c", poly "a")), poly "b")), NoSol);
     (* the ground types are the only ones a variable the goal leaves undetermined is
        guessed at, and a rigid is not among them -- so (len) _x0 is out of reach and
        the search settles the argument at int instead. A deliberate cap, pinned here *)
     ("a scheme is never instantiated at a rigid", 12, [], [("len", len_scheme)],
         scheme ["a"] (TArrow(poly "a", TAtomic TInt)),
-        Some (Lam("_x0", rigid "_ρ0", App(Var "len", Int 1))));
+        Sol (Lam("_x0", rigid "_ρ0", App(Var "len", Int 1))));
 
     (* spawning a process whose protocol is a scheme: the binding has to be opened
        before it can be asked what it offers, and the goal is what settles the 'a'.
@@ -132,7 +165,7 @@ let cases = [
     ("spawn p : ∀a. {a ^ 1}", 14, [],
         [("p", scheme ["a"] (TProcess([], STSendF(poly "a", STUnit))))],
         TProcess([], int_then_close),
-        Some (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_close)),
+        Sol (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_close)),
                       int_then_close, [])));
     (* the same spawn where 'a' has to become a function type. unification refusing
        anything but a base type left p out of the running, and the search built the
@@ -140,7 +173,7 @@ let cases = [
     ("spawn p : ∀a. {a ^ 1} at a function payload", 16, [],
         [("p", scheme ["a"] (TProcess([], STSendF(poly "a", STUnit))))],
         TProcess([], fun_then_close),
-        Some (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", fun_then_close)),
+        Sol (Process("_c0", Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", fun_then_close)),
                       fun_then_close, [])));
 
     (* ∀b. b -> b is ∀a. a -> a, so a process offering one answers a goal asking
@@ -149,14 +182,14 @@ let cases = [
     ("spawn at an α-equivalent payload", 18, [],
         [("p", TArrow(TAtomic TInt, TProcess([], sends id_scheme_b)))],
         TProcess([], sends id_scheme),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 Spawn("_c1", App(Var "p", Int 1), [], Fwd("_c1", "_c0", sends id_scheme)),
                 sends id_scheme, [])));
     (* and renaming a binder is still not the same as changing the body *)
     ("no spawn at a payload that only looks alike", 18, [],
         [("p", TArrow(TAtomic TInt, TProcess([], sends len_scheme_b)))],
         TProcess([], sends id_scheme),
-        Some (Process("_c0", SendF("_c0", Lam("_x0", rigid "_ρ0", Var "_x0"), Close "_c0"),
+        Sol (Process("_c0", SendF("_c0", Lam("_x0", rigid "_ρ0", Var "_x0"), Close "_c0"),
                       sends id_scheme, [])));
 
     (* two schemes meeting head-on, which only happens where both sides carry one
@@ -164,7 +197,7 @@ let cases = [
     ("spawn where the payloads are both schemes", 18, [],
         [("p", scheme ["a"] (TProcess([], STSendF(poly "a", sends id_scheme_b))))],
         TProcess([], int_then_scheme id_scheme),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_scheme id_scheme)),
                 int_then_scheme id_scheme, [])));
     (* predicative: a variable stands for a type, never for a scheme, so p offers
@@ -173,7 +206,7 @@ let cases = [
     ("no spawn where a variable would have to stand for a scheme", 16, [],
         [("p", scheme ["a"] (TProcess([], sends (poly "a"))))],
         TProcess([], sends id_scheme),
-        Some (Process("_c0", SendF("_c0", Lam("_x0", rigid "_ρ0", Var "_x0"), Close "_c0"),
+        Sol (Process("_c0", SendF("_c0", Lam("_x0", rigid "_ρ0", Var "_x0"), Close "_c0"),
                       sends id_scheme, [])));
 
     (* nested schemes: the inner binder shadows the outer, so ∀a. a -> ∀a. a -> a
@@ -182,7 +215,7 @@ let cases = [
     ("spawn where nested binders shadow", 18, [],
         [("p", scheme ["x"] (TProcess([], STSendF(poly "x", sends nested_shadow))))],
         TProcess([], int_then_scheme nested_renamed),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", int_then_scheme nested_renamed)),
                 int_then_scheme nested_renamed, [])));
     (* the same shape whose inner body returns the *outer* variable is a different
@@ -190,7 +223,7 @@ let cases = [
     ("no spawn where the inner body returns the outer variable", 22, [],
         [("p", scheme ["x"] (TProcess([], STSendF(poly "x", sends nested_shadow))))],
         TProcess([], int_then_scheme nested_other),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 SendF("_c0", Int 1,
                     SendF("_c0", Lam("_x0", rigid "_ρ0", Lam("_x1", rigid "_ρ1", Var "_x0")),
                           Close "_c0")),
@@ -200,7 +233,7 @@ let cases = [
     ("no spawn where the scheme payloads differ", 18, [],
         [("p", scheme ["a"] (TProcess([], STSendF(poly "a", sends id_scheme_b))))],
         TProcess([], int_then_scheme len_scheme),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 SendF("_c0", Int 1,
                     SendF("_c0", Lam("_x0", rigid "_ρ0", Int 1), Close "_c0")),
                 int_then_scheme len_scheme, [])));
@@ -210,7 +243,7 @@ let cases = [
     ("spawn where only Γ says the sessions agree", 12, sess_gamma,
         [("p", scheme ["a"] (TProcess([], STSendF(poly "a", STDeclr "Sess"))))],
         TProcess([], STDeclr "Sess2"),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 Spawn("_c1", Var "p", [],
                     Fwd("_c1", "_c0", STSendF(TAtomic TInt, STSendF(TAtomic TInt, STUnit)))),
                 STDeclr "Sess2", [])));
@@ -219,31 +252,31 @@ let cases = [
        and unification would resolve it until they looped *)
     ("a Γ defined in terms of itself is rejected", 10,
         [("S", STSendF(TAtomic TInt, STDeclr "S"))], [],
-        TProcess([("c1", STDeclr "S")], STDeclr "S"), None);
+        TProcess([("c1", STDeclr "S")], STDeclr "S"), NoSol);
     (* a variable no ∀ binds is nothing the search could determine. right focus
        used to guess a ground type for one, answering a goal it should refuse *)
-    ("a type variable no forall binds is rejected", 8, [], [], poly "a", None);
+    ("a type variable no forall binds is rejected", 8, [], [], poly "a", NoSol);
     (* opening this substitutes only the second 'a' where equivalence pairs up the
        first, so the two read the same scheme differently. Unchecked it answers (f) 1 *)
     ("a forall binding one name twice is rejected", 8, [],
-        [("f", scheme ["a"; "a"] (TArrow(poly "a", poly "a")))], TAtomic TInt, None);
+        [("f", scheme ["a"; "a"] (TArrow(poly "a", poly "a")))], TAtomic TInt, NoSol);
     (* a rigid stands for a type whoever calls has chosen, and input has no caller.
        Unchecked the goal and the binding match and the answer is x *)
-    ("a rigid variable in input is rejected", 8, [], [("x", rigid "_ρ0")], rigid "_ρ0", None);
+    ("a rigid variable in input is rejected", 8, [], [("x", rigid "_ρ0")], rigid "_ρ0", NoSol);
     (* substitution protects a rebound name but not the type substituted in, so a
        binder spelled like a fresh variable swallows it: opening 'a' at _α0 turned
        the argument from ∀_α0. _α0 -> a into the identity, and (g) _x0 -> _x0
        answered a goal whose argument type no identity inhabits *)
     ("a forall binding a reserved name is rejected", 8, [],
         [("g", scheme ["a"] (TArrow(scheme ["_α0"] (TArrow(poly "_α0", poly "a")), TAtomic TInt)))],
-        TAtomic TInt, None);
+        TAtomic TInt, NoSol);
 
     (* μ binders are matched up like ∀ ones now. Renaming one side onto the other
        stopped at a binder that would capture it, which left the occurrences below
        unrenamed, so a session spelled with its binders swapped was not its own *)
     ("nested μ binders are matched up, not renamed", 16, [],
         [("p", TProcess([], mu_a))], TProcess([], mu_b 1),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 SendF("_c0", Int 1,
                     SendF("_c0", Int 1,
                         Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", mu_b 0)))),
@@ -256,7 +289,7 @@ let cases = [
         [("p", scheme ["a"] (TProcess([], STRec(1, "t",
             STSendF(poly "a", STRec(1, "q", STSendF(TAtomic TInt, STRecVar "t")))))))],
         TProcess([], mu_b 1),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 SendF("_c0", Int 1,
                     SendF("_c0", Int 1,
                         Spawn("_c1", Var "p", [], Fwd("_c1", "_c0", mu_b 0)))),
@@ -265,12 +298,28 @@ let cases = [
        to it. p is arrow-typed to keep it out of xRecLam and the self-spawn guard *)
     ("a refinement is compared up to its own binder", 16, [],
         [("p", TArrow(TAtomic TInt, TProcess([], sends refx)))], TProcess([], sends refy),
-        Some (Process("_c0",
+        Sol (Process("_c0",
                 Spawn("_c1", App(Var "p", Int 1), [], Fwd("_c1", "_c0", sends refy)),
                 sends refy, [])));
     (* and a predicate that genuinely differs is still a different type *)
     ("no spawn where the refinement predicate differs", 16, [],
-        [("p", TArrow(TAtomic TInt, TProcess([], sends refx)))], TProcess([], sends refz), None);
+        [("p", TArrow(TAtomic TInt, TProcess([], sends refx)))], TProcess([], sends refz), NoSol);
+
+    (* --- a polymorphic queue: one provider, reused at each payload --- *)
+
+    (* the scheme is instantiated at the goal's payload and spawned, so a single
+       binding answers a queue of ints... *)
+    ("queue: empty scheme at int", 14, [], [("empty", empty_scheme)],
+        empty_at (TAtomic TInt), Printed empty_program);
+    (* ...and a queue of bools, which is what a scheme buys over two declarations *)
+    ("queue: empty scheme at bool", 14, [], [("empty", empty_scheme)],
+        empty_at (TAtomic TBool), Printed empty_program);
+    (* offering the scheme rather than using one. ∀R opens 'a' rigidly, and the enq
+       branch then needs a queue at that rigid: no scheme in Ψ may be instantiated
+       at one, and grounding only ever guesses int or bool, so nothing continues it.
+       The provider is synthesizable at every payload and not once for all of them *)
+    ("queue: goal ∀a. {queue a}", 22, [],
+        [("empty", empty_scheme); ("elem", elem_scheme)], empty_scheme, NoSol);
 ]
 
 let () =
@@ -278,12 +327,24 @@ let () =
     let run (name, depth, g, p, goal, expected) =
         set_max_depth depth;
         let actual = try Some (synth 1 g p [] [] goal) with Fail _ -> None in
-        if actual = expected then None
+        let ok =
+            match expected, actual with
+            | Sol e, Some e' -> e = e'
+            | Printed s, Some e' -> String.trim s = String.trim (expF_to_string e' 0)
+            | NoSol, None -> true
+            | _ -> false
+        in
+        if ok then None
         else
-            let show = function
+            let got = match actual with
                 | Some e -> expF_to_string e 0
                 | None -> "no solution"
-            in Some (name ^ ": got " ^ show actual ^ ", expected " ^ show expected)
+            in
+            let want = match expected with
+                | Sol e -> expF_to_string e 0
+                | Printed s -> String.trim s
+                | NoSol -> "no solution"
+            in Some (name ^ ": got " ^ got ^ ", expected " ^ want)
     in
     match List.filter_map run cases with
     | [] -> print_endline "\npolymorphism: all cases passed"
