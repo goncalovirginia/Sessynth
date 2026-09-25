@@ -40,6 +40,7 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `psi_scope_lambda` | →R, →L | a binding introduced while synthesizing one argument is *not* in scope for the next one |
 | `psi_scope_tensor` | ⊗R, ⊃R | the same across the two halves of `S1 ⊗ S2`: what the sub-process receives is not in scope for the continuation |
 | `psi_scope_letrec` | →R (recursive) | and again when the lambda is the recursive one, whose self-binding also enters Ψ |
+| `guarded_self_spawn_function` | process right inversion | a function returning a process does not spawn itself before communicating, even when its protocol is not recursive |
 | `intchoice_left` | ⊕L | every label is covered, and each branch continues on the *same* channel the `case` scrutinizes |
 | `intchoice_left_branches` | ⊕L | that channel carries each branch's own continuation type: `a: int^@` receives before waiting, `b: @` waits straight away |
 | `fwd_recursive` | fwd | `fwd t c` is allowed when `t` and the goal are the same protocol at different unfolding budgets (`𝜇¹` against `𝜇⁰`) |
@@ -274,3 +275,22 @@ The `fwd_*` tests cover the two guards `synth_fwd` gained, but not equally:
   removed five leaking `spawn`-and-forward solutions from `intqueue`. That was
   measured against the old interactive external choice, where the printed
   "solutions" were per-label branch candidates rather than programs.)
+
+`guarded_self_spawn_function` covers the degenerate-recursion guard for the one
+shape it used to miss. The guard only knew the name a process recurs through
+when that was the recursive lambda, which is set only when the protocol offered
+is itself recursive, so `p : int -> {int ^ @}` had no name to check and its
+first two solutions at depth 12 were
+
+```
+_x0 -> _c0 <- {
+  _c1 <- spawn ((p) _x0);
+  fwd _c1 _c0
+}
+```
+
+and the same with `1` -- a process that spawns copies of itself forever without
+ever sending. The definition being synthesized is in scope for its own hole, so
+it is the binding at exactly the goal's type, and the guard now checks that name
+too. None of the other goldens, the corpus, or the unit suites change, down to
+the step counts.

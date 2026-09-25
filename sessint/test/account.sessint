@@ -1,0 +1,29 @@
+stype Account rec x. &{deposit: int => x, withdraw: int => +{ok: x, denied: x}, balance: int ^ x, quit: @};
+account : int -> {Account}
+? account ?;
+;;
+m <- {
+    a <- spawn (account 100);
+    a.deposit;
+    send a 50;
+    a.withdraw;
+    send a 30;
+    case a of
+        ok: (
+            a.balance;
+            b:int <- recv a;
+            print b;
+            a.quit;
+            wait a;
+            close m
+        )
+        denied: (
+            a.balance;
+            b:int <- recv a;
+            print b;
+            a.quit;
+            wait a;
+            close m
+        )
+}
+;;

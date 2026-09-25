@@ -87,10 +87,16 @@ let get_Spawn_c e =
     | Spawn(c, _, _, _) -> Some c
     | _ -> None
 
-(** Whether every recursive occurrence of [xSelf] in [eP] sits behind a
-    communication on [c] (the channel offered). An unguarded one spawns copies of
-    itself forever without the conversation advancing. [""] recurs on nothing. *)
-let degenerate_recursion_is_guarded xSelf c eP =
+(** Whether every recursive occurrence in [eP] sits behind a communication on [c]
+    (the channel offered). An unguarded one spawns copies of itself forever without
+    the conversation advancing. A recursive occurrence is a spawn headed by any of
+    [selves], the names the process can recur through; [""] names nothing. *)
+let degenerate_recursion_is_guarded selves c eP =
+    let is_self eApp =
+        match get_app_head_id eApp with
+        | Some x -> x <> "" && List.mem x selves
+        | None -> false
+    in
     let rec guarded eP =
         match eP with
         (* progress on the offered channel: whatever follows is guarded *)
@@ -100,14 +106,14 @@ let degenerate_recursion_is_guarded xSelf c eP =
         | Choice(c', branches) when c' = c -> List.for_all (fun (_, e) -> guarded e) branches
         | Close _ | Fwd _ | Hole _ -> true
         (* the recursive occurrence itself, reached before any such progress *)
-        | Spawn(_, eApp, _, _) when get_app_head_id eApp = Some xSelf -> false
+        | Spawn(_, eApp, _, _) when is_self eApp -> false
         (* anything else acts on some other channel and carries on *)
         | SendF(_, _, eP') | RecvF(_, _, _, eP') | RecvS(_, _, _, eP')
         | Wait(_, eP') | ChoiceSelect(_, _, eP') | Spawn(_, _, _, eP') -> guarded eP'
         | SendS(_, _, eP1, eP2) -> guarded eP1 && guarded eP2
         | Choice(_, branches) -> List.for_all (fun (_, e) -> guarded e) branches
     in
-    xSelf = "" || guarded eP
+    guarded eP
 
 let contains_substring s1 s2 =
     let re = Str.regexp_string s2 in
@@ -149,8 +155,8 @@ let rec invert_right_F f ctxts goal =
     | TArrow(t1, t2) ->
         let f, x = match t1 with
             | TRefinement(x, _, _) -> f, x
-            | _ -> fresh_id f in 
-        let ctxts1 = append_bindings_psi ctxts [(x, t1)] in
+            | _ -> fresh_id f in
+        let ctxts1 = append_bindings_psi (with_self ctxts goal) [(x, t1)] in
         begin match get_return_type t2 with
         | TProcess(_, outs) when is_STRec (resolve_declr ctxts.g outs) && not (List.mem_assoc ctxts.xRecLam ctxts.p) ->
             let f, ctxts2 =
@@ -179,11 +185,11 @@ let rec invert_right_F f ctxts goal =
             (* Δ is swapped out rather than extended since a process type is a
                functional value that is spawned later against the channels its own
                declaration names, so the caller's channels are not the body's to consume. *)
-            let ctxts1 = { ctxts with d = incsl } in
+            let ctxts1 = { (with_self ctxts goal) with d = incsl } in
             let f, c = fresh_chan f in
             let* (f, ctxts', e) = invert_right_S f ctxts1 c outs in
             let* () = Choice.guard (delta_is_empty ctxts') in
-            let* () = Choice.guard (degenerate_recursion_is_guarded ctxts.xRecLam c e) in
+            let* () = Choice.guard (degenerate_recursion_is_guarded [ctxts.xRecLam; ctxts1.xSelf] c e) in
             Choice.return (f, ctxts, Process(c, e, outs, incsl))
     | TDeclr(x) ->
         let* t = ChoiceUtils.of_option (List.assoc_opt x ctxts.p) in

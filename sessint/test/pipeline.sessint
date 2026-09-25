@@ -1,0 +1,18 @@
+stype IntCStream rec x. &{next: int^x, stop: @};
+gen : int -> {IntCStream}
+? gen ?;
+inc : int -> {IntCStream <- s: IntCStream}
+? inc ?;
+total : int -> {int ^ @ <- s: IntCStream}
+? total ?;
+;;
+m <- {
+    g <- spawn (gen 1);
+    i <- spawn (inc 10) g;
+    t <- spawn (total 0) i;
+    x:int <- recv t;
+    print x;
+    wait t;
+    close m
+}
+;;

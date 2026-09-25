@@ -19,11 +19,12 @@ type contexts = {
     c : constructors;   (* ADT constructors *)
     d : bindingsS;      (* Δ: linear session-typed channel bindings *)
     xRecLam : id;       (* the name Ψ binds the current enclosing recursive lambda to, "" outside one *)
+    xSelf : id;         (* the name Ψ binds the definition being synthesized to, "" if none; read only by the recursion guard *)
     released : tyF list;(* the datatypes left focus has released, bounding further releases *)
 }
 
 let initialize_ctxts =
-    let ctxts : contexts = { g = []; p = []; c = []; d = []; xRecLam = ""; released = [] } in
+    let ctxts : contexts = { g = []; p = []; c = []; d = []; xRecLam = ""; xSelf = ""; released = [] } in
     ctxts
 
 (* extending a context *)
@@ -78,6 +79,14 @@ let get_sync_bindings is_left_async ctxt =
 
 let find_binding_for_tyF ctxts tF =
     Option.map fst (List.find_opt (fun (_, t) -> tyF_equiv ctxts.g [] t tF) ctxts.p)
+
+(* The definition being synthesized is in scope for its own hole, so it is the
+   binding at exactly the goal's type. Set once, at the outermost goal that has one. *)
+let with_self ctxts tF =
+    if ctxts.xSelf <> "" then ctxts
+    else match find_binding_for_tyF ctxts tF with
+        | Some x -> { ctxts with xSelf = x }
+        | None -> ctxts
 
 (* comparing contexts *)
 

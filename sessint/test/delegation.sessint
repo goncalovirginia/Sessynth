@@ -1,0 +1,21 @@
+cell : int -> {(int ^ @) * @}
+? cell ?;
+relay : int -> {(int ^ @) -o int ^ @}
+? relay ?;
+;;
+m <- {
+    k <- spawn (cell 42);
+    d:int ^ @ <- recvc k;
+    wait k;
+    y:int <- recv d;
+    wait d;
+    print y;
+    p <- spawn { send p 7; close p };
+    r <- spawn (relay 0);
+    sendc r p;
+    z:int <- recv r;
+    wait r;
+    print z;
+    close m
+}
+;;

@@ -124,7 +124,7 @@ And sessions:
 ## Tests
 
 ```
-./sessint/test/rules/run.sh           # the 37 golden tests, diffed against their .expected files
+./sessint/test/rules/run.sh           # the 38 golden tests, diffed against their .expected files
 ./sessint/test/rules/run.sh --bless   # regenerate the .expected files from the current output
 dune test                             # the polymorphism and ADT unit tests
 ```
@@ -140,3 +140,8 @@ bug it was written against.
   local recursive function is refused with an explanation instead.
 - Compiled `.go` files land in the directory you run from; the ones at the repo
   root are gitignored.
+- The Go backend skips top-level declarations that are just a process (no
+  function arrow), so if `main` uses one, give it a parameter. Forwarding a
+  channel you *received* also produces Go that won't compile.
+- If a hole takes forever, try a smaller `DEPTH`. `pipeline.sessint` is
+  instant at depth 20 but doesn't finish at the default 100.
