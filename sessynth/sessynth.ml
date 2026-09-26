@@ -460,7 +460,8 @@ and focus_left_F f ctxts eFocus tFocus goal =
                 let ctxts' = append_bindings_psi ctxts [(x, tFocus)] in
                 let ctxts' = { ctxts' with released = tFocus :: ctxts'.released } in
                 let* (f, ctxts'', e) = invert_left_F f ctxts' goal in
-                Choice.return (f, ctxts'', Let(x, eFocus, e))
+                let ctxts_out = { (restore_scope ctxts ctxts'') with released = ctxts''.released } in
+                Choice.return (f, ctxts_out, Let(x, eFocus, e))
         in
         Choice.mplus terminal release
     | TRefinement(_, tA, _) ->

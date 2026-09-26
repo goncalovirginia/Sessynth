@@ -37,6 +37,11 @@ let trees = [
     ("More", TForAll([], TArrow(tree_ 0, TArrow(forest_ 0, forest_ 0))));
 ]
 
+(* a token nothing can build at budget 0, reachable only by unwrapping *)
+let tok_ k = TConstructor(k, "Tok", [])
+let wrap_ k = TConstructor(k, "Wrap", [])
+let wrapped_toks = [("T0", TForAll([], tok_ 0)); ("MkW", TForAll([], TArrow(tok_ 0, wrap_ 0)))]
+
 let cn x args = Constructor(x, args)
 
 (** What a case expects. [Rejected] names a fragment the failure message has to
@@ -121,6 +126,12 @@ let cases = [
             Match(Var "_x0", [("Nil", [], Int 1); ("Cons", ["_x1"; "_x2"], Var "_x1")]))));
     ("an inert datatype is not released", 10, lists, [("mk", TArrow(i, list_ 0))], i,
         Sol (Int 1));
+    ("a released name is not in scope for a sibling argument", 18, wrapped_toks,
+        (* the first argument may release mk, but its let does not reach the second *)
+        [("f2", TArrow(i, TArrow(TArrow(i, tok_ 0), b))); ("mk", TArrow(i, wrap_ 1))], b,
+        Sol (App(App(Var "f2", Int 1),
+            Lam("_x0", i, Let("_x1", App(Var "mk", Var "_x0"),
+                Match(Var "_x1", [("MkW", ["_x2"], Var "_x2")]))))));
 ]
 
 (* the failure message, so that Rejected can tell one apart from an empty search *)
