@@ -124,7 +124,7 @@ And sessions:
 ## Tests
 
 ```
-./sessint/test/rules/run.sh           # the 38 golden tests, diffed against their .expected files
+./sessint/test/rules/run.sh           # the 40 golden tests, diffed against their .expected files
 ./sessint/test/rules/run.sh --bless   # regenerate the .expected files from the current output
 dune test                             # the polymorphism and ADT unit tests
 ```

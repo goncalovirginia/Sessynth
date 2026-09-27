@@ -23,6 +23,7 @@ let tyA_to_string t =
     match t with
     | TInt -> "int"
     | TBool -> "bool"
+    | TUnit -> "unit"
     | TPolyVar a | TRigidVar a -> a
 
 let rec tyR_to_string t =
@@ -80,6 +81,7 @@ let rec expF_to_string e depth =
     match e with 
     | Int(v) -> string_of_int v
     | Bool(v) -> string_of_bool v
+    | Unit -> "()"
     | UOp(op, e) -> uOp_to_string op ^ expF_to_string e depth
     | BOp(op, e1, e2) -> expF_to_string e1 depth ^ bOp_to_string op ^ expF_to_string e2 depth
     | Var x -> x
@@ -101,7 +103,7 @@ and process_input_channels_to_string xtl =
    a juxtaposed position does not read as further arguments *)
 and expF_arg_to_string e =
     match e with
-    | Int _ | Bool _ | Var _ | Constructor(_, []) -> expF_to_string e 0
+    | Int _ | Bool _ | Unit | Var _ | Constructor(_, []) -> expF_to_string e 0
     | _ -> "(" ^ expF_to_string e 0 ^ ")"
 
 and expF_args_to_string args =

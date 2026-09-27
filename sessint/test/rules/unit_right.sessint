@@ -1,0 +1,5 @@
+p : unit -> {unit^@}
+? unit -> {unit^@} #3 ?;
+;;
+m <- { close m }
+;;

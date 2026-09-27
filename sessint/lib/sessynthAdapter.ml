@@ -9,7 +9,7 @@ let unsupported what =
 
 let rec ty_to_tyF ty =
     match ty with
-    | TUnit -> unsupported "the unit type"
+    | TUnit -> Language.TAtomic(TUnit)
     | TNum -> Language.TAtomic(TInt)
     | TBool -> Language.TAtomic(TBool)
     | TProc(st, l) -> Language.TProcess(List.map(fun (c, s) -> (c, stype_to_tyS s)) l, stype_to_tyS st)
@@ -54,6 +54,7 @@ let tyA_to_ty tyA =
     match tyA with
     | Language.TInt -> TNum
     | Language.TBool -> TBool
+    | Language.TUnit -> TUnit
     | Language.TPolyVar a | Language.TRigidVar a ->
         unsupported ("the type variable " ^ a ^ ", since sessint is not polymorphic")
 
@@ -117,7 +118,7 @@ let rec free_channels_expP p =
 let rec mentions_expF x e =
     match e with
     | Language.Var y -> x = y
-    | Language.Int _ | Language.Bool _ -> false
+    | Language.Int _ | Language.Bool _ | Language.Unit -> false
     | Language.UOp(_, e1) | Language.Lam(_, _, e1) | Language.LetRec(_, _, e1) -> mentions_expF x e1
     | Language.BOp(_, e1, e2) | Language.Let(_, e1, e2) | Language.App(e1, e2) ->
         mentions_expF x e1 || mentions_expF x e2
@@ -147,6 +148,7 @@ let expF_to_exp declared g =
         match expF with
         | Language.Int v -> Num v
         | Language.Bool v -> Bool v
+        | Language.Unit -> UnitVal
         | Language.UOp(op, e) -> UOp(sessynth_uop_to_uop op, expF_to_exp e)
         | Language.BOp(Language.GrE, e1, e2) -> BOp(Or, BOp(Greater, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))
         | Language.BOp(Language.LtE, e1, e2) -> BOp(Or, BOp(Lesser, expF_to_exp e1, expF_to_exp e2), BOp(Equals, expF_to_exp e1, expF_to_exp e2))

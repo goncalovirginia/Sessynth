@@ -19,7 +19,7 @@ module S = Set.Make(String)
 (** a rigid variable stands for a type already chosen, so it is as much a constant
    here as an int is: not free, never guessed by [!ground_substitutions] *)
 let ftv_tyA = function
-    | TInt | TBool | TRigidVar _ -> S.empty
+    | TInt | TBool | TUnit | TRigidVar _ -> S.empty
     | TPolyVar a -> S.singleton a
 
 let rec ftv_tyR = function
@@ -127,7 +127,7 @@ let ground_substitutions t =
 
 let instantiate_subst_tyA subst t =
     match t with
-    | TInt | TBool | TRigidVar _ -> t
+    | TInt | TBool | TUnit | TRigidVar _ -> t
     | TPolyVar a -> try List.assoc a subst with Not_found -> TPolyVar a
 
 let rec instantiate_subst_tyF subst t =
@@ -188,7 +188,7 @@ let skolemize_tyF f t =
 
 let unify_subst_tyA s a =
     match a with
-    | TInt | TBool | TRigidVar _ -> a
+    | TInt | TBool | TUnit | TRigidVar _ -> a
     | TPolyVar v ->
         match List.assoc_opt v s with
         | Some (TAtomic a') -> a'
@@ -276,6 +276,7 @@ let rec unify g t1 t2 =
     match t1, t2 with
     | TAtomic(TInt), TAtomic(TInt) -> []
     | TAtomic(TBool), TAtomic(TBool) -> []
+    | TAtomic(TUnit), TAtomic(TUnit) -> []
     (* two rigids unify only with themselves: each stands for a type someone else
        chose, and nothing here knows whether two such choices agree *)
     | TAtomic(TRigidVar(x)), TAtomic(TRigidVar(y)) -> if x = y then [] else raise (Fail "Cannot unify.")
@@ -288,6 +289,7 @@ let rec unify g t1 t2 =
         begin
         match t' with
         | TForAll _ -> raise (Fail "Cannot unify: a type variable may not stand for a scheme")
+        | TAtomic(TUnit) -> raise (Fail "Cannot unify: a type variable may not stand for unit")
         | _ ->
             if t' = TAtomic(TPolyVar(a)) then []
             else if occurs a t' then raise (Fail "Occurs check failed.")

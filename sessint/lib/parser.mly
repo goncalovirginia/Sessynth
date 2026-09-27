@@ -202,6 +202,7 @@ sessynth_tyR_uop:
 sessynth_tyA:
   | TNUM    { Sessynth.Language.TInt }
   | TBOOL   { Sessynth.Language.TBool }
+  | TUNIT   { Sessynth.Language.TUnit }
 
 sessynth_tyS:
   | t1 = sessynth_tyF CIRCUMFLEX t2 = sessynth_tyS            { Sessynth.Language.STSendF(t1, t2) }

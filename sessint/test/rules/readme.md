@@ -65,6 +65,8 @@ a circular solution such as `r` for `r : int`, so it appears in the goldens.
 | `refinement_binder_substring` | refinement R | the goal's binder is substituted at its occurrences, so a longer name containing it is left alone |
 | `refinement_duplicate_binder` | refinement R | two refinements sharing a binder are rejected rather than naming one SyGuS symbol twice |
 | `refinement_precedence` | grammar | a predicate mixing a connective, a comparison and arithmetic groups the way it reads |
+| `unit_right` | unit R, →R | `unit` translates both ways, and a unit value comes either from Ψ (`_x0`) or as `()` |
+| `unit_refinement` | validation | a refinement over `unit` is rejected, since it has nothing to refine and the solver no sort for it |
 
 The `gamma_*` tests are the only ones where a session-type *declaration* reaches
 the synthesizer at all. Everywhere else it cannot: `check_decl` runs

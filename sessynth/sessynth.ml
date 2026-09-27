@@ -74,7 +74,7 @@ let rec has_hole exp =
 
 and has_hole_expF exp =
     match exp with
-    | Int _ | Bool _ | Var _ -> false
+    | Int _ | Bool _ | Unit | Var _ -> false
     | UOp(_, e) | Lam(_, _, e) | LetRec(_, _, e) -> has_hole_expF e
     | BOp(_, e1, e2) | Let(_, e1, e2) | App(e1, e2) -> has_hole_expF e1 || has_hole_expF e2
     | Ite(e1, e2, e3) -> has_hole_expF e1 || has_hole_expF e2 || has_hole_expF e3
@@ -370,6 +370,7 @@ and focus_right_F f ctxts goal =
     match goal with
     | TAtomic(TInt) -> Choice.return (f, ctxts, Int(1))
     | TAtomic(TBool) -> Choice.return (f, ctxts, Bool(true))
+    | TAtomic(TUnit) -> Choice.return (f, ctxts, Unit)
     (* nothing builds a value of a type chosen elsewhere -- one can only come
        from Δ or Ψ, which is left focus's business, not right's *)
     | TAtomic(TRigidVar _) -> Choice.fail
@@ -710,6 +711,16 @@ let synth n_sol g p c d goal =
         | Some d -> raise (Fail ("malformed type: " ^ d ^ " in " ^ where))
         | None -> ()
     in
+    let reject_refined_unit where refined =
+        match refined with
+        | Some x -> raise (Fail ("refinement variable " ^ x ^ " in " ^ where ^ " ranges over unit, which has nothing to refine"))
+        | None -> ()
+    in
+    reject_refined_unit "the goal" (refined_unit_tyF goal);
+    List.iter (fun (x, t) -> reject_refined_unit ("the type of " ^ x) (refined_unit_tyF t)) p;
+    List.iter (fun (x, t) -> reject_refined_unit ("the constructor " ^ x) (refined_unit_tyF t)) c;
+    List.iter (fun (c, s) -> reject_refined_unit ("the type of channel " ^ c) (refined_unit_tyS s)) d;
+    List.iter (fun (x, s) -> reject_refined_unit ("the declaration of " ^ x) (refined_unit_tyS s)) g;
     reject_ill_formed "the goal" (ill_formed_scheme_tyF goal);
     List.iter (fun (x, t) -> reject_ill_formed ("the type of " ^ x) (ill_formed_scheme_tyF t)) p;
     List.iter (fun (x, t) -> reject_ill_formed ("the constructor " ^ x) (ill_formed_scheme_tyF t)) c;

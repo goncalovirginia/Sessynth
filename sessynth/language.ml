@@ -9,6 +9,7 @@ type bOp = And | Or | Eq | Gr | Lt | GrE | LtE | Sum | Sub | Mult | Div
 type tyA = (* atomic types (A) *)
     | TInt (* int *)
     | TBool (* bool *)
+    | TUnit (* unit *)
     | TPolyVar of id (* α, flexible: a hole unification is free to fill *)
     | TRigidVar of id (* the type a ∀ was opened at on the right: already chosen by whoever calls, so nothing may bind or guess it *)
 
@@ -45,6 +46,7 @@ and tyS = (* channel/session types (S) *)
 type expF = (* functional terms (M) *)
     | Int of int
     | Bool of bool
+    | Unit (* () *)
     | UOp of uOp * expF
     | BOp of bOp * expF * expF
     | Var of id (* x *)

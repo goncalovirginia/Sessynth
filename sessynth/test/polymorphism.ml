@@ -116,6 +116,9 @@ let cases = [
     ("id at int", 7, [], [("id", id_scheme)], TAtomic TInt, Sol (App(Var "id", Int 1)));
     (* one binding answering a second goal is what a scheme buys over an arrow *)
     ("id at bool", 7, [], [("id", id_scheme)], TAtomic TBool, Sol (App(Var "id", Bool true)));
+    (* but never at unit, which has one value and so nothing to abstract over: the
+       left focus on id fails to unify, leaving the right rule's () *)
+    ("id is never instantiated at unit", 7, [], [("id", id_scheme)], TAtomic TUnit, Sol Unit);
     (* nothing determines 'a', so the head picks the first ground type for it *)
     ("len at int", 9, [], [("len", len_scheme)], TAtomic TInt, Sol (App(Var "len", Int 1)));
     (* the lambda's annotation is the witness: it reads int, not the variable the

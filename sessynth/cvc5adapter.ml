@@ -136,10 +136,11 @@ type parsed_TRefinement = { x : id; tA : id; constr : tyR option }
 let tyA_to_sygus = function
 	| TInt -> "Int"
 	| TBool -> "Bool"
-	| TPolyVar _ | TRigidVar _ -> assert false
+	| TUnit | TPolyVar _ | TRigidVar _ -> assert false
 
 let parse_tyF x t =
 	match t with
+	| TAtomic(TUnit) -> None
 	| TAtomic(tA) -> Some { x = x; tA = tyA_to_sygus tA; constr = None }
 	| TRefinement(x, tA, tR) ->
 		begin match tR with

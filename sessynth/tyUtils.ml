@@ -172,6 +172,36 @@ let rec refinement_binders t =
     | TArrow(_, t2) -> refinement_binders t2
     | _ -> []
 
+(** The binder of the first refinement in [t] over unit, [None] when there is
+    none. Unit has one value, so a predicate over it could only be trivially true
+    or unsatisfiable, and the solver has no sort to encode it with. *)
+let rec refined_unit_tyF t =
+    let first_of tl = List.fold_left (fun acc t' ->
+        match acc with Some _ -> acc | None -> refined_unit_tyF t') None tl
+    in
+    match t with
+    | TRefinement(x, TUnit, _) -> Some x
+    | TAtomic _ | TRefinement _ | TDeclr _ -> None
+    | TArrow(t1, t2) -> first_of [t1; t2]
+    | TForAll(_, t') -> refined_unit_tyF t'
+    | TConstructor(_, _, args) -> first_of args
+    | TProcess(incsl, outs) ->
+        List.fold_left (fun acc t' ->
+            match acc with Some _ -> acc | None -> refined_unit_tyS t')
+            None (outs :: List.map snd incsl)
+
+and refined_unit_tyS t =
+    let first_of tl = List.fold_left (fun acc t' ->
+        match acc with Some _ -> acc | None -> refined_unit_tyS t') None tl
+    in
+    match t with
+    | STUnit | STRecVar _ | STDeclr _ -> None
+    | STSendF(f, t') | STRecvF(f, t') ->
+        (match refined_unit_tyF f with Some x -> Some x | None -> refined_unit_tyS t')
+    | STSendS(t1, t2) | STRecvS(t1, t2) -> first_of [t1; t2]
+    | STExtChoice l | STIntChoice l -> first_of (List.map snd l)
+    | STRec(_, _, t') -> refined_unit_tyS t'
+
 (** The head of [t] with any session-type declaration replaced by what Γ defines
     it to be, chasing a chain of them. A name Γ does not define is left alone --
     only {!lookup_declr} treats that as an error -- and one that leads back to

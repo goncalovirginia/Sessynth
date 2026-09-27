@@ -56,6 +56,8 @@ TESTS=(
     "refinement_precedence:6"
     "refinement_binder_substring:6"
     "refinement_duplicate_binder:6"
+    "unit_right:12"
+    "unit_refinement:6"
 )
 
 DIR=sessint/test/rules
