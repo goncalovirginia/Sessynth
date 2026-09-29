@@ -9,58 +9,82 @@ let sygus_code1 = {|
 (set-logic NIA)
 (synth-fun |}
 
-let sygus_code2 = {|
-  ((StartIte Int) (StartInt Int) (StartBool Bool))
-  ((StartIte Int (StartInt
-               (ite StartBool StartInt StartInt)))
-   (StartInt Int (0 1 |}
-
-let sygus_code3 = {|
+let sygus_grammar goal_tA ints bools =
+	let vars l = String.concat "" (List.map (fun x -> x ^ " ") l) in
+	let start_int = Printf.sprintf {|(StartInt Int (0 1 %s
                (+ StartInt StartInt)
                (- StartInt StartInt)
-               (* StartInt StartInt)))
-   (StartBool Bool ((and StartBool StartBool)
+               (* StartInt StartInt)))|} (vars ints) in
+	let start_bool literals = Printf.sprintf {|(StartBool Bool (%s%s(and StartBool StartBool)
                     (or StartBool StartBool)
                     (not StartBool)
                     (< StartInt StartInt)
                     (<= StartInt StartInt)
-                    (= StartInt StartInt)))))
-|}
+                    (= StartInt StartInt)))|} literals (vars bools) in
+	match goal_tA with
+	| "Bool" -> Printf.sprintf {|
+  ((StartBool Bool) (StartInt Int))
+  (%s
+   %s))
+|} (start_bool "true false ") start_int
+	| _ -> Printf.sprintf {|
+  ((StartIte Int) (StartInt Int) (StartBool Bool))
+  ((StartIte Int (StartInt
+               (ite StartBool StartInt StartInt)))
+   %s
+   %s))
+|} start_int (start_bool "")
 
 let sygus_code4 = {|
 (check-synth)
 |}
 
-let call_sygus sygus_code =
+let solver_timeout = 10.0
+
+(** Runs cvc5 on [code] in the input language [lang] and returns its standard
+    output, or [""] when it has not answered within [solver_timeout] -- which
+    every caller reads as a failed query. A missing cvc5 is not a failed query
+    but a missing dependency, and stops synthesis with a message naming it. *)
+let run_cvc5 lang code =
 	incr Flags.solver_calls;
-  	let command = "cvc5 --lang=sygus2" in
-  	let (in_ch, out_ch, err_ch) = Unix.open_process_full command (Unix.environment ()) in
-  	output_string out_ch sygus_code;
-  	flush out_ch;
-  	close_out out_ch;
+	(* exec, so that the pid is cvc5's own rather than a shell's, and a timeout kills the solver itself *)
+	let command = "exec cvc5 --lang=" ^ lang in
+	let chans = Unix.open_process_full command (Unix.environment ()) in
+	let (in_ch, out_ch, _) = chans in
+	(* a cvc5 that has already exited must fail the write, not kill us *)
+	let old_sigpipe = Sys.signal Sys.sigpipe Sys.Signal_ignore in
+	(try output_string out_ch code; close_out out_ch with Sys_error _ -> ());
+	Sys.set_signal Sys.sigpipe old_sigpipe;
+	let fd = Unix.descr_of_in_channel in_ch in
+	let buf = Buffer.create 1024 in
+	let chunk = Bytes.create 4096 in
+	let deadline = Unix.gettimeofday () +. solver_timeout in
+	let rec read_all () =
+		let left = deadline -. Unix.gettimeofday () in
+		if left <= 0. then false
+		else match Unix.select [fd] [] [] left with
+			| [], _, _ -> false
+			| _ ->
+				let n = Unix.read fd chunk 0 (Bytes.length chunk) in
+				if n = 0 then true
+				else begin Buffer.add_subbytes buf chunk 0 n; read_all () end
+			| exception Unix.Unix_error (Unix.EINTR, _, _) -> read_all ()
+	in
+	let answered = read_all () in
+	if not answered then
+		(try Unix.kill (Unix.process_full_pid chans) Sys.sigkill with Unix.Unix_error _ -> ());
+	match Unix.close_process_full chans with
+	| Unix.WEXITED 127 ->
+		raise (TyUtils.Fail "cvc5 was not found on PATH, and refinement types need it")
+	| _ -> if answered then Buffer.contents buf else ""
 
-  	let buf = Buffer.create 1024 in
-  	(try while true do
-      	let line = input_line in_ch in
-      	Buffer.add_string buf line;
-      	Buffer.add_char buf '\n';
-     	done
-   	with End_of_file -> ());
-  	close_in in_ch;
-  	close_in err_ch;
-  	Buffer.contents buf
+let call_sygus sygus_code = run_cvc5 "sygus2" sygus_code
 
+(* only the first line matters: sat, unsat, unknown, or an error *)
 let call_sat sat_code =
-	incr Flags.solver_calls;
-	let command = "cvc5 --lang=smt2" in
-  	let (in_ch, out_ch, err_ch) = Unix.open_process_full command (Unix.environment ()) in
-  	output_string out_ch sat_code;
-  	flush out_ch;
-  	close_out out_ch;
-	let output = input_line in_ch in
-  	close_in in_ch;
-  	close_in err_ch;
-	output
+	match String.split_on_char '\n' (run_cvc5 "smt2" sat_code) with
+	| line::_ -> String.trim line
+	| [] -> ""
 
 let rec parse_sexp sexp =
  	match sexp with
@@ -72,6 +96,8 @@ let rec parse_sexp sexp =
        		| "false" -> Bool(false)
        		| _ -> Var(x)
      	end
+	| List [Atom "not"; a] -> UOp(Not, parse_sexp a)
+	| List [Atom "-"; a] -> UOp(Neg, parse_sexp a)
 	| List [Atom "and"; a; b] -> BOp(And, parse_sexp a, parse_sexp b)
   	| List [Atom "or"; a; b] -> BOp(Or, parse_sexp a, parse_sexp b)
   	| List [Atom "="; a; b] -> BOp(Eq, parse_sexp a, parse_sexp b)
@@ -134,20 +160,22 @@ let tyR_to_sexp_string ?(render_var = fun x -> x) tR =
 type parsed_TRefinement = { x : id; tA : id; constr : tyR option }
 
 let tyA_to_sygus = function
-	| TInt -> "Int"
-	| TBool -> "Bool"
-	| TUnit | TPolyVar _ | TRigidVar _ -> assert false
+	| TInt -> Some "Int"
+	| TBool -> Some "Bool"
+	| TUnit | TPolyVar _ | TRigidVar _ -> None
 
 let parse_tyF x t =
 	match t with
-	| TAtomic(TUnit) -> None
-	| TAtomic(tA) -> Some { x = x; tA = tyA_to_sygus tA; constr = None }
+	| TAtomic(tA) -> Option.map (fun s -> { x = x; tA = s; constr = None }) (tyA_to_sygus tA)
 	| TRefinement(x, tA, tR) ->
-		begin match tR with
-		| RTBool _ -> Some { x = x; tA = tyA_to_sygus tA; constr = None }
-		| _ -> Some { x = x; tA = tyA_to_sygus tA; constr = Some tR }
-		end
+		let constr = match tR with RTBool _ -> None | _ -> Some tR in
+		Option.map (fun s -> { x = x; tA = s; constr = constr }) (tyA_to_sygus tA)
 	| _ -> None
+
+(* the first binding of each name: a name bound twice would be declared twice,
+   which the solver rejects *)
+let dedup_by_name ps =
+	List.rev (List.fold_left (fun acc p -> if List.exists (fun q -> q.x = p.x) acc then acc else p::acc) [] ps)
 
 let format_function_to_sygus ps_sygus goal_sygus =
 	let rec append_args ps_sygus' =
@@ -163,8 +191,12 @@ let get_TRefinement_tyR t =
 	| _ -> assert false
 
 let build_sygus_input ps goal =
-	let ps_sygus = List.filter_map ( fun (x, t) -> parse_tyF x t ) ps in
-	let goal_sygus = Option.get (parse_tyF "" goal) in
+	let ps_sygus = dedup_by_name (List.filter_map ( fun (x, t) -> parse_tyF x t ) ps) in
+	let goal_sygus =
+		match parse_tyF "" goal with
+		| Some g -> g
+		| None -> raise (CVC5Error "the refinement's base type is not one the solver knows")
+	in
 	let sygus_input = sygus_code1 ^ goal_sygus.x ^ " (" in
 	let rec append_args ps_sygus' =
 		match ps_sygus' with
@@ -172,12 +204,9 @@ let build_sygus_input ps goal =
 		| [p] -> Printf.sprintf "(%s %s))" p.x p.tA
 		| p::ps_sygus'' -> Printf.sprintf "(%s %s) " p.x p.tA ^ append_args ps_sygus'' in
 	let sygus_input = sygus_input ^ append_args ps_sygus in
-	let sygus_input = sygus_input ^ " " ^ goal_sygus.tA ^ sygus_code2 in
-	let rec append_vars ps_sygus' =
-	match ps_sygus' with
-	| [] -> ""
-	| p::ps_sygus'' -> p.x ^ " " ^ append_vars ps_sygus'' in
-	let sygus_input = sygus_input ^ append_vars ps_sygus ^ sygus_code3 in
+	let sygus_input = sygus_input ^ " " ^ goal_sygus.tA in
+	let names_of tA = List.filter_map (fun p -> if p.tA = tA then Some p.x else None) ps_sygus in
+	let sygus_input = sygus_input ^ sygus_grammar goal_sygus.tA (names_of "Int") (names_of "Bool") in
 	let rec append_declare_vars ps_sygus' =
 	match ps_sygus' with
 	| [] -> ""
@@ -202,23 +231,31 @@ let build_sygus_input ps goal =
 	let sygus_input = sygus_input ^ goal_sygus_constr ^ sygus_code4 in
 	sygus_input
 
-let build_sat_input ps tFocus goal =
-	let ps_parsed = List.filter_map ( fun (x, t) -> parse_tyF x t ) ps in
-	let goal_parsed = Option.get (parse_tyF "" goal) in
-	let consts = goal_parsed :: ps_parsed in
-	let tR_focus = get_TRefinement_tyR tFocus in
-	let tR_goal = get_TRefinement_tyR goal in
-	let predicate = RTBOp(And, tR_focus, RTUOp(Not, tR_goal)) in
+let build_sat_input ps focus_var tFocus goal =
+	let ps_parsed = dedup_by_name (List.filter_map ( fun (x, t) -> parse_tyF x t ) ps) in
+	match parse_tyF "" tFocus, parse_tyF "" goal with
+	| None, _ | _, None -> None
+	| Some focus_parsed, Some goal_parsed ->
+	let v =
+		match focus_var with
+		| Some _ when List.exists (fun p -> p.x = focus_parsed.x) ps_parsed -> focus_parsed.x
+		| _ -> "_v"
+	in
+	let consts =
+		if List.exists (fun p -> p.x = v) ps_parsed then ps_parsed
+		else { focus_parsed with x = v; constr = None } :: ps_parsed in
+	let renaming binder = fun y -> if y = binder then v else y in
+	let tR_focus = tyR_to_sexp_string ~render_var:(renaming focus_parsed.x) (get_TRefinement_tyR tFocus) in
+	let tR_goal = tyR_to_sexp_string ~render_var:(renaming goal_parsed.x) (get_TRefinement_tyR goal) in
 	let sat_input = "(set-logic QF_LIA)\n" in
 	let rec append_declare_consts consts =
 		match consts with
 		| [] -> ""
 		| p::consts' -> Printf.sprintf "(declare-const %s %s)\n" p.x p.tA ^ append_declare_consts consts' in
 	let sat_input = sat_input ^ append_declare_consts consts in
-	let sat_input = sat_input ^ "(assert " ^ tyR_to_sexp_string predicate ^ ")" in
-
+	let sat_input = sat_input ^ Printf.sprintf "(assert (and %s (not %s)))" tR_focus tR_goal in
 	let sat_input = sat_input ^ "(check-sat)" in
-	sat_input
+	Some sat_input
 
 (* the solver is called once per refinement goal reached, so its input and reply
    are traced under the same flag as the rules themselves rather than always *)
@@ -232,11 +269,15 @@ let solve printDebug ps goal =
   	debug printDebug sygus_output;
 	List.hd (parse_sygus_output sygus_output)
 
-(* used only for refinement subtyping: inverts R1 => R2 into R1 ∧ ¬R2, if unsatisfiable, then the original predicate holds *)
-let sat printDebug ps tFocus goal =
-	let sat_input = build_sat_input ps tFocus goal in
-	debug printDebug sat_input;
-	let sat_output = call_sat sat_input in
-	match sat_output with
-	| "unsat" -> true 
-	| _ -> false
+(* used only for refinement subtyping: inverts R1 => R2 into R1 ∧ ¬R2, if unsatisfiable, then the original predicate holds.
+   [focus_var] names the variable in focus, when the focus is one rather than an application *)
+let sat ?focus_var printDebug ps tFocus goal =
+	match build_sat_input ps focus_var tFocus goal with
+	| None -> false
+	| Some sat_input ->
+		debug printDebug sat_input;
+		let sat_output = call_sat sat_input in
+		debug printDebug sat_output;
+		match sat_output with
+		| "unsat" -> true
+		| _ -> false

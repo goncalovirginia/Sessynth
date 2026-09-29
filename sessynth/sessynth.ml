@@ -466,7 +466,7 @@ and focus_left_F f ctxts eFocus tFocus goal =
         in
         Choice.mplus terminal release
     | TRefinement(_, tA, _) ->
-        if tyF_equiv ctxts.g [] (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat !print_debug ctxts.p tFocus goal)
+        if tyF_equiv ctxts.g [] (TAtomic tA) goal || (is_TRefinement goal && Cvc5adapter.sat ?focus_var:(match eFocus with Var z -> Some z | _ -> None) !print_debug ctxts.p tFocus goal)
             then Choice.return (f, ctxts, eFocus)
         else Choice.fail
     | TDeclr x ->
