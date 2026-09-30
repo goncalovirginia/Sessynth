@@ -5,7 +5,7 @@ process should follow, leave a hole where the code goes, and Sessynth fills it
 in by proof search in intuitionistic linear logic. Every program it gives back
 is well-typed by construction, and gets re-checked by the host type checker.
 
-It is plugged into **SessInt**, a session-typed functional language based on
+It is plugged into **Sessint**, a session-typed functional language based on
 SILL, which parses the program, fills the holes during type checking, and
 compiles the result to Go.
 
@@ -23,7 +23,7 @@ compiles the result to Go.
 | `sessynth/flags.ml` | Search state: depth, fresh names, and the stats counters |
 | `sessynth/test/` | Unit tests for polymorphism and ADTs |
 | `sessint/` | The host language: lexer, parser, type checker, Go compiler, interpreter |
-| `sessint/lib/sessynthAdapter.ml` | The bridge: turns a hole into a `synth` call and the answer back into SessInt |
+| `sessint/lib/sessynthAdapter.ml` | The bridge: turns a hole into a `synth` call and the answer back into Sessint |
 | `sessint/test/` | Example programs with holes in them |
 | `sessint/test/rules/` | Golden regression tests, one or two synthesis rules each |
 | `linear_type_checker/` | An early standalone prototype, not part of the build |
@@ -134,9 +134,9 @@ bug it was written against.
 
 ## Good to know
 
-- Polymorphism and ADTs work inside the synthesizer, but SessInt has no syntax
+- Polymorphism and ADTs work inside the synthesizer, but Sessint has no syntax
   for them yet, so right now only the unit tests can reach them.
-- Only top-level declarations can be recursive in SessInt, so a synthesized
+- Only top-level declarations can be recursive in Sessint, so a synthesized
   local recursive function is refused with an explanation instead.
 - Compiled `.go` files land in the directory you run from; the ones at the repo
   root are gitignored.
